@@ -16,7 +16,7 @@ type symmetryBoolScratch struct {
 
 type symmetryNodeScratch struct {
 	nodes []*layoutgraph.Node
-	added map[*layoutgraph.Node]struct{}
+	added nodeSet
 }
 
 var symmetryBoolPool = typedpool.New(func() *symmetryBoolScratch {
@@ -26,7 +26,6 @@ var symmetryBoolPool = typedpool.New(func() *symmetryBoolScratch {
 var symmetryNodePool = typedpool.New(func() *symmetryNodeScratch {
 	return &symmetryNodeScratch{
 		nodes: make([]*layoutgraph.Node, 0, 16),
-		added: make(map[*layoutgraph.Node]struct{}, 16),
 	}
 })
 
@@ -53,14 +52,14 @@ func borrowSymmetryNodes(capacity int) *symmetryNodeScratch {
 	} else {
 		scratch.nodes = scratch.nodes[:0]
 	}
-	clear(scratch.added)
+	scratch.added.reset()
 	return scratch
 }
 
 func returnSymmetryNodes(scratch *symmetryNodeScratch) {
 	clear(scratch.nodes[:cap(scratch.nodes)])
 	scratch.nodes = scratch.nodes[:0]
-	clear(scratch.added)
+	scratch.added.reset()
 	symmetryNodePool.Put(scratch)
 }
 
@@ -107,7 +106,7 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 		symmetryNodesScratch.nodes = dedupedAdjacentNodes
 		returnSymmetryNodes(symmetryNodesScratch)
 	}()
-	added := symmetryNodesScratch.added
+	added := &symmetryNodesScratch.added
 
 	// We consider container children with protruding edges like neighbors for symmetry, their score matters for the container score
 	if node.IsContainer() {
@@ -125,7 +124,7 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 					adj := child.Adjacent(e)
 					// We only want to consider symmetry of child nodes with protrutions
 					if !adj.Container.IsDescendantOf(node) {
-						added[child] = struct{}{}
+						added.add(child)
 						childNodes = append(childNodes, child)
 						break
 					}
@@ -142,20 +141,20 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 				if edgeAbduction.CurrentFrom == node {
 					if edgeAbduction.OriginallyFrom != nil {
 						usedEdgeAbductions[i] = true
-						if _, in := added[edgeAbduction.OriginallyFrom]; in {
+						if added.has(edgeAbduction.OriginallyFrom) {
 							continue
 						}
-						added[edgeAbduction.OriginallyFrom] = struct{}{}
+						added.add(edgeAbduction.OriginallyFrom)
 						childNodes = append(childNodes, edgeAbduction.OriginallyFrom)
 					}
 				}
 				if edgeAbduction.CurrentTo == node {
 					if edgeAbduction.OriginallyTo != nil {
 						usedEdgeAbductions[i] = true
-						if _, in := added[edgeAbduction.OriginallyTo]; in {
+						if added.has(edgeAbduction.OriginallyTo) {
 							continue
 						}
-						added[edgeAbduction.OriginallyTo] = struct{}{}
+						added.add(edgeAbduction.OriginallyTo)
 						childNodes = append(childNodes, edgeAbduction.OriginallyTo)
 					}
 				}
@@ -277,12 +276,12 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 			adjacentNodeReplacement = adjacentNodeReplacement.Sequence.Vessel
 		}
 
-		if _, in := added[adjacentNodeReplacement]; in {
+		if added.has(adjacentNodeReplacement) {
 			continue
 		}
 
 		dedupedAdjacentNodes = append(dedupedAdjacentNodes, adjacentNodeReplacement)
-		added[adjacentNodeReplacement] = struct{}{}
+		added.add(adjacentNodeReplacement)
 	}
 
 	// When we're resolving symmetry for children during node placement, all their edges were abducted to their containers, so here we find those
@@ -313,12 +312,12 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 			}
 		}
 		if connectedNode != nil {
-			if _, in := added[connectedNode]; in {
+			if added.has(connectedNode) {
 				continue
 			}
 
 			dedupedAdjacentNodes = append(dedupedAdjacentNodes, connectedNode)
-			added[connectedNode] = struct{}{}
+			added.add(connectedNode)
 		}
 	}
 

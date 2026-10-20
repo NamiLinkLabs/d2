@@ -48,7 +48,7 @@ type edgeScratch struct {
 	clusterOrder     []*layoutgraph.Node
 	edgeAbductions   []*layoutgraph.EdgeAbduction
 	obstructionSets  [][]*layoutgraph.Node
-	obstructionAdded map[*layoutgraph.Node]struct{}
+	obstructionAdded nodeSet
 	labeledEdgeCount map[labeledEdgePair]int
 }
 
@@ -82,12 +82,11 @@ func putEdgeScratch(s *edgeScratch) {
 	}
 	if cap(s.obstructionSets) > maxPooledEdgeScratchEntries {
 		s.obstructionSets = nil
-		s.obstructionAdded = nil
 	} else {
 		clear(s.obstructionSets[:cap(s.obstructionSets)])
 		s.obstructionSets = s.obstructionSets[:0]
-		clear(s.obstructionAdded)
 	}
+	s.obstructionAdded.reset()
 	if len(s.labeledEdgeCount) > maxPooledEdgeScratchEntries {
 		s.labeledEdgeCount = nil
 	} else {
@@ -860,20 +859,16 @@ func evaluateNodeEdgeLength(ctx context.Context, node *layoutgraph.Node, options
 			alternateRouteBlocked := !isSemiDiagonal
 			clear(s.obstructionSets)
 			s.obstructionSets = s.obstructionSets[:0]
-			if s.obstructionAdded == nil {
-				s.obstructionAdded = make(map[*layoutgraph.Node]struct{})
-			} else {
-				clear(s.obstructionAdded)
-			}
+			s.obstructionAdded.reset()
 			ancestor := nodeReplacement.NearestSharedAncestor(adjacentNodeReplacement)
 
 			curr := nodeReplacement.EffectiveContainer()
 			for {
-				if _, ok := s.obstructionAdded[curr]; ok {
+				if s.obstructionAdded.has(curr) {
 					break
 				}
 				s.obstructionSets = append(s.obstructionSets, node.Graph.Containers[curr])
-				s.obstructionAdded[curr] = struct{}{}
+				s.obstructionAdded.add(curr)
 				if curr == nil {
 					break
 				}
@@ -885,11 +880,11 @@ func evaluateNodeEdgeLength(ctx context.Context, node *layoutgraph.Node, options
 
 			curr = adjacentNodeReplacement.EffectiveContainer()
 			for {
-				if _, ok := s.obstructionAdded[curr]; ok {
+				if s.obstructionAdded.has(curr) {
 					break
 				}
 				s.obstructionSets = append(s.obstructionSets, node.Graph.Containers[curr])
-				s.obstructionAdded[curr] = struct{}{}
+				s.obstructionAdded.add(curr)
 				if curr == nil {
 					break
 				}
