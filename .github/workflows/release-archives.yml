@@ -1,17 +1,8 @@
 name: Release archives
 
+# Archives for every platform are built for release tags only. master pushes
+# still build and size-check a representative archive in ci.yml.
 on:
-  pull_request:
-    paths:
-      - .github/workflows/release-archives.yml
-      - .github/workflows/ci.yml
-      - .github/workflows/windows-msi.yml
-      - ci/release/**
-      - d2layouts/d2talalayout/**
-      - ci/sub
-      - install.sh
-      - go.mod
-      - go.sum
   push:
     tags:
       - v*
