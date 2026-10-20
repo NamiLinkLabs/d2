@@ -2,9 +2,7 @@ package placementcost
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"runtime"
 	"sync"
@@ -15,9 +13,36 @@ import (
 
 const invalidEdgeLengthState uint64 = 0
 
+// stateHash is 64-bit FNV-1a (hash/fnv's New64a) written inline: the state
+// hash runs before every whole-graph EdgeLength, and hashing through the
+// hash.Hash interface 8 bytes at a time dominated it. It hashes the same bytes
+// in the same order, so the values are identical.
+type stateHash uint64
+
+const (
+	stateHashOffset stateHash = 14695981039346656037
+	stateHashPrime  stateHash = 1099511628211
+)
+
+func (h *stateHash) writeByte(b byte) {
+	*h ^= stateHash(b)
+	*h *= stateHashPrime
+}
+
+// writeUint64 hashes v's little-endian bytes, like binary.LittleEndian.PutUint64
+// followed by Write.
+func (h *stateHash) writeUint64(v uint64) {
+	hash := *h
+	for range 8 {
+		hash ^= stateHash(byte(v))
+		hash *= stateHashPrime
+		v >>= 8
+	}
+	*h = hash
+}
+
 func placementEdgeLengthState(graph *layoutgraph.Graph, costs layoutgraph.RoutingCostState, options EdgeLengthOptions) uint64 {
-	h := fnv.New64a()
-	var b [8]byte // Buffer for encoding numbers
+	h := stateHashOffset
 
 	// Process booleans
 	var flags byte
@@ -30,65 +55,47 @@ func placementEdgeLengthState(graph *layoutgraph.Graph, costs layoutgraph.Routin
 	if options.PenalizeDirection {
 		flags |= 1 << 2
 	}
-	h.Write([]byte{flags})
+	h.writeByte(flags)
 
 	// Process graph costs
-	binary.LittleEndian.PutUint64(b[:], math.Float64bits(graph.CellSize))
-	h.Write(b[:])
-	binary.LittleEndian.PutUint64(b[:], math.Float64bits(costs.Turn))
-	h.Write(b[:])
-	binary.LittleEndian.PutUint64(b[:], math.Float64bits(costs.NonCenterPort))
-	h.Write(b[:])
-	binary.LittleEndian.PutUint64(b[:], math.Float64bits(costs.Crossing))
-	h.Write(b[:])
+	h.writeUint64(math.Float64bits(graph.CellSize))
+	h.writeUint64(math.Float64bits(costs.Turn))
+	h.writeUint64(math.Float64bits(costs.NonCenterPort))
+	h.writeUint64(math.Float64bits(costs.Crossing))
 
 	// Process nodes
 	for _, n := range graph.Nodes {
 		if n.TopLeft == nil {
 			return invalidEdgeLengthState
 		}
-		binary.LittleEndian.PutUint64(b[:], uint64(n.ID))
-		h.Write(b[:])
-
-		binary.LittleEndian.PutUint64(b[:], math.Float64bits(n.TopLeft.X))
-		h.Write(b[:])
-		binary.LittleEndian.PutUint64(b[:], math.Float64bits(n.TopLeft.Y))
-		h.Write(b[:])
-
-		binary.LittleEndian.PutUint64(b[:], math.Float64bits(n.Width))
-		h.Write(b[:])
-		binary.LittleEndian.PutUint64(b[:], math.Float64bits(n.Height))
-		h.Write(b[:])
-
+		h.writeUint64(uint64(n.ID))
+		h.writeUint64(math.Float64bits(n.TopLeft.X))
+		h.writeUint64(math.Float64bits(n.TopLeft.Y))
+		h.writeUint64(math.Float64bits(n.Width))
+		h.writeUint64(math.Float64bits(n.Height))
 		for _, e := range n.Edges {
-			binary.LittleEndian.PutUint64(b[:], uint64(e.ID))
-			h.Write(b[:])
+			h.writeUint64(uint64(e.ID))
 		}
 	}
 
 	// Process edge abductions
 	for _, ea := range options.EdgeAbductions {
-		binary.LittleEndian.PutUint64(b[:], uint64(ea.Edge.ID))
-		h.Write(b[:])
+		h.writeUint64(uint64(ea.Edge.ID))
 		if ea.OriginallyFrom != nil {
-			binary.LittleEndian.PutUint64(b[:], uint64(ea.OriginallyFrom.ID))
-			h.Write(b[:])
+			h.writeUint64(uint64(ea.OriginallyFrom.ID))
 		}
 		if ea.OriginallyTo != nil {
-			binary.LittleEndian.PutUint64(b[:], uint64(ea.OriginallyTo.ID))
-			h.Write(b[:])
+			h.writeUint64(uint64(ea.OriginallyTo.ID))
 		}
 		if ea.CurrentTo != nil {
-			binary.LittleEndian.PutUint64(b[:], uint64(ea.CurrentTo.ID))
-			h.Write(b[:])
+			h.writeUint64(uint64(ea.CurrentTo.ID))
 		}
 		if ea.CurrentFrom != nil {
-			binary.LittleEndian.PutUint64(b[:], uint64(ea.CurrentFrom.ID))
-			h.Write(b[:])
+			h.writeUint64(uint64(ea.CurrentFrom.ID))
 		}
 	}
 
-	return h.Sum64()
+	return uint64(h)
 }
 
 func edgeLengthWorkerCount(nodeCount, gomaxprocs int) int {
