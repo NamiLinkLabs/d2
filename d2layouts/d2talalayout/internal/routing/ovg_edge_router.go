@@ -900,6 +900,22 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 			return nil, 0, err
 		}
 
+		// Properties of the popped node used for every adjacent edge.
+		sourcePort, leastIsSourcePort := leastDistanceNode.portMetadataFor(gSource)
+		leastIsTargetPort := leastDistanceNode.isPortOf(gTarget)
+		leastIsTargetCenterPort := leastIsTargetPort && leastDistanceNode.isCenterPortOf(gTarget)
+		// Boundary clearances are only needed for turns; compute them once.
+		turnClearanceKnown := false
+		var targetTurnTooClose, sourceTurnTooClose bool
+		turnClearance := func() (bool, bool) {
+			if !turnClearanceKnown {
+				targetTurnTooClose = leastDistanceNode.distanceToBoundary(gTarget) <= turnEndpointClearance
+				sourceTurnTooClose = leastDistanceNode.distanceToBoundary(gSource) <= turnEndpointClearance
+				turnClearanceKnown = true
+			}
+			return targetTurnTooClose, sourceTurnTooClose
+		}
+
 		for _, e := range leastDistanceNode.Edges {
 			if err := router.work.step(); err != nil {
 				return nil, 0, err
@@ -910,7 +926,7 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 			}
 
 			// Prevent exiting source port node at weird angles
-			if sourcePort, ok := leastDistanceNode.portMetadataFor(gSource); ok {
+			if leastIsSourcePort {
 				validExit := sourcePort.directions.any(func(direction geo.Orientation) bool {
 					// When overlapped, the requirements are relaxed a little.
 					if overlap {
@@ -1082,8 +1098,8 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 					nextDistance += nonFacingPortsCost
 				}
 
-				if leastDistanceNode.isPortOf(gTarget) {
-					if !leastDistanceNode.isCenterPortOf(gTarget) {
+				if leastIsTargetPort {
+					if !leastIsTargetCenterPort {
 						nextDistance += router.nonCenterPortCost
 					} else {
 						if _, is := nodeIsCenterSymmetricalPort[leastDistanceNode]; !is {
@@ -1196,7 +1212,7 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 			}
 
 			// Handle arrow labels
-			if leastDistanceNode.isPortOf(gSource) {
+			if leastIsSourcePort {
 				if l := gEdge.SourceArrowheadLabel; l != nil {
 					routePoints[0] = leastDistanceNode.Point
 					routePoints[1] = adjacentNode.Point
@@ -1255,10 +1271,11 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 						// Not allowed to turn too close to the target, looks ugly
 						// but you gotta do what you gotta do for weird situations like child routing to container
 						if !(isSourceDescendantOfTarget || isTargetDescendantOfSource) {
-							if leastDistanceNode.distanceToBoundary(gTarget) <= turnEndpointClearance {
+							targetTooClose, sourceTooClose := turnClearance()
+							if targetTooClose {
 								nextDistance += router.turnCost
 							}
-							if leastDistanceNode.distanceToBoundary(gSource) <= turnEndpointClearance {
+							if sourceTooClose {
 								nextDistance += router.turnCost
 							}
 						}
@@ -1267,10 +1284,11 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 					if isFromHorizontal && (adjacentNode.Point.Y != leastDistanceNode.Point.Y) {
 						nextDistance += (router.turnCost * multiplier)
 						if !(isSourceDescendantOfTarget || isTargetDescendantOfSource) {
-							if leastDistanceNode.distanceToBoundary(gTarget) <= turnEndpointClearance {
+							targetTooClose, sourceTooClose := turnClearance()
+							if targetTooClose {
 								nextDistance += router.turnCost
 							}
-							if leastDistanceNode.distanceToBoundary(gSource) <= turnEndpointClearance {
+							if sourceTooClose {
 								nextDistance += router.turnCost
 							}
 						}
