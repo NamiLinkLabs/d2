@@ -100,7 +100,7 @@ func reserveFinalization(work *routeSearchWorkGuard) {
 // degrades afterwards when the budget turns out to be used up.
 func (router *ovgEdgeRouter) addSearchedRoute(route *Route) error {
 	limit := router.work.limit
-	router.work.limit = saturatingAddUint64(router.work.used, maxRouteFallbackWorkUnits)
+	router.work.limit = max(limit, saturatingAddUint64(router.work.used, maxRouteFallbackWorkUnits))
 	err := router.addRoute(route)
 	router.work.limit = limit
 	if err != nil {
@@ -145,10 +145,11 @@ func (router *ovgEdgeRouter) addFallbackRoute(route *Route) error {
 // fallbackRoute returns an orthogonal route without a visibility-graph
 // search: straight, L- or Z-shaped between free ports on the sides facing each
 // other, or U-shaped around both shapes, choosing the candidate that crosses
-// the fewest unrelated shapes, then the fewest bends, then the shortest length. Nested endpoints leave the inner
-// shape straight towards the nearest side of its ancestor. Overlapping
-// endpoints, which have no facing sides, use the straight center line that the
-// router already uses for overlapping shapes.
+// the fewest unrelated shapes, then the fewest bends, then the shortest
+// length. Nested endpoints leave the inner shape straight towards the nearest
+// side of its ancestor. Overlapping endpoints, which have no facing sides, use
+// the straight center line that the router already uses for overlapping
+// shapes.
 func (router *ovgEdgeRouter) fallbackRoute(ctx context.Context, edge *layoutgraph.Edge) ([]*OVGNode, float64, error) {
 	if err := router.bindWork(ctx); err != nil {
 		return nil, 0, err

@@ -334,3 +334,59 @@ func TestOptionalRouteStageAtWorkLimitKeepsRoutes(t *testing.T) {
 		}
 	}
 }
+
+// Indexing a searched route may overrun the search budget, but never lowers a
+// budget that is already larger than the overrun allowance.
+func TestAddSearchedRouteKeepsLargerBudgets(t *testing.T) {
+	for _, limit := range []uint64{math.MaxUint64, 3 * maxRouteFallbackWorkUnits} {
+		graph, edge := newRoutingTestGraph(200, 100)
+		ovg, err := buildOVGFromGraph(context.Background(), graph, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		router, err := newOVGEdgeRouterWithWorkLimit(context.Background(), Default, ovg, graph, nil, graph.Edges, limit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes, _, err := router.search(context.Background(), edge)
+		if err != nil {
+			t.Fatal(err)
+		}
+		route := &Route{GEdge: edge, OVGNodes: nodes, FromPort: *nodes[1].Point, ToPort: *nodes[len(nodes)-2].Point}
+		if err := router.addSearchedRoute(route); err != nil {
+			t.Fatal(err)
+		}
+		if router.degraded || router.work.limit != limit {
+			t.Fatalf("limit %d: degraded=%v limit=%d after indexing", limit, router.degraded, router.work.limit)
+		}
+	}
+}
+
+// A searched route that overruns the budget is kept whole and the flavor
+// degrades for its remaining edges.
+func TestAddSearchedRouteDegradesAfterOverrun(t *testing.T) {
+	graph, edge := newRoutingTestGraph(200, 100)
+	ovg, err := buildOVGFromGraph(context.Background(), graph, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router, err := newOVGEdgeRouterWithWorkLimit(context.Background(), Default, ovg, graph, nil, graph.Edges, maxRouteSearchWorkUnits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, _, err := router.search(context.Background(), edge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.work.limit = router.work.used + 1
+	route := &Route{GEdge: edge, OVGNodes: nodes, FromPort: *nodes[1].Point, ToPort: *nodes[len(nodes)-2].Point}
+	if err := router.addSearchedRoute(route); err != nil {
+		t.Fatal(err)
+	}
+	if !router.degraded || len(router.routes) != 1 || router.fallbacks != 0 {
+		t.Fatalf("degraded=%v routes=%d fallbacks=%d, want a degraded flavor that kept its searched route", router.degraded, len(router.routes), router.fallbacks)
+	}
+	if router.work.limit < router.work.used+maxRouteFallbackWorkUnits {
+		t.Fatalf("degraded limit %d leaves less than one fallback allowance above %d", router.work.limit, router.work.used)
+	}
+}
