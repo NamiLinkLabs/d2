@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/typedpool"
@@ -49,6 +50,9 @@ type edgeScratch struct {
 	edgeAbductions   []*layoutgraph.EdgeAbduction
 	obstructionSets  [][]*layoutgraph.Node
 	obstructionAdded nodeSet
+	// endpointAncestry holds both edge endpoints' ancestry chains (see
+	// layoutgraph.Node.AppendAncestry) while their obstructions are scanned.
+	endpointAncestry []*layoutgraph.Node
 	labeledEdgeCount map[labeledEdgePair]int
 }
 
@@ -87,6 +91,12 @@ func putEdgeScratch(s *edgeScratch) {
 		s.obstructionSets = s.obstructionSets[:0]
 	}
 	s.obstructionAdded.reset()
+	if cap(s.endpointAncestry) > maxPooledEdgeScratchEntries {
+		s.endpointAncestry = nil
+	} else {
+		clear(s.endpointAncestry[:cap(s.endpointAncestry)])
+		s.endpointAncestry = s.endpointAncestry[:0]
+	}
 	if len(s.labeledEdgeCount) > maxPooledEdgeScratchEntries {
 		s.labeledEdgeCount = nil
 	} else {
@@ -551,7 +561,7 @@ func evaluateNodeEdgeLength(ctx context.Context, node *layoutgraph.Node, options
 				// Obstructions are initialized as siblings of endpoints, but we still need to eliminate cases
 				// If the obstruction is one of the end nodes (already checked)
 				// If the obstruction is a child of one of the end nodes (applicable when child connected to its container)
-				if otherNode.IsDescendantOf(nodeReplacement) || otherNode.IsDescendantOf(adjacentNodeReplacement) {
+				if otherNode.IsDescendantOfAny(nodeReplacement, adjacentNodeReplacement) {
 					return false
 				}
 				if isDiagonal {
@@ -601,7 +611,7 @@ func evaluateNodeEdgeLength(ctx context.Context, node *layoutgraph.Node, options
 
 			// Only used for semi-diagonals
 			checkAlternateRouteBlocked := func(otherNode *layoutgraph.Node) bool {
-				if otherNode.IsDescendantOf(nodeReplacement) || otherNode.IsDescendantOf(adjacentNodeReplacement) {
+				if otherNode.IsDescendantOfAny(nodeReplacement, adjacentNodeReplacement) {
 					return false
 				}
 				getCenters()
@@ -894,6 +904,12 @@ func evaluateNodeEdgeLength(ctx context.Context, node *layoutgraph.Node, options
 				}
 			}
 
+			// nodeReplacement.IsDescendantOf(obstruction) ||
+			// adjacentNodeReplacement.IsDescendantOf(obstruction) is whether a
+			// non-nil obstruction is in either endpoint's ancestry chain. The
+			// chains are walked once per edge, when the first obstruction gets
+			// that far, instead of twice per obstruction.
+			ancestryState := 0 // 0: not built, 1: built, 2: cyclic, use IsDescendantOf
 			for obstructionSetIndex, obstructions := range s.obstructionSets {
 				if err := scoringCancellationError(ctx, obstructionSetIndex); err != nil {
 					return 0, err
@@ -906,7 +922,22 @@ func evaluateNodeEdgeLength(ctx context.Context, node *layoutgraph.Node, options
 					if bounds.excludes(obstruction) {
 						continue
 					}
-					if nodeReplacement.IsDescendantOf(obstruction) || adjacentNodeReplacement.IsDescendantOf(obstruction) {
+					if ancestryState == 0 {
+						ancestryState = 2
+						chain, ok := nodeReplacement.AppendAncestry(s.endpointAncestry[:0])
+						if ok {
+							chain, ok = adjacentNodeReplacement.AppendAncestry(chain)
+						}
+						s.endpointAncestry = chain
+						if ok {
+							ancestryState = 1
+						}
+					}
+					if ancestryState == 1 {
+						if obstruction == nil || slices.Contains(s.endpointAncestry, obstruction) {
+							continue
+						}
+					} else if nodeReplacement.IsDescendantOf(obstruction) || adjacentNodeReplacement.IsDescendantOf(obstruction) {
 						continue
 					}
 					// Used during initialization, or sibling coming from subgraph that hasn't gone yet

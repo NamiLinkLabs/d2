@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/typedpool"
@@ -562,6 +563,12 @@ func computeSymmetryScoreInto(ctx context.Context, node *layoutgraph.Node, neigh
 
 func obstructed(ctx context.Context, center, a, b *layoutgraph.Node, sib1, sib2 []*layoutgraph.Node) (bool, error) {
 	bounds := scoringNodeBounds(center).including(scoringNodeBounds(a)).including(scoringNodeBounds(b))
+	// center.IsDescendantOf(s) || a.IsDescendantOf(s) || b.IsDescendantOf(s)
+	// is whether a non-nil s is in one of the three ancestry chains, which are
+	// walked once, when the first sibling gets that far.
+	var ancestryBuffer [16]*layoutgraph.Node
+	ancestry := ancestryBuffer[:0]
+	ancestryState := 0 // 0: not built, 1: built, 2: cyclic, use IsDescendantOf
 	check := func(sibs []*layoutgraph.Node) (bool, error) {
 		for i, s := range sibs {
 			if err := scoringCancellationError(ctx, i); err != nil {
@@ -576,10 +583,28 @@ func obstructed(ctx context.Context, center, a, b *layoutgraph.Node, sib1, sib2 
 			if bounds.excludes(s) {
 				continue
 			}
-			if center.IsDescendantOf(s) || a.IsDescendantOf(s) || b.IsDescendantOf(s) {
+			if ancestryState == 0 {
+				ancestryState = 2
+				chain, ok := center.AppendAncestry(ancestry)
+				if ok {
+					chain, ok = a.AppendAncestry(chain)
+				}
+				if ok {
+					chain, ok = b.AppendAncestry(chain)
+				}
+				ancestry = chain
+				if ok {
+					ancestryState = 1
+				}
+			}
+			if ancestryState == 1 {
+				if slices.Contains(ancestry, s) {
+					continue
+				}
+			} else if center.IsDescendantOf(s) || a.IsDescendantOf(s) || b.IsDescendantOf(s) {
 				continue
 			}
-			if s.IsDescendantOf(center) || s.IsDescendantOf(a) || s.IsDescendantOf(b) {
+			if s.IsDescendantOfAny(center, a, b) {
 				continue
 			}
 			if s.PassesThrough(center.Center(), a.Center()) ||

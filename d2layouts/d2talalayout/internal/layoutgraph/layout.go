@@ -339,6 +339,94 @@ func (maybeDescendant *Node) isDescendantOf(maybeAncestor *Node) bool {
 	return maybeDescendant.isDescendantOfRecursive(maybeAncestor)
 }
 
+// ancestryWalkDepth bounds the iterative ancestry walks; deeper (cyclic)
+// ownership falls back to the recursive walk.
+const ancestryWalkDepth = 1 << 16
+
+// ancestryNext returns the node isDescendantOf visits after node, and false
+// when node has no container, cluster or sequence owner.
+func ancestryNext(node *Node) (*Node, bool) {
+	switch {
+	case node.Container != nil:
+		return node.Container, true
+	case node.Cluster != nil:
+		return node.Cluster.Vessel, true
+	case node.Sequence != nil:
+		return node.Sequence.Vessel, true
+	default:
+		return nil, false
+	}
+}
+
+// IsDescendantOfAny reports whether node.IsDescendantOf(a) holds for any a in
+// ancestors, evaluated in order like a chain of ||, with one walk up from node
+// instead of one per ancestor. isDescendantOf(a) is true exactly when a is nil
+// or the walk visits a, so one complete walk answers every ancestor; the first
+// ancestor may answer early, exactly as the first || operand does. A walk that
+// has not ended after ancestryWalkDepth steps (cyclic ownership), or more than
+// 64 ancestors, evaluates the original expression, which fails as before.
+func (node *Node) IsDescendantOfAny(ancestors ...*Node) bool {
+	if len(ancestors) == 0 {
+		return false
+	}
+	if len(ancestors) <= 64 {
+		var found uint64
+		for i, ancestor := range ancestors {
+			if ancestor == nil {
+				found |= 1 << i
+			}
+		}
+		first := ancestors[0]
+		current := node
+		for range ancestryWalkDepth {
+			if current == first {
+				return true
+			}
+			for i, ancestor := range ancestors {
+				if current == ancestor {
+					found |= 1 << i
+				}
+			}
+			if current == nil {
+				return found != 0
+			}
+			next, ok := ancestryNext(current)
+			if !ok {
+				return found != 0
+			}
+			current = next
+		}
+	}
+	for _, ancestor := range ancestors {
+		if node.isDescendantOf(ancestor) {
+			return true
+		}
+	}
+	return false
+}
+
+// AppendAncestry appends node and every owner isDescendantOf visits above it
+// (nearest first) to chain. For a non-nil ancestor a, node.IsDescendantOf(a)
+// is then exactly whether a is in the appended nodes, and IsDescendantOf(nil)
+// is always true. ok is false when the walk has not ended after
+// ancestryWalkDepth steps (cyclic ownership); callers must then use
+// IsDescendantOf, which fails as before.
+func (node *Node) AppendAncestry(chain []*Node) ([]*Node, bool) {
+	current := node
+	for range ancestryWalkDepth {
+		if current == nil {
+			return chain, true
+		}
+		chain = append(chain, current)
+		next, ok := ancestryNext(current)
+		if !ok {
+			return chain, true
+		}
+		current = next
+	}
+	return chain, false
+}
+
 func (maybeDescendant *Node) isDescendantOfRecursive(maybeAncestor *Node) bool {
 	if maybeAncestor == maybeDescendant {
 		return true
