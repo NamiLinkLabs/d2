@@ -167,7 +167,7 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 							errOnce.Do(func() { workerErr = err })
 							return
 						}
-						symmetry, err := memoNodeSymmetry(ctx, n, options.EdgeAbductions, true, memo)
+						symmetry, err := memoNodeSymmetry(ctx, n, options.EdgeAbductions, true, memo, &memo.scratch)
 						if err != nil {
 							errOnce.Do(func() { workerErr = err })
 							return
@@ -205,7 +205,7 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 				if err != nil {
 					return 0, err
 				}
-				symmetry, err := memoNodeSymmetry(ctx, n, options.EdgeAbductions, true, memo)
+				symmetry, err := memoNodeSymmetry(ctx, n, options.EdgeAbductions, true, memo, &memo.scratch)
 				if err != nil {
 					return 0, err
 				}

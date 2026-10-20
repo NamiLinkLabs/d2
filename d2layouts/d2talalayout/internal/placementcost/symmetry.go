@@ -11,59 +11,6 @@ import (
 	"github.com/d2lang/d2/lib/geo"
 )
 
-type symmetryBoolScratch struct {
-	values []bool
-}
-
-type symmetryNodeScratch struct {
-	nodes []*layoutgraph.Node
-	added nodeSet
-}
-
-var symmetryBoolPool = typedpool.New(func() *symmetryBoolScratch {
-	return &symmetryBoolScratch{values: make([]bool, 0, 16)}
-})
-
-var symmetryNodePool = typedpool.New(func() *symmetryNodeScratch {
-	return &symmetryNodeScratch{
-		nodes: make([]*layoutgraph.Node, 0, 16),
-	}
-})
-
-func borrowSymmetryBools(length int) *symmetryBoolScratch {
-	scratch := symmetryBoolPool.Get()
-	if cap(scratch.values) < length {
-		scratch.values = make([]bool, length)
-		return scratch
-	}
-	scratch.values = scratch.values[:length]
-	clear(scratch.values)
-	return scratch
-}
-
-func returnSymmetryBools(scratch *symmetryBoolScratch) {
-	scratch.values = scratch.values[:0]
-	symmetryBoolPool.Put(scratch)
-}
-
-func borrowSymmetryNodes(capacity int) *symmetryNodeScratch {
-	scratch := symmetryNodePool.Get()
-	if cap(scratch.nodes) < capacity {
-		scratch.nodes = make([]*layoutgraph.Node, 0, capacity)
-	} else {
-		scratch.nodes = scratch.nodes[:0]
-	}
-	scratch.added.reset()
-	return scratch
-}
-
-func returnSymmetryNodes(scratch *symmetryNodeScratch) {
-	clear(scratch.nodes[:cap(scratch.nodes)])
-	scratch.nodes = scratch.nodes[:0]
-	scratch.added.reset()
-	symmetryNodePool.Put(scratch)
-}
-
 // NodesSymmetry sums local symmetry scores for nodes in order.
 func NodesSymmetry(ctx context.Context, nodes layoutgraph.Nodes, edgeAbductions []*layoutgraph.EdgeAbduction) (float64, error) {
 	if err := ctx.Err(); err != nil {
@@ -92,7 +39,9 @@ func NodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 }
 
 func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool) (float64, error) {
-	return memoNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, nil)
+	scratch := symmetryScratchPool.Get()
+	defer releaseSymmetryScratch(scratch)
+	return computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, nil, scratch)
 }
 
 // symmetryMemo caches nodeSymmetry results while the graph and the edge
@@ -101,7 +50,8 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 // symmetry once for every node that refers to it. nodeSymmetry only reads
 // the graph, so a cached result is exactly the value a fresh call returns.
 type symmetryMemo struct {
-	values map[symmetryMemoKey]float64
+	values  map[symmetryMemoKey]float64
+	scratch symmetryScratch
 }
 
 type symmetryMemoKey struct {
@@ -122,18 +72,86 @@ func returnSymmetryMemo(memo *symmetryMemo) {
 		return
 	}
 	clear(memo.values)
+	memo.scratch.release()
 	symmetryMemoPool.Put(memo)
 }
 
-func memoNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool, memo *symmetryMemo) (float64, error) {
+// symmetryFrame is the scratch storage of one computeNodeSymmetry call.
+type symmetryFrame struct {
+	usedAbductions []bool
+	matched        []bool
+	nodes          []*layoutgraph.Node
+	added          nodeSet
+}
+
+// symmetryScratch gives every level of a computeNodeSymmetry recursion its
+// own frame, reusing frames between calls at the same depth. A recursion
+// borrows one scratch instead of three pooled buffers per call. Frames only
+// hold scratch values that every call initializes before reading, exactly as
+// the pooled buffers were initialized.
+type symmetryScratch struct {
+	frames []*symmetryFrame
+	depth  int
+}
+
+var symmetryScratchPool = typedpool.New(func() *symmetryScratch { return new(symmetryScratch) })
+
+func releaseSymmetryScratch(scratch *symmetryScratch) {
+	scratch.release()
+	symmetryScratchPool.Put(scratch)
+}
+
+// push returns the next level's frame with abductions false flags and no
+// nodes.
+func (scratch *symmetryScratch) push(abductions int) *symmetryFrame {
+	if scratch.depth == len(scratch.frames) {
+		scratch.frames = append(scratch.frames, new(symmetryFrame))
+	}
+	frame := scratch.frames[scratch.depth]
+	scratch.depth++
+	frame.usedAbductions = falseBools(frame.usedAbductions, abductions)
+	frame.nodes = frame.nodes[:0]
+	frame.added.reset()
+	return frame
+}
+
+func (scratch *symmetryScratch) pop() {
+	scratch.depth--
+}
+
+// release drops node references before the scratch is pooled.
+func (scratch *symmetryScratch) release() {
+	scratch.depth = 0
+	for _, frame := range scratch.frames {
+		if cap(frame.nodes) > maxPooledEdgeScratchEntries {
+			frame.nodes = nil
+		} else {
+			clear(frame.nodes[:cap(frame.nodes)])
+			frame.nodes = frame.nodes[:0]
+		}
+		frame.added.reset()
+	}
+}
+
+// falseBools returns values resized to length with every entry false.
+func falseBools(values []bool, length int) []bool {
+	if cap(values) < length {
+		return make([]bool, length)
+	}
+	values = values[:length]
+	clear(values)
+	return values
+}
+
+func memoNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool, memo *symmetryMemo, scratch *symmetryScratch) (float64, error) {
 	if memo == nil {
-		return computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, nil)
+		return computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, nil, scratch)
 	}
 	key := symmetryMemoKey{node: node, checkNeighbors: checkNeighbors}
 	if value, ok := memo.values[key]; ok {
 		return value, nil
 	}
-	value, err := computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, memo)
+	value, err := computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, memo, scratch)
 	if err != nil {
 		return 0, err
 	}
@@ -141,23 +159,21 @@ func memoNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbduction
 	return value, nil
 }
 
-func computeNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool, memo *symmetryMemo) (float64, error) {
+func computeNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool, memo *symmetryMemo, scratch *symmetryScratch) (float64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, fmt.Errorf("EdgeLength: %w", err)
 	}
 	score := 0.0
 	maxScore := 0
 
-	usedEdgeAbductionsScratch := borrowSymmetryBools(len(edgeAbductions))
-	defer returnSymmetryBools(usedEdgeAbductionsScratch)
-	usedEdgeAbductions := usedEdgeAbductionsScratch.values
-	symmetryNodesScratch := borrowSymmetryNodes(len(node.Edges))
-	dedupedAdjacentNodes := symmetryNodesScratch.nodes
+	frame := scratch.push(len(edgeAbductions))
+	usedEdgeAbductions := frame.usedAbductions
+	dedupedAdjacentNodes := frame.nodes
 	defer func() {
-		symmetryNodesScratch.nodes = dedupedAdjacentNodes
-		returnSymmetryNodes(symmetryNodesScratch)
+		frame.nodes = dedupedAdjacentNodes
+		scratch.pop()
 	}()
-	added := &symmetryNodesScratch.added
+	added := &frame.added
 
 	// We consider container children with protruding edges like neighbors for symmetry, their score matters for the container score
 	if node.IsContainer() {
@@ -216,7 +232,7 @@ func computeNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbduct
 			if err := scoringCancellationError(ctx, i); err != nil {
 				return 0, err
 			}
-			symmetry, err := memoNodeSymmetry(ctx, nodeReplacement, edgeAbductions, checkNeighbors, memo)
+			symmetry, err := memoNodeSymmetry(ctx, nodeReplacement, edgeAbductions, checkNeighbors, memo, scratch)
 			if err != nil {
 				return 0, err
 			}
@@ -383,9 +399,8 @@ func computeNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbduct
 		}
 	}
 
-	matchedScratch := borrowSymmetryBools(len(dedupedAdjacentNodes))
-	defer returnSymmetryBools(matchedScratch)
-	matched := matchedScratch.values
+	frame.matched = falseBools(frame.matched, len(dedupedAdjacentNodes))
+	matched := frame.matched
 	s, err := computeSymmetryScoreInto(ctx, node, dedupedAdjacentNodes, matched)
 	if err != nil {
 		return 0, err
@@ -406,7 +421,7 @@ func computeNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbduct
 			if matched[i] {
 				continue
 			}
-			adjNodeSymm, err := memoNodeSymmetry(ctx, adjacentNode, edgeAbductions, false, memo)
+			adjNodeSymm, err := memoNodeSymmetry(ctx, adjacentNode, edgeAbductions, false, memo, scratch)
 			if err != nil {
 				return 0, err
 			}
