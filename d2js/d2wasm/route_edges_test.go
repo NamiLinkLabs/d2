@@ -29,8 +29,19 @@ func routeShapes(boxes map[string]testBox) []RouteShape {
 	return shapes
 }
 
+// functionalTimeoutMs is the budget for tests that check what gets routed, not how
+// fast. The default budget is wall-clock time, and a busy CI machine (make runs
+// builds and tests in parallel) can need more than it. Tests about the budget
+// itself set TimeoutMs explicitly.
+const functionalTimeoutMs = 60000.0
+
 func invokeRouteEdges(t *testing.T, request any) (*RouteEdgesResponse, *WASMError) {
 	t.Helper()
+	if r, ok := request.(RouteEdgesRequest); ok && r.TimeoutMs == nil {
+		v := functionalTimeoutMs
+		r.TimeoutMs = &v
+		request = r
+	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
