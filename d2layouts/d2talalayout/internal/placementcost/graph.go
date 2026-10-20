@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
-	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/typedpool"
 	"github.com/d2lang/d2/lib/geo"
 )
 
@@ -229,75 +228,19 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 	return totalSum, nil
 }
 
-func countEdgeCrossingsExcludingSharedNodes(ctx context.Context, edges []*layoutgraph.Edge) (int64, error) {
-	var crossings int64
-	for i := 0; i < len(edges)-1; i++ {
-		if err := scoringCancellationError(ctx, i); err != nil {
-			return 0, err
-		}
-		edge1 := edges[i]
-		for j := i + 1; j < len(edges); j++ {
-			if err := scoringCancellationError(ctx, j-i-1); err != nil {
-				return 0, err
-			}
-			edge2 := edges[j]
-
-			// Skip if edges share a common node
-			if edge1.From == edge2.From || edge1.From == edge2.To ||
-				edge1.To == edge2.From || edge1.To == edge2.To {
-				continue
-			}
-
-			// Create segments and check if they cross
-			seg1 := geo.NewSegment(edge1.From.Center(), edge1.To.Center())
-			seg2 := geo.NewSegment(edge2.From.Center(), edge2.To.Center())
-
-			if layoutgraph.SegmentsCross(seg1.Start, seg1.End, seg2.Start, seg2.End) {
-				crossings++
-			}
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("EdgeLength: %w", err)
-	}
-	return crossings, nil
-}
-
-type graphEdgeCrossingScratch struct {
-	levelGroup map[int]int
-	groups     [][]*layoutgraph.Edge
-	active     int
-}
-
-const maxPooledGraphEdgeCrossingEntries = 4096
-
-var graphEdgeCrossingScratchPool = typedpool.New(func() *graphEdgeCrossingScratch {
-	return &graphEdgeCrossingScratch{levelGroup: make(map[int]int)}
-})
-
-func putGraphEdgeCrossingScratch(scratch *graphEdgeCrossingScratch) {
-	if len(scratch.levelGroup) > maxPooledGraphEdgeCrossingEntries ||
-		cap(scratch.groups) > maxPooledGraphEdgeCrossingEntries {
-		return
-	}
-	remaining := maxPooledGraphEdgeCrossingEntries - cap(scratch.groups)
-	for _, edges := range scratch.groups {
-		if cap(edges) > remaining {
-			return
-		}
-		remaining -= cap(edges)
-	}
-
-	for i := 0; i < scratch.active; i++ {
-		clear(scratch.groups[i][:cap(scratch.groups[i])])
-		scratch.groups[i] = scratch.groups[i][:0]
-	}
-	clear(scratch.levelGroup)
-	scratch.active = 0
-	graphEdgeCrossingScratchPool.Put(scratch)
-}
-
 // GraphEdgeCrossings counts crossings between edges that do not share a node.
+//
+// Two edges are compared when both endpoints of each are placed at the same
+// container level; a pair counts when the edges share no endpoint and the
+// segments between their endpoint centers cross (layoutgraph.SegmentsCross).
+//
+// Placement rescored the whole graph after every speculative move, although
+// a move changes only the edges incident to the moved nodes. The graph
+// therefore keeps the crossing partners of every edge (see
+// edgeCrossingState). Each call recomputes every edge's inputs, keeps the
+// stored result for every pair whose inputs are bit-for-bit unchanged, and
+// re-evaluates every pair that involves a changed edge, so the count is
+// exactly the one a full rescan would produce.
 func GraphEdgeCrossings(ctx context.Context, graph *layoutgraph.Graph) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, fmt.Errorf("EdgeLength: %w", err)
@@ -309,49 +252,264 @@ func GraphEdgeCrossings(ctx context.Context, graph *layoutgraph.Graph) (int64, e
 		return 0, nil
 	}
 
-	scratch := graphEdgeCrossingScratchPool.Get()
-	defer putGraphEdgeCrossingScratch(scratch)
-
-	for i, edge := range graph.Edges {
-		if err := scoringCancellationError(ctx, i); err != nil {
-			return 0, err
-		}
-		if edge.From == nil || edge.To == nil || edge.From.TopLeft == nil || edge.To.TopLeft == nil {
-			continue
-		}
-		fromLevel := edge.From.ContainerLevel()
-		toLevel := edge.To.ContainerLevel()
-		if fromLevel != toLevel {
-			continue
-		}
-
-		groupIndex, exists := scratch.levelGroup[fromLevel]
-		if !exists {
-			groupIndex = scratch.active
-			if groupIndex == len(scratch.groups) {
-				scratch.groups = append(scratch.groups, nil)
-			} else {
-				scratch.groups[groupIndex] = scratch.groups[groupIndex][:0]
-			}
-			scratch.active++
-			scratch.levelGroup[fromLevel] = groupIndex
-		}
-		scratch.groups[groupIndex] = append(scratch.groups[groupIndex], edge)
+	cache := graph.EdgeCrossingCache()
+	cache.Mu.Lock()
+	defer cache.Mu.Unlock()
+	state, _ := cache.State.(*edgeCrossingState)
+	if state == nil {
+		state = new(edgeCrossingState)
+		cache.State = state
 	}
-
-	var totalCrossings int64
-	for _, groupIndex := range scratch.levelGroup {
-		crossings, err := countEdgeCrossingsExcludingSharedNodes(ctx, scratch.groups[groupIndex])
-		if err != nil {
-			return 0, err
-		}
-		totalCrossings += crossings
+	totalCrossings, err := state.count(ctx, graph.Edges)
+	if err != nil {
+		return 0, err
 	}
 
 	if err := ctx.Err(); err != nil {
 		return 0, fmt.Errorf("EdgeLength: %w", err)
 	}
 	return totalCrossings, nil
+}
+
+// edgeCrossingInputs is everything GraphEdgeCrossings reads from one edge.
+// Center coordinates are compared by their bit patterns, so an edge counts as
+// unchanged only when SegmentsCross would receive identical inputs.
+type edgeCrossingInputs struct {
+	from, to *layoutgraph.Node
+	// counted reports whether both endpoints are placed and at the same
+	// container level; level is that level.
+	counted    bool
+	level      int
+	start, end geo.Point
+}
+
+func edgeCrossingInputsOf(edge *layoutgraph.Edge) edgeCrossingInputs {
+	inputs := edgeCrossingInputs{from: edge.From, to: edge.To}
+	if edge.From == nil || edge.To == nil || edge.From.TopLeft == nil || edge.To.TopLeft == nil {
+		return inputs
+	}
+	fromLevel := edge.From.ContainerLevel()
+	if fromLevel != edge.To.ContainerLevel() {
+		return inputs
+	}
+	inputs.counted = true
+	inputs.level = fromLevel
+	inputs.start = *edge.From.Center()
+	inputs.end = *edge.To.Center()
+	return inputs
+}
+
+func sameFloatBits(a, b float64) bool {
+	return math.Float64bits(a) == math.Float64bits(b)
+}
+
+func (inputs *edgeCrossingInputs) equal(other *edgeCrossingInputs) bool {
+	return inputs.from == other.from && inputs.to == other.to &&
+		inputs.counted == other.counted && inputs.level == other.level &&
+		sameFloatBits(inputs.start.X, other.start.X) && sameFloatBits(inputs.start.Y, other.start.Y) &&
+		sameFloatBits(inputs.end.X, other.end.X) && sameFloatBits(inputs.end.Y, other.end.Y)
+}
+
+// edgeCrossingPair reports whether the edges with inputs first and second
+// (first earlier in graph.Edges) count as a crossing.
+func edgeCrossingPair(first, second *edgeCrossingInputs) bool {
+	if !first.counted || !second.counted || first.level != second.level {
+		return false
+	}
+	// Skip if edges share a common node
+	if first.from == second.from || first.from == second.to ||
+		first.to == second.from || first.to == second.to {
+		return false
+	}
+	return layoutgraph.SegmentsCross(&first.start, &first.end, &second.start, &second.end)
+}
+
+// edgeCrossingState is the graph-owned incremental state of
+// GraphEdgeCrossings: the edge list it describes, each edge's inputs, and
+// each edge's crossing partners (indices into edges).
+type edgeCrossingState struct {
+	valid    bool
+	edges    []*layoutgraph.Edge
+	inputs   []edgeCrossingInputs
+	partners [][]int32
+	total    int64
+
+	current     []edgeCrossingInputs
+	changed     []int32
+	changedMark []bool
+	levelGroup  map[int]int
+	groups      [][]int32
+}
+
+func (state *edgeCrossingState) count(ctx context.Context, edges []*layoutgraph.Edge) (int64, error) {
+	// A cancellation or panic part way through leaves the state invalid, and
+	// the next call rebuilds it from scratch.
+	wasValid := state.valid
+	state.valid = false
+
+	state.current = state.current[:0]
+	for i, edge := range edges {
+		if err := scoringCancellationError(ctx, i); err != nil {
+			return 0, err
+		}
+		state.current = append(state.current, edgeCrossingInputsOf(edge))
+	}
+
+	sameEdges := wasValid && len(state.edges) == len(edges)
+	if sameEdges {
+		for i, edge := range edges {
+			if state.edges[i] != edge {
+				sameEdges = false
+				break
+			}
+		}
+	}
+	if sameEdges {
+		state.changed = state.changed[:0]
+		for i := range state.current {
+			if !state.current[i].equal(&state.inputs[i]) {
+				state.changed = append(state.changed, int32(i))
+			}
+		}
+		// Re-evaluating a changed edge costs one pass over all edges; beyond a
+		// few changed edges a full rescan is cheaper.
+		if len(state.changed)*8 <= len(edges) {
+			if err := state.update(ctx); err != nil {
+				return 0, err
+			}
+			state.valid = true
+			return state.total, nil
+		}
+	}
+	if err := state.rebuild(ctx, edges); err != nil {
+		return 0, err
+	}
+	state.valid = true
+	return state.total, nil
+}
+
+// rebuild counts every pair of edges within each container level, in the
+// same order as a plain scan, and records the crossing partners.
+func (state *edgeCrossingState) rebuild(ctx context.Context, edges []*layoutgraph.Edge) error {
+	state.edges = append(state.edges[:0], edges...)
+	state.inputs, state.current = state.current, state.inputs
+	state.total = 0
+	if cap(state.partners) < len(edges) {
+		state.partners = make([][]int32, len(edges))
+	} else {
+		state.partners = state.partners[:len(edges)]
+	}
+	for i := range state.partners {
+		state.partners[i] = state.partners[i][:0]
+	}
+
+	if state.levelGroup == nil {
+		state.levelGroup = make(map[int]int)
+	} else {
+		clear(state.levelGroup)
+	}
+	for i := range state.groups {
+		state.groups[i] = state.groups[i][:0]
+	}
+	active := 0
+	for i := range state.inputs {
+		inputs := &state.inputs[i]
+		if !inputs.counted {
+			continue
+		}
+		groupIndex, exists := state.levelGroup[inputs.level]
+		if !exists {
+			groupIndex = active
+			if groupIndex == len(state.groups) {
+				state.groups = append(state.groups, nil)
+			}
+			active++
+			state.levelGroup[inputs.level] = groupIndex
+		}
+		state.groups[groupIndex] = append(state.groups[groupIndex], int32(i))
+	}
+
+	for _, group := range state.groups[:active] {
+		for i := 0; i < len(group)-1; i++ {
+			if err := scoringCancellationError(ctx, i); err != nil {
+				return err
+			}
+			first := group[i]
+			for j := i + 1; j < len(group); j++ {
+				if err := scoringCancellationError(ctx, j-i-1); err != nil {
+					return err
+				}
+				second := group[j]
+				if edgeCrossingPair(&state.inputs[first], &state.inputs[second]) {
+					state.addPartners(first, second)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// update re-evaluates every pair involving a changed edge.
+func (state *edgeCrossingState) update(ctx context.Context) error {
+	if cap(state.changedMark) < len(state.inputs) {
+		state.changedMark = make([]bool, len(state.inputs))
+	} else {
+		state.changedMark = state.changedMark[:len(state.inputs)]
+	}
+	marks := state.changedMark
+	defer clear(marks)
+
+	for _, edge := range state.changed {
+		for _, partner := range state.partners[edge] {
+			state.removePartner(partner, edge)
+			state.total--
+		}
+		state.partners[edge] = state.partners[edge][:0]
+		state.inputs[edge] = state.current[edge]
+		marks[edge] = true
+	}
+
+	pairs := 0
+	for _, edge := range state.changed {
+		for other := range state.inputs {
+			other := int32(other)
+			// Pairs of two changed edges are evaluated once, from the earlier
+			// changed edge in this loop.
+			if other == edge || marks[other] && other < edge {
+				continue
+			}
+			if err := scoringCancellationError(ctx, pairs); err != nil {
+				return err
+			}
+			pairs++
+			first, second := edge, other
+			if second < first {
+				first, second = second, first
+			}
+			if edgeCrossingPair(&state.inputs[first], &state.inputs[second]) {
+				state.addPartners(first, second)
+			}
+		}
+	}
+	return nil
+}
+
+func (state *edgeCrossingState) addPartners(first, second int32) {
+	state.partners[first] = append(state.partners[first], second)
+	state.partners[second] = append(state.partners[second], first)
+	state.total++
+}
+
+func (state *edgeCrossingState) removePartner(edge, partner int32) {
+	partners := state.partners[edge]
+	for i, candidate := range partners {
+		if candidate == partner {
+			last := len(partners) - 1
+			partners[i] = partners[last]
+			state.partners[edge] = partners[:last]
+			return
+		}
+	}
 }
 
 // ContainerAlignmentCost scores misalignment between peer containers.
