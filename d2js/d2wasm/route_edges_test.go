@@ -476,3 +476,19 @@ func TestRouteEdgesRoutesManyEdgesOneAtATime(t *testing.T) {
 		}
 	}
 }
+
+func TestRouteEdgesReportsSelfLoops(t *testing.T) {
+	boxes := map[string]testBox{"a": {0, 0, 100, 60}, "b": {300, 0, 100, 60}}
+	response, werr := invokeRouteEdges(t, RouteEdgesRequest{
+		FS:     map[string]string{"index": "a -> a\na -> b\n"},
+		Shapes: routeShapes(boxes),
+		Edges:  []string{"(a -> a)[0]", "(a -> b)[0]"},
+	})
+	if werr != nil {
+		t.Fatalf("routeEdges() error = %s", werr.Message)
+	}
+	if !strings.Contains(response.Errors["(a -> a)[0]"], "from a shape to itself") || len(response.Errors) != 1 {
+		t.Fatalf("errors = %v, want only the self-loop to fail", response.Errors)
+	}
+	assertEnds(t, "(a -> b)[0]", response.Routes["(a -> b)[0]"], boxes["a"], boxes["b"])
+}

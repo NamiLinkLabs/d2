@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"syscall/js"
@@ -36,6 +37,8 @@ const (
 	// on a 200-shape diagram about 8 times as long together.
 	maxEdgesRoutedTogether = 10
 )
+
+var errSelfLoop = errors.New("connections from a shape to itself cannot be rerouted; move their route with the shape")
 
 // routeWithTALA is a seam for tests that exercise the fallback paths.
 var routeWithTALA = d2talalayout.RouteEdges
@@ -142,8 +145,21 @@ func routeEdges(input RouteEdgesRequest) (*RouteEdgesResponse, error) {
 	}
 	fixed := applyRouteConnections(edgesByID, requestedIDs, input.Connections)
 
+	// TALA routes a shape's connections to itself only while laying out, so
+	// keep them from failing the other edges' first pass.
+	routable := make([]*d2graph.Edge, 0, len(requested))
+	routeErrs := map[*d2graph.Edge]error{}
+	for _, e := range requested {
+		if e.Src == e.Dst {
+			routeErrs[e] = errSelfLoop
+			continue
+		}
+		routable = append(routable, e)
+	}
 	r := &edgeRouter{graph: g, all: slices.Clone(g.Edges), keep: fixed}
-	routeErrs := r.route(ctx, requested, deadline)
+	if len(routable) > 0 {
+		maps.Copy(routeErrs, r.route(ctx, routable, deadline))
+	}
 	for i, e := range requested {
 		id := input.Edges[i]
 		if err, failed := routeErrs[e]; failed {

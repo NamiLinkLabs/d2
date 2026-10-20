@@ -20,6 +20,8 @@ export class D2 {
    * Invalid requests (unknown or repeated ids, missing shapes, non-finite
    * numbers, sizes that are not positive) reject. Connections TALA cannot route
    * in time or at all are reported in `errors`; the others still get routes.
+   * Connections from a shape to itself are always reported there, and
+   * sequence diagram lifelines are unknown ids: they only exist after layout.
    */
   routeEdges(request: RouteEdgesRequest): Promise<RouteEdgesResponse>;
 

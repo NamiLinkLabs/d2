@@ -159,6 +159,8 @@ const svg = await d2.render(diagram);
 Invalid requests reject: unknown or repeated ids, shapes missing from `shapes`, coordinates
 that are not finite numbers, and sizes that are not positive. Connections that could not be
 routed, in time or at all, are listed in `errors` with the reason; the others get routes.
+Connections from a shape to itself are always listed there; move their route with the shape.
+Sequence diagram lifelines only exist after layout, so their ids are unknown.
 
 ### `dispose(): Promise<void>`
 
