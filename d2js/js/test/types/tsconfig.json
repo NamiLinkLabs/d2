@@ -7,5 +7,5 @@
     "noEmit": true,
     "types": []
   },
-  "files": ["compile.ts"]
+  "files": ["compile.ts", "route-edges.ts"]
 }
