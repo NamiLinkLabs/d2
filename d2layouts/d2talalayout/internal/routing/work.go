@@ -1,10 +1,15 @@
 package routing
 
-import "context"
+import (
+	"context"
+
+	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/limits"
+)
 
 // cachedContextErr avoids repeatedly traversing context value wrappers in hot
 // guarded loops. Standard cancellable contexts close Done before Err becomes
-// observable; synthetic contexts without Done retain per-call Err polling.
+// observable; synthetic contexts without Done retain per-call Err polling. A
+// passed deadline is reported even before its timer closes Done.
 func cachedContextErr(ctx context.Context, done <-chan struct{}) error {
 	if done == nil {
 		return ctx.Err()
@@ -13,7 +18,7 @@ func cachedContextErr(ctx context.Context, done <-chan struct{}) error {
 	case <-done:
 		return ctx.Err()
 	default:
-		return nil
+		return limits.DeadlineErr(ctx)
 	}
 }
 
