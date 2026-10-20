@@ -1,6 +1,9 @@
 package routing
 
 import (
+	"math"
+	"slices"
+	"sort"
 	"sync"
 
 	"github.com/d2lang/d2/lib/geo"
@@ -194,4 +197,70 @@ func (table *routeEdgeTable) addOverlapping(edge *OVGEdge, route *Route) {
 		table.foreignOverlaps = make(map[*OVGEdge][]*Route)
 	}
 	table.foreignOverlaps[edge] = append(table.foreignOverlaps[edge], route)
+}
+
+// ovgAxisIndex lists the keys of OVG.VerticalEdges and OVG.HorizontalEdges
+// in ascending order with their edge lists, so a router can visit the lines
+// near a coordinate without iterating the whole map. It is built once per OVG
+// and read-only while flavor routers run.
+type ovgAxisIndex struct {
+	verticalXs      []float64
+	verticalEdges   [][]*OVGEdge
+	horizontalYs    []float64
+	horizontalEdges [][]*OVGEdge
+	// ordered is false when a key is NaN; such keys have no position in the
+	// order, so callers must iterate the maps instead.
+	ordered bool
+}
+
+type ovgAxisIndexCache struct {
+	mu    sync.Mutex
+	index *ovgAxisIndex
+	edges int
+}
+
+func (g *OVG) axisIndex() *ovgAxisIndex {
+	g.axisIndexCache.mu.Lock()
+	defer g.axisIndexCache.mu.Unlock()
+	if g.axisIndexCache.index != nil && g.axisIndexCache.edges == len(g.Edges) {
+		return g.axisIndexCache.index
+	}
+	index := &ovgAxisIndex{ordered: true}
+	collect := func(lines map[float64][]*OVGEdge) ([]float64, [][]*OVGEdge) {
+		keys := make([]float64, 0, len(lines))
+		for key := range lines {
+			if math.IsNaN(key) {
+				index.ordered = false
+				continue
+			}
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		edges := make([][]*OVGEdge, len(keys))
+		for i, key := range keys {
+			edges[i] = lines[key]
+		}
+		return keys, edges
+	}
+	index.verticalXs, index.verticalEdges = collect(g.VerticalEdges)
+	index.horizontalYs, index.horizontalEdges = collect(g.HorizontalEdges)
+	g.axisIndexCache.index = index
+	g.axisIndexCache.edges = len(g.Edges)
+	return index
+}
+
+// nearbyLines returns the index range of keys that may lie within distance of
+// coordinate. keys must be sorted and coordinate finite; callers still apply
+// their exact distance predicate to every key in the range. The range bounds
+// use a margin of more than twice the distance: rounding is monotonic, so
+// every key whose computed distance is at most distance lies inside it.
+func nearbyLines(keys []float64, coordinate, distance float64) (int, int) {
+	margin := 2*distance + 1
+	low := sort.SearchFloat64s(keys, coordinate-margin)
+	high := low
+	upper := coordinate + margin
+	for high < len(keys) && keys[high] <= upper {
+		high++
+	}
+	return low, high
 }

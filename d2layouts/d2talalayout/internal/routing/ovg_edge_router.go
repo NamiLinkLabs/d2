@@ -1722,6 +1722,14 @@ func (router *ovgEdgeRouter) addRoute(route *Route) error {
 				if routeBottom < routeTop {
 					routeTop, routeBottom = routeBottom, routeTop
 				}
+				if router.ovg != nil && router.work.batchesSteps() && isFinite(routeNode.X) {
+					if index := router.ovg.axisIndex(); index.ordered {
+						if err := router.markNearbyLines(route, index.verticalXs, index.verticalEdges, len(router.ovg.VerticalEdges), routeNode.X, routeTop, routeBottom, true); err != nil {
+							return err
+						}
+						continue
+					}
+				}
 				// Route coordinates may be fractional, so scan the indexed axes rather
 				// than iterating integer coordinates around routeNode.X.
 				for x, ovgEdges := range router.ovg.VerticalEdges {
@@ -1752,6 +1760,14 @@ func (router *ovgEdgeRouter) addRoute(route *Route) error {
 				if routeRight < routeLeft {
 					routeLeft, routeRight = routeRight, routeLeft
 				}
+				if router.ovg != nil && router.work.batchesSteps() && isFinite(routeNode.Y) {
+					if index := router.ovg.axisIndex(); index.ordered {
+						if err := router.markNearbyLines(route, index.horizontalYs, index.horizontalEdges, len(router.ovg.HorizontalEdges), routeNode.Y, routeLeft, routeRight, false); err != nil {
+							return err
+						}
+						continue
+					}
+				}
 				for y, ovgEdges := range router.ovg.HorizontalEdges {
 					if err := router.work.step(); err != nil {
 						return err
@@ -1779,6 +1795,55 @@ func (router *ovgEdgeRouter) addRoute(route *Route) error {
 		}
 	}
 	return router.work.check()
+}
+
+// markNearbyLines is the bulk-charged form of addRoute's scan over every OVG
+// line for one route segment. The map scan charges one unit per line and one
+// per edge on each line within pathNodeProximityFloor of the segment's line,
+// and its effects do not depend on line order. This visits only the lines in
+// range of the sorted keys, applies the same distance predicate, charges the
+// same total first, then records the same nearby and overlapping edges.
+func (router *ovgEdgeRouter) markNearbyLines(route *Route, keys []float64, lines [][]*OVGEdge, lineCount int, coordinate, routeLow, routeHigh float64, vertical bool) error {
+	low, high := nearbyLines(keys, coordinate, pathNodeProximityFloor)
+	units := uint64(lineCount)
+	for i := low; i < high; i++ {
+		if math.Abs(keys[i]-coordinate) > pathNodeProximityFloor {
+			continue
+		}
+		units += uint64(len(lines[i]))
+	}
+	if units > math.MaxInt {
+		units = math.MaxInt
+	}
+	if err := chargeSkippedRouteWork(router.work, int(units)); err != nil {
+		return err
+	}
+	for i := low; i < high; i++ {
+		line := keys[i]
+		if math.Abs(line-coordinate) > pathNodeProximityFloor {
+			continue
+		}
+		for _, ovgEdge := range lines[i] {
+			edgeLow, edgeHigh := ovgEdge.From.X, ovgEdge.To.X
+			if vertical {
+				edgeLow, edgeHigh = ovgEdge.From.Y, ovgEdge.To.Y
+			}
+			if edgeHigh < edgeLow {
+				edgeLow, edgeHigh = edgeHigh, edgeLow
+			}
+			if !(edgeHigh < routeLow || routeHigh < edgeLow) {
+				router.routeEdges.markNearby(ovgEdge)
+				if line == coordinate {
+					router.routeEdges.addOverlapping(ovgEdge, route)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func isFinite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 // tablePorts finds the ports to connect the columns from source to target.

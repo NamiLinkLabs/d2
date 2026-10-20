@@ -28,6 +28,7 @@ type OVG struct {
 	fixedOverlapsMu    sync.Mutex
 	fixedOverlapsCache []fixedOverlapsCacheEntry
 	pointIndexCache    ovgPointIndexCache
+	axisIndexCache     ovgAxisIndexCache
 	buildGuard         *ovgBuildGuard
 }
 
