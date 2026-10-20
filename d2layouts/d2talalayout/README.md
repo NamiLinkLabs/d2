@@ -25,6 +25,11 @@ The adapter exposes local, in-process entry points:
   `Options.MaxConcurrency` separately bounds the number of live graph clones.
 - Layout and routing honor the caller's context; timeout policy belongs to the
   embedding application.
+- Large graphs degrade instead of failing at TALA's deterministic work
+  budgets: optional placement refinement stops early, routes whose search
+  budget is used up get orthogonal fallback routes, and optional route
+  post-processing is skipped (see `ARCHITECTURE.md`, "Work limits and
+  degradation").
 - D2 `top`/`left` pins are absolute diagram coordinates at every nesting
   level. The adapter rewrites nested pins into the engine's
   container-relative pins and implicitly pins the containers that enclose
@@ -45,6 +50,8 @@ To explore new random graphs with Go's built-in fuzzing engine:
 
 ```sh
 go test ./d2layouts/d2talalayout/internal/engine -run '^$' -fuzz '^FuzzAutolayout$' -fuzztime=30s
+# The same with exhausted work budgets, which must still degrade deterministically:
+go test ./d2layouts/d2talalayout/internal/engine -run '^$' -fuzz '^FuzzAutolayoutDegraded$' -fuzztime=30s
 ```
 
 Run a named synthetic benchmark with:
