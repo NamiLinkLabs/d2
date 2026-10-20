@@ -4,6 +4,7 @@ package d2wasm
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"syscall/js"
@@ -249,9 +250,18 @@ func assertSingleWASMWarning(t *testing.T, warnings []string, want string) {
 
 func compileForTest(t *testing.T, options string) (CompileResponse, *WASMError) {
 	t.Helper()
+	return compileSourceForTest(t, "a -> b\nb -> c\na -> c\n", options)
+}
+
+func compileSourceForTest(t *testing.T, source, options string) (CompileResponse, *WASMError) {
+	t.Helper()
+	fs, err := json.Marshal(map[string]string{"index": source})
+	if err != nil {
+		t.Fatal(err)
+	}
 	call := wrapWASMCall(Compile)
 	defer call.Release()
-	got := call.Invoke(`{"fs":{"index":"a -> b\nb -> c\na -> c\n"},"options":` + options + `}`).String()
+	got := call.Invoke(`{"fs":` + string(fs) + `,"options":` + options + `}`).String()
 	var response struct {
 		Data  *CompileResponse `json:"data"`
 		Error *WASMError       `json:"error"`
@@ -308,5 +318,75 @@ func TestCompileLayoutOptions(t *testing.T) {
 	}
 	if _, werr := compileForTest(t, `{"layout":"tala","tala":{"seeds":[7]}}`); werr != nil {
 		t.Fatalf("tala seeds: %v", werr.Message)
+	}
+}
+
+// talaQualitySource lays out differently at the fast and full TALA levels.
+const talaQualitySource = `client -> edge.cdn -> edge.lb
+edge.lb -> svc.api
+edge.lb -> billing.api
+svc.api -> svc.db
+svc.api -> svc.cache
+svc.worker -> svc.db
+billing.api -> billing.db
+billing.api -> svc.api: lookup
+billing.worker -> billing.db
+svc.worker -> billing.api
+svc.db: {shape: cylinder}
+billing.db: {shape: cylinder}
+`
+
+func shapePositions(r CompileResponse) string {
+	positions := make([]string, 0, len(r.Diagram.Shapes))
+	for _, s := range r.Diagram.Shapes {
+		positions = append(positions, fmt.Sprintf("%s@%d,%d", s.ID, s.Pos.X, s.Pos.Y))
+	}
+	return strings.Join(positions, " ")
+}
+
+func TestCompileTALAQuality(t *testing.T) {
+	compile := func(source, options string) string {
+		t.Helper()
+		r, werr := compileSourceForTest(t, source, options)
+		if werr != nil {
+			t.Fatalf("%s: %v", options, werr.Message)
+		}
+		return shapePositions(r)
+	}
+	full := compile(talaQualitySource, `{"layout":"tala"}`)
+	if explicit := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"full"}}`); explicit != full {
+		t.Fatal(`quality "full" differs from the default`)
+	}
+	fast := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"fast"}}`)
+	if fast == full {
+		t.Fatal(`quality "fast" had no effect`)
+	}
+	if again := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"fast"}}`); again != fast {
+		t.Fatal(`quality "fast" is not deterministic`)
+	}
+	if balanced := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"balanced","seeds":[1]}}`); balanced != fast {
+		// With one seed, balanced runs exactly the fast pipeline.
+		t.Fatal(`quality "balanced" with one seed differs from "fast"`)
+	}
+	// The diagram's tala-quality takes precedence over the compile option.
+	fromData := compile("vars: {d2-config: {data: {tala-quality: fast}}}\n"+talaQualitySource, `{"layout":"tala","tala":{"quality":"full"}}`)
+	if fromData != fast {
+		t.Fatal("diagram tala-quality did not take precedence over tala.quality")
+	}
+
+	for _, options := range []string{
+		`{"layout":"tala","tala":{"quality":"turbo"}}`,
+		`{"layout":"tala","tala":{"quality":""}}`,
+		`{"layout":"tala","tala":{"quality":"FAST"}}`,
+	} {
+		if _, werr := compileSourceForTest(t, talaQualitySource, options); werr == nil || werr.Code != 400 || !strings.Contains(werr.Message, "tala.quality must be one of") {
+			t.Fatalf("%s: error = %v, want a 400 naming tala.quality", options, werr)
+		}
+	}
+	if _, werr := compileSourceForTest(t, talaQualitySource, `{"layout":"tala","tala":{"quality":7}}`); werr == nil {
+		t.Fatal("a non-string quality must be rejected")
+	}
+	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-quality: turbo}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, `unknown tala quality "turbo"`) {
+		t.Fatalf("invalid diagram tala-quality: error = %v", werr)
 	}
 }

@@ -31,6 +31,9 @@ type DagreOptions struct {
 type TALAOptions struct {
 	// Seeds selects the deterministic layout attempts; diagram-level tala-seeds still win.
 	Seeds []int64 `json:"seeds"`
+	// Quality is "full" (default), "balanced" or "fast"; diagram-level
+	// tala-quality still wins. Fast runs only the first seed.
+	Quality *string `json:"quality"`
 }
 
 func nonNegative(name string, v *int) error {
@@ -89,12 +92,23 @@ func (o *DagreOptions) resolve() (*d2dagrelayout.ConfigurableOpts, error) {
 	return &opts, nil
 }
 
-func (o *TALAOptions) resolve() *d2talalayout.Options {
+func (o *TALAOptions) resolve() (*d2talalayout.Options, error) {
 	opts := d2talalayout.DefaultOptions()
-	if o != nil && len(o.Seeds) > 0 {
+	if o == nil {
+		return &opts, nil
+	}
+	if o.Quality != nil {
+		switch q := d2talalayout.Quality(*o.Quality); q {
+		case d2talalayout.QualityFull, d2talalayout.QualityBalanced, d2talalayout.QualityFast:
+			opts.Quality = q
+		default:
+			return nil, &WASMError{Message: fmt.Sprintf("tala.quality must be one of %q, %q or %q, got %q", d2talalayout.QualityFull, d2talalayout.QualityBalanced, d2talalayout.QualityFast, *o.Quality), Code: 400}
+		}
+	}
+	if len(o.Seeds) > 0 {
 		opts.Seeds = append([]int64(nil), o.Seeds...)
 	}
-	return &opts
+	return &opts, nil
 }
 
 // layoutResolver picks the layout engine and applies the caller's tuning.
@@ -113,7 +127,10 @@ func layoutResolver(opts *CompileOptions) (func(string) (d2graph.LayoutGraph, er
 	if err != nil {
 		return nil, err
 	}
-	talaOpts := tala.resolve()
+	talaOpts, err := tala.resolve()
+	if err != nil {
+		return nil, err
+	}
 	return func(engine string) (d2graph.LayoutGraph, error) {
 		switch engine {
 		case "dagre":

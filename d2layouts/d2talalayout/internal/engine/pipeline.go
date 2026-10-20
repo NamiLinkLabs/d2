@@ -27,6 +27,9 @@ const maxGraphSize = limits.MaxGraphSize
 // LayoutOptions configures one deterministic layout attempt.
 type LayoutOptions struct {
 	Seed int64
+	// Effort trims optional and iterative work. The zero value runs the full
+	// pipeline.
+	Effort Effort
 }
 
 type pipelineStage struct {
@@ -72,6 +75,7 @@ type pipeline struct {
 	forceReroute             bool
 	edgeRoutingComplete      bool
 	alignAxesNeeded          bool
+	effort                   Effort
 }
 
 // defaultPipelineStages is immutable after initialization. Tests that wrap or
@@ -190,13 +194,18 @@ func (p *pipeline) preprocessTreesStage(ctx context.Context) error {
 }
 
 func (p *pipeline) gapNormalizationStage(ctx context.Context) error {
+	if p.effort.SkipGapNormalization {
+		return nil
+	}
 	changed, err := placement.NormalizeGaps(ctx, p.graph)
 	p.alignAxesNeeded = changed
 	return err
 }
 
 func (p *pipeline) nodePlacementStage(ctx context.Context) error {
-	return placement.Place(ctx, p.graph, p.seed)
+	return placement.PlaceWithOptions(ctx, p.graph, p.seed, placement.Options{
+		Iterations: p.effort.PlacementIterations,
+	})
 }
 
 func (p *pipeline) optimizeClustersStage(ctx context.Context) error {
@@ -215,6 +224,9 @@ func (p *pipeline) binPack(ctx context.Context) error {
 }
 
 func (p *pipeline) swapNodesStage(ctx context.Context) error {
+	if p.effort.SkipSwap {
+		return nil
+	}
 	return placement.Swap(ctx, p.graph)
 }
 
@@ -296,6 +308,7 @@ func (p *pipeline) runGraphRouting(ctx context.Context, workLimit *uint64) (err 
 		RoutesPreviouslyCompleted: p.edgeRoutingComplete,
 		Observer:                  p.routeObserver(ctx),
 		CompletionObserver:        p,
+		SingleFlavor:              p.effort.SingleRouteFlavor,
 	}
 	var routingComplete bool
 	if workLimit == nil {
@@ -511,6 +524,7 @@ func runLayout(ctx context.Context, graph *layoutgraph.Graph, options LayoutOpti
 	}
 	defer cancelWork()
 	pipeline := newPipeline(graph, options.Seed, instrumentation.storeSnapshots)
+	pipeline.effort = options.Effort
 	if instrumentation.measureStageDurations {
 		pipeline.enableStageTiming()
 	}

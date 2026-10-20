@@ -423,6 +423,31 @@ func routeEdgesWithResourceGuards(
 	ovgGuard *ovgBuildGuard,
 	searchWorkLimit uint64,
 ) (*OVG, error) {
+	return routeEdgesWithFlavors(ctx, g, nearbyNodes, ovgGuard, searchWorkLimit, false)
+}
+
+// graphRouteFlavors returns the route-generation flavors compared for g, in
+// their fixed comparison order. A single flavor keeps ShortestToLongest, the
+// first ordinary flavor, which gave the fewest crossings of the three on the
+// benchmark corpus when used alone.
+func graphRouteFlavors(g *layoutgraph.Graph, single bool) []RouteGenerationFlavor {
+	if g.Nodes[0].Hierarchy != nil {
+		return []RouteGenerationFlavor{TopDownLeftRight}
+	}
+	if single {
+		return []RouteGenerationFlavor{ShortestToLongest}
+	}
+	return []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
+}
+
+func routeEdgesWithFlavors(
+	ctx context.Context,
+	g *layoutgraph.Graph,
+	nearbyNodes []*layoutgraph.Node,
+	ovgGuard *ovgBuildGuard,
+	searchWorkLimit uint64,
+	singleFlavor bool,
+) (*OVG, error) {
 	ovg, err := buildOVGFromGraphWithGuard(g, nearbyNodes, ovgGuard)
 	if err != nil {
 		return ovg, err
@@ -480,10 +505,7 @@ func routeEdgesWithResourceGuards(
 	g.TurnCost()
 	g.NonCenterPortCost()
 
-	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
-	if g.Nodes[0].Hierarchy != nil {
-		flavors = []RouteGenerationFlavor{TopDownLeftRight}
-	}
+	flavors := graphRouteFlavors(g, singleFlavor)
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
 		router, err := newOVGEdgeRouterWithWorkLimit(ctx, flavor, ovg, g, existingRoutes, unroutedEdges, searchWorkLimit)
@@ -620,10 +642,7 @@ func routeAdditionalEdgesWithResourceLimits(
 	g.TurnCost()
 	g.NonCenterPortCost()
 
-	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
-	if g.Nodes[0].Hierarchy != nil {
-		flavors = []RouteGenerationFlavor{TopDownLeftRight}
-	}
+	flavors := graphRouteFlavors(g, false)
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
 		router, err := newOVGEdgeRouterWithWorkLimit(ctx, flavor, ovg, g, existingRoutes, edges, searchWorkLimit)

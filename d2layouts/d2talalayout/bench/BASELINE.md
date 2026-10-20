@@ -214,6 +214,21 @@ Compared with the D2.js default (3 seeds), the combination is 5.7x faster on
 `arch_060` (6.0 → 1.05 s) and 5.2x on `arch_100` (18.7 → 3.6 s), still far
 from the B1 target: configuration alone is not enough.
 
+## Quality levels
+
+`Options.Quality` / D2.js `tala.quality` / diagram `tala-quality` select
+`full` (default, unchanged), `balanced` or `fast`. Native, GOMAXPROCS=1,
+median of 3, measured back to back against this baseline (details, seed
+robustness and the lever experiments in [QUALITY.md](QUALITY.md)):
+
+| case | `tala` (base) | `balanced` | `fast` | crossings base / balanced / fast |
+|---|---:|---:|---:|---|
+| arch_010 | 237 ms | 116 ms (2.1x) | 36 ms (6.6x) | 0 / 0 / 0 |
+| arch_060 | 6011 ms | 2386 ms (2.5x) | 979 ms (6.1x) | 50 / 60 / 60 |
+| arch_100 | 20250 ms | 7722 ms (2.6x) | 3003 ms (6.7x) | 107 / 108 / 108 |
+
+D2.js (WASM) `arch_060`: 24.9 s default, 9.9 s `balanced`, 4.5 s `fast`.
+
 ## Seeds and concurrency
 
 - `Options.Seeds` nil uses `{1, 2, 3}`; an explicitly empty list is an

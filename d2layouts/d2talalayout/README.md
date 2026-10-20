@@ -23,6 +23,15 @@ The adapter exposes local, in-process entry points:
   order, and one layout is capped at 16 attempts. Inputs are capped at 64 raw
   seed entries so duplicate-heavy data cannot consume unbounded work.
   `Options.MaxConcurrency` separately bounds the number of live graph clones.
+- `Options.Quality` trades layout quality for speed: `full` (the default,
+  unchanged layouts), `balanced` (every seed, reduced pipeline) or `fast`
+  (first seed only, reduced pipeline; for interactive previews). Levels are
+  fixed amounts of work, never time budgets, so they stay deterministic.
+  Diagram data under `tala-quality` (`vars: {d2-config: {data:
+  {tala-quality: fast}}}`) takes precedence over the option, like
+  `tala-seeds`. Precedence for both settings is diagram data, then `Options`,
+  then the package defaults; seeds are resolved and validated first, then the
+  level keeps the ones it runs. See `bench/QUALITY.md` for measurements.
 - Layout and routing honor the caller's context; timeout policy belongs to the
   embedding application.
 - D2 `top`/`left` pins are absolute diagram coordinates at every nesting
