@@ -66,6 +66,15 @@ type ovgEdgeRouter struct {
 	horizontalHops    []*OVGNode
 	nodeContext       []*searchNodeContext
 	nodeContextValues []searchNodeContext
+	// searchTouched lists the node indices whose nodeContext was set by the
+	// last search. Hops are only written at such indices, so clearing them
+	// leaves all three node-indexed arrays zero.
+	searchTouched []int
+	// crossingMemo caches each OVG edge's edge-set crossing scan for the
+	// current search (see searchCrossing); entries from an older search
+	// carry an older epoch.
+	crossingMemo      []crossingMemoEntry
+	crossingMemoEpoch uint32
 	searchQueue       priorityQueue
 	// Usually, edge routing occurs before label placement. When the router is used
 	// independently, labels are already placed and the edges should move out of the way.
@@ -581,25 +590,26 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 	toFacingPorts := borrowPortMap()
 	defer returnPortMap(toFacingPorts)
 
-	// Arrays for tracking state during path finding
+	// Arrays for tracking state during path finding. Each search starts with
+	// all three zeroed; only the entries the previous search touched can be
+	// non-zero, so those are cleared instead of the whole arrays.
+	router.clearSearchState()
 	if cap(router.verticalHops) < nodeCount {
 		router.verticalHops = make([]*OVGNode, nodeCount)
 	} else {
 		router.verticalHops = router.verticalHops[:nodeCount]
-		clear(router.verticalHops)
 	}
 	if cap(router.horizontalHops) < nodeCount {
 		router.horizontalHops = make([]*OVGNode, nodeCount)
 	} else {
 		router.horizontalHops = router.horizontalHops[:nodeCount]
-		clear(router.horizontalHops)
 	}
 	if cap(router.nodeContext) < nodeCount {
 		router.nodeContext = make([]*searchNodeContext, nodeCount)
 	} else {
 		router.nodeContext = router.nodeContext[:nodeCount]
-		clear(router.nodeContext)
 	}
+	router.beginCrossingMemo()
 	if cap(router.nodeContextValues) < nodeCount {
 		router.nodeContextValues = make([]searchNodeContext, nodeCount)
 	} else {
@@ -829,6 +839,7 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 		horizontalDistance: math.Inf(1),
 	}
 	nodeContext[source.Index] = sourceContext
+	router.searchTouched = append(router.searchTouched, source.Index)
 
 	// Priority queue storage is reusable because a flavor routes its edges
 	// sequentially.
@@ -1178,7 +1189,7 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 						//       |
 						//       |
 						//       +
-						isCrossing, err = router.edgeSet.intersectsWithGuarded(e, router.work)
+						isCrossing, err = router.searchCrossing(e)
 						if err != nil {
 							return nil, 0, err
 						}
@@ -1315,6 +1326,7 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 					horizontalDistance: math.Inf(1),
 				}
 				nodeContext[adjacentNode.Index] = adjacentContext
+				router.searchTouched = append(router.searchTouched, adjacentNode.Index)
 			}
 
 			// Horizontal path
