@@ -122,18 +122,28 @@ func (guard *WorkGuard) Add(units int64) error {
 }
 
 func (guard *WorkGuard) checkAfterAdd(previous int64) error {
-	stride := guard.pollingStride()
 	// Add(0) polls an exact boundary; positive charges also poll when their
-	// interval crosses one.
-	if guard.used%stride != 0 && previous/stride == guard.used/stride {
+	// interval crosses one. The strides are spelled as constants so the hot
+	// path compiles to shifts and masks instead of integer division.
+	if guard.done == nil {
+		if guard.used%contextCheckStride != 0 && previous/contextCheckStride == guard.used/contextCheckStride {
+			return nil
+		}
+	} else if guard.used%cancellableContextCheckStride != 0 &&
+		previous/cancellableContextCheckStride == guard.used/cancellableContextCheckStride {
 		return nil
 	}
 	return guard.Check()
 }
 
 func (guard *WorkGuard) checkAtStride() error {
-	stride := guard.pollingStride()
-	if guard.used%stride != 0 {
+	// Equivalent to guard.used%guard.pollingStride() != 0 with constant
+	// divisors (see checkAfterAdd).
+	if guard.done == nil {
+		if guard.used%contextCheckStride != 0 {
+			return nil
+		}
+	} else if guard.used%cancellableContextCheckStride != 0 {
 		return nil
 	}
 	return guard.Check()
