@@ -57,6 +57,7 @@ func main() {
 	noEdit := flag.Bool("no-edit", false, "skip the one-line-edit stability measurement")
 	format := flag.String("format", "markdown", "output format: markdown or jsonl")
 	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile (samples are labeled engine=..., phase=layout|routing)")
+	memprofile := flag.String("memprofile", "", "write an allocation profile (go tool pprof -sample_index=alloc_space) after all cases")
 	dump := flag.String("dump", "", "write each layout's final geometry (bench.GeometryJSON) to DIR/<case>.<engine>[.edit].json and print its SHA-256 to stderr")
 	flag.Parse()
 
@@ -88,6 +89,15 @@ func main() {
 		die(pprof.StartCPUProfile(f))
 		defer f.Close()
 		defer pprof.StopCPUProfile()
+	}
+
+	if *memprofile != "" {
+		defer func() {
+			f, err := os.Create(*memprofile)
+			die(err)
+			die(pprof.Lookup("allocs").WriteTo(f, 0))
+			die(f.Close())
+		}()
 	}
 
 	fmt.Fprintf(os.Stderr, "talabench: go=%s GOMAXPROCS=%d GOOS/GOARCH=%s/%s timeout=%s\n",
