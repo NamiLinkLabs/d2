@@ -45,6 +45,12 @@ export interface RenderOptions {
 export interface CompileOptions extends RenderOptions {
   /** Layout engine to use [default: 'dagre'] */
   layout?: "dagre" | "elk" | "tala";
+  /** ELK tuning, used when layout is 'elk'. Unset fields keep D2's defaults. */
+  elk?: ELKOptions;
+  /** dagre tuning, used when layout is 'dagre'. Unset fields keep D2's defaults. */
+  dagre?: DagreOptions;
+  /** TALA tuning, used when layout is 'tala'. Unset fields keep TALA's defaults. */
+  tala?: TALAOptions;
   /** A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used. */
   fontRegular?: Uint8Array;
   /** A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used. */
@@ -53,6 +59,31 @@ export interface CompileOptions extends RenderOptions {
   fontBold?: Uint8Array;
   /** A byte array containing .ttf file to use for the semibold font. If none provided, Source Sans Pro Semibold is used. */
   fontSemibold?: Uint8Array;
+}
+
+export interface ELKOptions {
+  /** Space between nodes in neighbouring layers [default: 70] */
+  nodeSpacing?: number;
+  /** Space between edges and nodes [default: 40] */
+  edgeNodeSpacing?: number;
+  /** Space between parallel edges [default: 50] */
+  edgeEdgeSpacing?: number;
+  /** Space around self-loops [default: 50] */
+  selfLoopSpacing?: number;
+  /** Container padding in ELK syntax [default: '[top=50,left=50,bottom=50,right=50]'] */
+  padding?: string;
+}
+
+export interface DagreOptions {
+  /** Horizontal space between nodes of the same rank [default: 60] */
+  nodeSep?: number;
+  /** Horizontal space between edges [default: 20] */
+  edgeSep?: number;
+}
+
+export interface TALAOptions {
+  /** Deterministic layout attempts. `tala-seeds` in the diagram still takes precedence. */
+  seeds?: number[];
 }
 
 export interface CompileRequest {

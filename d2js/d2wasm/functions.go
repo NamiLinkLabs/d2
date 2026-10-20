@@ -14,7 +14,6 @@ import (
 	"github.com/d2lang/d2/d2compiler"
 	"github.com/d2lang/d2/d2format"
 	"github.com/d2lang/d2/d2graph"
-	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/d2/d2lib"
@@ -223,18 +222,11 @@ func Compile(args []js.Value) (interface{}, error) {
 
 	compileOpts.InputPath = inputPath
 
-	compileOpts.LayoutResolver = func(engine string) (d2graph.LayoutGraph, error) {
-		switch engine {
-		case "dagre":
-			return d2dagrelayout.DefaultLayout, nil
-		case "elk":
-			return d2elklayout.DefaultLayout, nil
-		case "tala":
-			return d2talalayout.DefaultLayout, nil
-		default:
-			return nil, &WASMError{Message: fmt.Sprintf("layout option '%s' not recognized", engine), Code: 400}
-		}
+	resolver, err := layoutResolver(input.Opts)
+	if err != nil {
+		return nil, err
 	}
+	compileOpts.LayoutResolver = resolver
 	compileOpts.RouterResolver = func(engine string) (d2graph.RouteEdges, error) {
 		if engine == "tala" {
 			return d2talalayout.RouteEdges, nil
@@ -242,7 +234,6 @@ func Compile(args []js.Value) (interface{}, error) {
 		return nil, nil
 	}
 
-	var err error
 	compileOpts.FS, err = memfs.New(input.FS)
 	if err != nil {
 		return nil, &WASMError{Message: fmt.Sprintf("invalid fs input: %s", err.Error()), Code: 400}
