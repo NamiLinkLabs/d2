@@ -29,6 +29,7 @@ package routing
 // .                └────────┘
 
 import (
+	"cmp"
 	"context"
 	"math"
 	"slices"
@@ -38,6 +39,23 @@ import (
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
 )
+
+// sortedPortSet lists table-column ports in coordinate order. The launch
+// loops keep the first of equally short flights and charge their work in
+// iteration order, so map order must not reach them.
+func sortedPortSet(ports map[*OVGNode]struct{}) []*OVGNode {
+	sorted := make([]*OVGNode, 0, len(ports))
+	for port := range ports {
+		sorted = append(sorted, port)
+	}
+	slices.SortFunc(sorted, func(a, b *OVGNode) int {
+		if order := cmp.Compare(a.Y, b.Y); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.X, b.X)
+	})
+	return sorted
+}
 
 // launch simulates the route blasting off from source, going around the anchor, and landing on target
 // It returns the distance if successful, with 0.0 meaning it crashed into a node along the way
@@ -717,12 +735,8 @@ func (router *ovgEdgeRouter) findLShapedRoute(
 			if err != nil {
 				return nil, 0, err
 			}
-			for port := range sPorts {
-				sourcePorts = append(sourcePorts, port)
-			}
-			for port := range tPorts {
-				targetPorts = append(targetPorts, port)
-			}
+			sourcePorts = append(sourcePorts, sortedPortSet(sPorts)...)
+			targetPorts = append(targetPorts, sortedPortSet(tPorts)...)
 		}
 
 		for _, sPort := range sourcePorts {
@@ -942,12 +956,8 @@ func (router *ovgEdgeRouter) findSShapedRoute(
 			if err != nil {
 				return nil, 0, err
 			}
-			for port := range sPorts {
-				sourcePorts = append(sourcePorts, port)
-			}
-			for port := range tPorts {
-				targetPorts = append(targetPorts, port)
-			}
+			sourcePorts = append(sourcePorts, sortedPortSet(sPorts)...)
+			targetPorts = append(targetPorts, sortedPortSet(tPorts)...)
 		}
 
 		sourceAnchors := make(map[*OVGNode]*OVGNode)
