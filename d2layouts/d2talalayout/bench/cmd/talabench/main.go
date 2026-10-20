@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/bench"
+	"github.com/d2lang/d2/d2target"
 )
 
 type record struct {
@@ -55,6 +57,7 @@ func main() {
 	noEdit := flag.Bool("no-edit", false, "skip the one-line-edit stability measurement")
 	format := flag.String("format", "markdown", "output format: markdown or jsonl")
 	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile (samples are labeled engine=..., phase=layout|routing)")
+	dump := flag.String("dump", "", "write each layout's final geometry (bench.GeometryJSON) to DIR/<case>.<engine>[.edit].json and print its SHA-256 to stderr")
 	flag.Parse()
 
 	die := func(err error) {
@@ -125,6 +128,10 @@ func main() {
 			if r.EditErr != nil {
 				rec.EditError = r.EditErr.Error()
 			}
+			if *dump != "" {
+				die(dumpGeometry(*dump, name+"."+engine.Name, r.Diagram))
+				die(dumpGeometry(*dump, name+"."+engine.Name+".edit", r.EditDiagram))
+			}
 			fmt.Fprintf(os.Stderr, "%s %s layout=%.0fms edit=%.0fms err=%v editErr=%v\n", name, engine.Name, rec.LayoutMS, rec.EditLayoutMS, r.Err, r.EditErr)
 			if *format == "jsonl" {
 				die(enc.Encode(rec))
@@ -133,6 +140,26 @@ func main() {
 			printRow(rec, r)
 		}
 	}
+}
+
+// dumpGeometry writes diagram's geometry to dir/stem.json and prints its
+// SHA-256. A nil diagram (failed or skipped compile) writes nothing.
+func dumpGeometry(dir, stem string, diagram *d2target.Diagram) error {
+	if diagram == nil {
+		return nil
+	}
+	b, err := bench.GeometryJSON(diagram)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, stem+".json"), b, 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "geometry %x %s\n", sha256.Sum256(b), stem)
+	return nil
 }
 
 func printRow(rec record, r bench.Result) {

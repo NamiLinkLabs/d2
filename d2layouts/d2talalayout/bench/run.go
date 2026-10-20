@@ -2,6 +2,7 @@ package bench
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -159,6 +160,10 @@ type Result struct {
 	Displacement *Displacement
 	Err          error
 	EditErr      error
+	// Diagram and EditDiagram are the compiled unedited and edited layouts
+	// (nil when the corresponding compile failed or was skipped).
+	Diagram     *d2target.Diagram
+	EditDiagram *d2target.Diagram
 }
 
 // MeasureCase lays out source and its one-line edit with engine and computes all
@@ -172,6 +177,7 @@ func MeasureCase(ctx context.Context, name, source, edit string, engine Engine, 
 		return r
 	}
 	r.Objects, r.Edges = len(base.Graph.Objects), len(base.Graph.Edges)
+	r.Diagram = base.Diagram
 	r.Metrics = Measure(base.Diagram)
 	if edit == "" {
 		return r
@@ -182,6 +188,7 @@ func MeasureCase(ctx context.Context, name, source, edit string, engine Engine, 
 		r.EditErr = err
 		return r
 	}
+	r.EditDiagram = edited.Diagram
 	exclude := map[string]bool{}
 	src, dst, ok := strings.Cut(edit, "->")
 	if ok {
@@ -191,4 +198,16 @@ func MeasureCase(ctx context.Context, name, source, edit string, engine Engine, 
 	d := Displace(base.Diagram, edited.Diagram, exclude)
 	r.Displacement = &d
 	return r
+}
+
+// GeometryJSON serializes the complete final geometry of a compiled diagram:
+// every shape and connection record as D2 exports it (positions, sizes,
+// label positions, routes and styling). Two layouts are geometrically
+// identical exactly when their GeometryJSON bytes are equal, which is how
+// output-preserving engine changes are verified (talabench -dump).
+func GeometryJSON(diagram *d2target.Diagram) ([]byte, error) {
+	return json.MarshalIndent(struct {
+		Shapes      []d2target.Shape      `json:"shapes"`
+		Connections []d2target.Connection `json:"connections"`
+	}{diagram.Shapes, diagram.Connections}, "", " ")
 }
