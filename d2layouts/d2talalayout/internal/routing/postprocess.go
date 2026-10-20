@@ -11,7 +11,7 @@ import (
 )
 
 func BalanceEdgeSegments(ctx context.Context, g *layoutgraph.Graph) error {
-	return balanceEdgeSegmentsWithLimit(ctx, g, maxRouteStageWorkUnits)
+	return optionalStageResult(balanceEdgeSegmentsWithLimit(ctx, g, maxRouteStageWorkUnits))
 }
 
 func balanceEdgeSegmentsWithLimit(ctx context.Context, g *layoutgraph.Graph, workLimit uint64) error {
@@ -460,7 +460,7 @@ func balanceRegularEdgesGuarded(g *layoutgraph.Graph, specialEdges, regularEdges
 
 // FixClusterEdgeBranching resolves route branching at cluster boundaries.
 func FixClusterEdgeBranching(ctx context.Context, g *layoutgraph.Graph) error {
-	return fixClusterEdgeBranchingWithLimit(ctx, g, maxRouteStageWorkUnits)
+	return optionalStageResult(fixClusterEdgeBranchingWithLimit(ctx, g, maxRouteStageWorkUnits))
 }
 
 func fixClusterEdgeBranchingWithLimit(ctx context.Context, g *layoutgraph.Graph, workLimit uint64) error {

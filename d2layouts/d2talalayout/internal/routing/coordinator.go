@@ -23,7 +23,45 @@ type GenerateRouteResponse struct {
 	Distance float64
 	Err      error
 	Flavor   RouteGenerationFlavor
-	work     *routeSearchWorkGuard
+	// Fallbacks counts the edges routed by fallback after the flavor used up
+	// its search budget. Zero means every edge was searched.
+	Fallbacks int
+	work      *routeSearchWorkGuard
+}
+
+// selectRouteFlavorResponse picks the flavor whose routes are applied. Flavors
+// that searched every edge are compared by distance in declared order, exactly
+// as before degraded flavors existed. Only when every successful flavor
+// degraded does the one with the fewest fallback routes win, then the shorter
+// distance, then the declared order.
+func selectRouteFlavorResponse(flavors []RouteGenerationFlavor, responses map[RouteGenerationFlavor]GenerateRouteResponse) (GenerateRouteResponse, bool) {
+	var best GenerateRouteResponse
+	found := false
+	leastDistance := math.Inf(1)
+	for _, flavor := range flavors {
+		if response, has := responses[flavor]; has && response.Fallbacks == 0 {
+			if geo.PrecisionCompare(response.Distance, leastDistance, geo.PRECISION) < 0 {
+				leastDistance = response.Distance
+				best = response
+				found = true
+			}
+		}
+	}
+	if found {
+		return best, true
+	}
+	for _, flavor := range flavors {
+		response, has := responses[flavor]
+		if !has || response.Fallbacks == 0 {
+			continue
+		}
+		if !found || response.Fallbacks < best.Fallbacks ||
+			(response.Fallbacks == best.Fallbacks && geo.PrecisionCompare(response.Distance, best.Distance, geo.PRECISION) < 0) {
+			best = response
+			found = true
+		}
+	}
+	return best, found
 }
 
 // routeWorkerPanic records a panic from a route-flavor worker for its
@@ -422,8 +460,11 @@ func routeEdgesWithResourceGuards(
 	nearbyNodes []*layoutgraph.Node,
 	ovgGuard *ovgBuildGuard,
 	searchWorkLimit uint64,
+	diagnostics *RouteDiagnostics,
 ) (*OVG, error) {
-	ovg, err := buildOVGFromGraphWithGuard(g, nearbyNodes, ovgGuard)
+	ovg, portsOnly, err := buildRoutingOVG(ctx, g, nearbyNodes, func() (*OVG, error) {
+		return buildOVGFromGraphWithGuard(g, nearbyNodes, ovgGuard)
+	})
 	if err != nil {
 		return ovg, err
 	}
@@ -486,9 +527,12 @@ func routeEdgesWithResourceGuards(
 	}
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
-		router, err := newOVGEdgeRouterWithWorkLimit(ctx, flavor, ovg, g, existingRoutes, unroutedEdges, searchWorkLimit)
+		router, err := newFlavorRouter(ctx, flavor, ovg, g, existingRoutes, unroutedEdges, searchWorkLimit)
 		if err != nil {
 			return ovg, err
+		}
+		if portsOnly {
+			router.degrade()
 		}
 		routers = append(routers, router)
 	}
@@ -497,29 +541,20 @@ func routeEdgesWithResourceGuards(
 		return ovg, err
 	}
 
-	var bestRoutes []*Route
-	var bestWork *routeSearchWorkGuard
-	leastDistance := math.Inf(1)
-
 	flavorToResponse, err := successfulRouteFlavorResponses(responses)
 	if err != nil {
 		return ovg, err
 	}
 
 	// compare responses in fixed order
-	for _, flavor := range flavors {
-		if response, has := flavorToResponse[flavor]; has {
-			if geo.PrecisionCompare(response.Distance, leastDistance, geo.PRECISION) < 0 {
-				leastDistance = response.Distance
-				bestRoutes = response.Routes
-				bestWork = response.work
-			}
-		}
-	}
+	best, _ := selectRouteFlavorResponse(flavors, flavorToResponse)
+	bestRoutes, bestWork := best.Routes, best.work
 
+	reserveFinalization(bestWork)
 	if err := finalizeSelectedRoutes(ctx, g, bestRoutes, nil, bestWork, true); err != nil {
 		return ovg, err
 	}
+	diagnostics.record(best.Fallbacks, portsOnly)
 
 	return ovg, nil
 }
@@ -540,7 +575,9 @@ func routeAdditionalEdgesWithResourceLimits(
 		newEdges[e] = struct{}{}
 	}
 
-	ovg, err := buildOVGFromGraphWithLimits(ctx, g, nil, limits)
+	ovg, portsOnly, err := buildRoutingOVG(ctx, g, nil, func() (*OVG, error) {
+		return buildOVGFromGraphWithLimits(ctx, g, nil, limits)
+	})
 	if err != nil {
 		return ovg, err
 	}
@@ -626,9 +663,12 @@ func routeAdditionalEdgesWithResourceLimits(
 	}
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
-		router, err := newOVGEdgeRouterWithWorkLimit(ctx, flavor, ovg, g, existingRoutes, edges, searchWorkLimit)
+		router, err := newFlavorRouter(ctx, flavor, ovg, g, existingRoutes, edges, searchWorkLimit)
 		if err != nil {
 			return ovg, err
+		}
+		if portsOnly {
+			router.degrade()
 		}
 		router.considerNodeLabels = true
 		routers = append(routers, router)
@@ -638,26 +678,16 @@ func routeAdditionalEdgesWithResourceLimits(
 		return ovg, err
 	}
 
-	var bestRoutes []*Route
-	var bestWork *routeSearchWorkGuard
-	leastDistance := math.Inf(1)
-
 	flavorToResponse, err := successfulRouteFlavorResponses(responses)
 	if err != nil {
 		return ovg, err
 	}
 
 	// compare responses in fixed order
-	for _, flavor := range flavors {
-		if response, has := flavorToResponse[flavor]; has {
-			if geo.PrecisionCompare(response.Distance, leastDistance, geo.PRECISION) < 0 {
-				leastDistance = response.Distance
-				bestRoutes = response.Routes
-				bestWork = response.work
-			}
-		}
-	}
+	best, _ := selectRouteFlavorResponse(flavors, flavorToResponse)
+	bestRoutes, bestWork := best.Routes, best.work
 
+	reserveFinalization(bestWork)
 	if err := finalizeSelectedRoutes(ctx, g, bestRoutes, newEdges, bestWork, false); err != nil {
 		return ovg, err
 	}
@@ -1820,7 +1850,7 @@ func reorderDuplicatesInEdges(ctx context.Context, edges []*layoutgraph.Edge) er
 }
 
 func Crosshatch(ctx context.Context, g *layoutgraph.Graph) error {
-	return crosshatchWithWorkLimit(ctx, g, maxRouteStageWorkUnits)
+	return optionalStageResult(crosshatchWithWorkLimit(ctx, g, maxRouteStageWorkUnits))
 }
 
 func crosshatchWithWorkLimit(ctx context.Context, g *layoutgraph.Graph, workLimit uint64) error {

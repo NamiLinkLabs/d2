@@ -17,6 +17,10 @@ type WorkLimits struct {
 	// refinement (see layoutgraph.RefinementBudget).
 	RefinementTotal int64
 	RefinementStage int64
+	// RouteSearch is the per-flavor route-search budget.
+	RouteSearch uint64
+	// OVGCandidates is the visibility graph's intersection-candidate limit.
+	OVGCandidates uint64
 }
 
 type workLimitsKey struct{}

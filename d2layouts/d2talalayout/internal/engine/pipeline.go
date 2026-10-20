@@ -82,6 +82,8 @@ type pipeline struct {
 	// skippedRefinementStages counts optional passes skipped because the
 	// refinement budget was used up.
 	skippedRefinementStages int
+	// routeDiagnostics accumulates degraded routing across routing passes.
+	routeDiagnostics routing.RouteDiagnostics
 }
 
 // defaultPipelineStages is immutable after initialization. Tests that wrap or
@@ -306,6 +308,9 @@ func (p *pipeline) runGraphRouting(ctx context.Context, workLimit *uint64) (err 
 		RoutesPreviouslyCompleted: p.edgeRoutingComplete,
 		Observer:                  p.routeObserver(ctx),
 		CompletionObserver:        p,
+		SearchWorkLimit:           p.limits.RouteSearch,
+		OVGCandidateLimit:         p.limits.OVGCandidates,
+		Diagnostics:               &p.routeDiagnostics,
 	}
 	var routingComplete bool
 	if workLimit == nil {
@@ -417,6 +422,7 @@ func (p *pipeline) runAllStages(ctx context.Context) error {
 	}
 	p.refinement = p.limits.refinementBudget()
 	p.skippedRefinementStages = 0
+	p.routeDiagnostics = routing.RouteDiagnostics{}
 	stages := p.stagePlan()
 	timed := p.stageDurations != nil
 	if timed && len(p.stageDurations) != len(stages) {

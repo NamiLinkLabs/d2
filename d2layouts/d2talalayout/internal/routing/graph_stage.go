@@ -30,6 +30,16 @@ type GraphRouteOptions struct {
 	RoutesPreviouslyCompleted bool
 	Observer                  SubgraphRouteObserver
 	CompletionObserver        RouteCompletionObserver
+	// SearchWorkLimit overrides the per-flavor route-search budget. Zero
+	// selects the calibrated default; TALA's tests use small values to force
+	// degraded routing.
+	SearchWorkLimit uint64
+	// OVGCandidateLimit overrides the visibility graph's intersection
+	// candidate limit. Zero selects the default; tests use small values to
+	// force the port-only routing graph.
+	OVGCandidateLimit uint64
+	// Diagnostics, when set, accumulates how much of the routing degraded.
+	Diagnostics *RouteDiagnostics
 }
 
 // RouteGraph runs the complete graph-routing stage. The returned boolean is
@@ -100,7 +110,11 @@ func RouteGraphWithWorkLimit(ctx context.Context, graph *layoutgraph.Graph, opti
 
 	err = runAtomicRouteStageWithValidatedGeometry(graph, nil, guard, func(guard *routeWorkGuard) error {
 		routingCtx := contextWithRouteAggregateWork(ctx, guard)
-		ovgGuard, guardErr := newOVGBuildGuard(routingCtx, defaultOVGBuildLimits())
+		ovgLimits := defaultOVGBuildLimits()
+		if options.OVGCandidateLimit != 0 {
+			ovgLimits.intersectionCandidates = options.OVGCandidateLimit
+		}
+		ovgGuard, guardErr := newOVGBuildGuard(routingCtx, ovgLimits)
 		if guardErr != nil {
 			return guardErr
 		}
@@ -174,7 +188,11 @@ func RouteGraphWithWorkLimit(ctx context.Context, graph *layoutgraph.Graph, opti
 				return err
 			}
 			subgraph.ComputeCellSize()
-			ovg, routeErr := routeEdgesWithResourceGuards(routingCtx, subgraph, nodesInBoundingBox, ovgGuard, maxRouteSearchWorkUnits)
+			searchWorkLimit := options.SearchWorkLimit
+			if searchWorkLimit == 0 {
+				searchWorkLimit = maxRouteSearchWorkUnits
+			}
+			ovg, routeErr := routeEdgesWithResourceGuards(routingCtx, subgraph, nodesInBoundingBox, ovgGuard, searchWorkLimit, options.Diagnostics)
 			if routeErr != nil {
 				return routeErr
 			}

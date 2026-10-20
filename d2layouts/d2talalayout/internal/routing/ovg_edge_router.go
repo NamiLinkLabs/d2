@@ -69,6 +69,10 @@ type ovgEdgeRouter struct {
 	// independently, labels are already placed and the edges should move out of the way.
 	considerNodeLabels bool
 	work               *routeSearchWorkGuard
+	// degraded is set once the flavor has used its search budget; the
+	// remaining edges get fallback routes (see fallback_route.go).
+	degraded  bool
+	fallbacks int
 }
 
 func checkEdgeRoutingCanceled(ctx context.Context) error {
@@ -314,26 +318,10 @@ func (router *ovgEdgeRouter) routeLine(ctx context.Context, edge *layoutgraph.Ed
 
 	if err != nil {
 		if errors.Is(err, layoutgraph.ErrInvalidCandidate) {
-			fromCenter := router.ovg.Centers[edge.From]
-			toCenter := router.ovg.Centers[edge.To]
-			var fromPort, toPort *geo.Point
-			segment := geo.NewSegment(fromCenter.Point, toCenter.Point)
-			if intersections := edge.From.Intersections(*segment); len(intersections) > 0 {
-				fromPort = intersections[0]
-				segment.Start = fromPort
-			}
-			if intersections := edge.To.Intersections(*segment); len(intersections) > 0 {
-				toPort = intersections[0]
-			}
-			// These only happen when there's overlap. It'll look terrible regardless, so just make it work
-			if fromPort == nil {
-				fromPort = fromCenter.Point
-			}
-			if toPort == nil {
-				toPort = toCenter.Point
-			}
-			ovgNodes := []*OVGNode{fromCenter, NewOVGNode(fromPort), NewOVGNode(toPort), toCenter}
-			return ovgNodes, geo.EuclideanDistance(fromCenter.X, fromCenter.Y, toCenter.X, toCenter.Y), nil
+			// This only happens when there's overlap. It'll look terrible
+			// regardless, so just make it work.
+			ovgNodes, distance := straightCenterRoute(router.ovg, edge)
+			return ovgNodes, distance, nil
 		}
 		return nil, 0, err
 	}
@@ -365,53 +353,42 @@ func (router *ovgEdgeRouter) generateRoutes(ctx context.Context, straightLineFal
 
 	totalDistance := 0.0
 	for _, edge := range router.edges {
-		if err := router.work.step(); err != nil {
-			resp.Err = err
-			return resp
-		}
 		var distance float64
 		var ovgNodes []*OVGNode
 		var err error
-
-		ovgNodes, distance, err = router.slingshot(ctx, edge)
-		if err != nil {
-			if straightLineFallback {
-				ovgNodes, distance, err = router.routeLine(ctx, edge)
+		if !router.degraded {
+			ovgNodes, distance, err = router.searchedRoute(ctx, edge, straightLineFallback)
+			if isRouteSearchExhaustion(err) {
+				// The flavor's search budget is used up. Keep every route found so
+				// far and finish with fallback routes instead of failing.
+				router.degrade()
+				err = nil
 			}
 			if err != nil {
 				resp.Err = err
 				return resp
 			}
 		}
-		if len(ovgNodes) <= 1 {
-			ovgNodes, distance, err = router.search(ctx, edge)
-			if isContextTermination(err) {
-				resp.Err = err
-				return resp
-			}
+		if router.degraded {
+			ovgNodes, distance, err = router.fallbackRoute(ctx, edge)
 			if err != nil {
-				if straightLineFallback {
-					ovgNodes, distance, err = router.routeLine(ctx, edge)
-				}
-				if err != nil {
-					resp.Err = err
-					return resp
-				}
-			}
-			if len(ovgNodes) <= 1 {
-				message := fmt.Sprintf("Route '%s' has size %v", edge.DebugID(), len(ovgNodes))
-				resp.Err = invariant.New(message)
+				resp.Err = err
 				return resp
 			}
 		}
 
 		totalDistance += distance
-		err = router.addRoute(&Route{
+		route := &Route{
 			GEdge:    edge,
 			OVGNodes: ovgNodes,
 			FromPort: *ovgNodes[1].Point,
 			ToPort:   *ovgNodes[len(ovgNodes)-2].Point,
-		})
+		}
+		if router.degraded {
+			err = router.addFallbackRoute(route)
+		} else {
+			err = router.addSearchedRoute(route)
+		}
 		if err != nil {
 			resp.Err = err
 			return resp
@@ -420,7 +397,45 @@ func (router *ovgEdgeRouter) generateRoutes(ctx context.Context, straightLineFal
 
 	resp.Routes = router.routes
 	resp.Distance = totalDistance
+	resp.Fallbacks = router.fallbacks
 	return resp
+}
+
+// searchedRoute routes one edge with the flavor's search: a slingshot, then
+// the visibility-graph search, each with the straight-line fallback when it is
+// enabled.
+func (router *ovgEdgeRouter) searchedRoute(ctx context.Context, edge *layoutgraph.Edge, straightLineFallback bool) ([]*OVGNode, float64, error) {
+	if err := router.work.step(); err != nil {
+		return nil, 0, err
+	}
+	ovgNodes, distance, err := router.slingshot(ctx, edge)
+	if err != nil {
+		if straightLineFallback {
+			ovgNodes, distance, err = router.routeLine(ctx, edge)
+		}
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	if len(ovgNodes) <= 1 {
+		ovgNodes, distance, err = router.search(ctx, edge)
+		if isContextTermination(err) {
+			return nil, 0, err
+		}
+		if err != nil {
+			if straightLineFallback {
+				ovgNodes, distance, err = router.routeLine(ctx, edge)
+			}
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+		if len(ovgNodes) <= 1 {
+			message := fmt.Sprintf("Route '%s' has size %v", edge.DebugID(), len(ovgNodes))
+			return nil, 0, invariant.New(message)
+		}
+	}
+	return ovgNodes, distance, nil
 }
 
 // Among center ports, slightly favor going through center ports where the mirrored center port is occupied
