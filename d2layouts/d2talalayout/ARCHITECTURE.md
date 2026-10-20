@@ -141,8 +141,11 @@ values rather than graph records.
 
 ## Determinism
 
-A graph, options, and seed define a layout attempt. Any map iteration that
-affects a decision must be converted to a stable ordering.
+A graph, options, and seed define a layout attempt. The engine options include
+an `Effort` (set by the adapter's quality level) that trims iteration counts
+and optional stages; it is a fixed amount of work, never a time budget, so it
+is part of the deterministic input. Any map iteration that affects a decision
+must be converted to a stable ordering.
 Concurrency may change execution time, but it must not change the result.
 Completed attempts are ordered by exact penalty, then area; exact ties favor
 the later configured seed. Approximate pairwise ties would make that ordering
