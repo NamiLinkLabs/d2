@@ -77,7 +77,11 @@ func (guard *labelPlacementWorkGuard) add(units int64) error {
 }
 
 func (guard *labelPlacementWorkGuard) check() error {
-	if err := guard.ctx.Err(); err != nil {
+	err := guard.ctx.Err()
+	if err == nil {
+		err = limits.DeadlineErr(guard.ctx)
+	}
+	if err != nil {
 		return fmt.Errorf("%s: %w", guard.location, err)
 	}
 	return nil

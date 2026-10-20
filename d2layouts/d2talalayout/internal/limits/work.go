@@ -184,6 +184,6 @@ func cachedContextErr(ctx context.Context, done <-chan struct{}) error {
 	case <-done:
 		return ctx.Err()
 	default:
-		return nil
+		return DeadlineErr(ctx)
 	}
 }
