@@ -86,3 +86,67 @@ type RenderRequest struct {
 	Diagram *d2target.Diagram `json:"diagram"`
 	Opts    *RenderOptions    `json:"options"`
 }
+
+// RouteEdgesRequest asks TALA to route connections between shapes whose final
+// geometry the caller has already decided.
+type RouteEdgesRequest struct {
+	FS        map[string]string `json:"fs"`
+	InputPath *string           `json:"inputPath"`
+	// Opts carries what changes measurements (fonts, theme, sketch) and the
+	// layout engine whose default label positions apply.
+	Opts *CompileOptions `json:"options"`
+	// Shapes is the final geometry of every shape, in absolute diagram
+	// coordinates.
+	Shapes []RouteShape `json:"shapes"`
+	// Edges lists the ids of the connections to route.
+	Edges []string `json:"edges"`
+	// Connections optionally carries the current routes of other connections.
+	// TALA keeps them and spreads the new routes and labels around them.
+	Connections []RouteConnection `json:"connections"`
+	// TimeoutMs bounds the whole call [default: 1500].
+	TimeoutMs *float64 `json:"timeoutMs"`
+}
+
+type RouteShape struct {
+	ID string `json:"id"`
+	// Pointers tell a missing or null (NaN in JavaScript) number from zero.
+	X             *float64 `json:"x"`
+	Y             *float64 `json:"y"`
+	Width         *float64 `json:"width"`
+	Height        *float64 `json:"height"`
+	LabelPosition *string  `json:"labelPosition"`
+	IconPosition  *string  `json:"iconPosition"`
+}
+
+type RouteConnection struct {
+	ID              string             `json:"id"`
+	Route           []*RouteInputPoint `json:"route"`
+	LabelPosition   *string            `json:"labelPosition"`
+	LabelPercentage *float64           `json:"labelPercentage"`
+}
+
+type RouteInputPoint struct {
+	X *float64 `json:"x"`
+	Y *float64 `json:"y"`
+}
+
+type RoutePoint struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+type RouteLabel struct {
+	Position   string  `json:"position"`
+	Percentage float64 `json:"percentage"`
+}
+
+type RouteEdgesResponse struct {
+	// Routes maps each routed connection id to its new polyline, from the
+	// source shape's outline to the destination's.
+	Routes map[string][]RoutePoint `json:"routes"`
+	// Labels holds the label placement TALA picked for routed connections
+	// that have a label.
+	Labels map[string]RouteLabel `json:"labels,omitempty"`
+	// Errors explains each requested connection that got no route.
+	Errors map[string]string `json:"errors,omitempty"`
+}
