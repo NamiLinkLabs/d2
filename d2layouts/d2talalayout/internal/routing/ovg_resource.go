@@ -513,7 +513,8 @@ func (guard *ovgBuildGuard) isRestrictedSequencePort(node *OVGNode) (bool, error
 	if len(owners) == 0 {
 		return false, guard.check()
 	}
-	for owner, metadata := range owners {
+	for _, entry := range owners {
+		owner, metadata := entry.owner, entry.metadata
 		if err := guard.step(); err != nil {
 			return false, err
 		}

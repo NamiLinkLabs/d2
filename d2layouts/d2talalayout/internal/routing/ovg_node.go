@@ -13,7 +13,9 @@ type OVGNode struct {
 	// legitimately have a port at the same coordinate (for example, two shapes
 	// whose borders touch). The OVG canonicalizes nodes by coordinate, so a
 	// single owner and direction cannot describe that point correctly.
-	portOwnersByNode map[*layoutgraph.Node]ovgPortMetadata
+	// A point has very few owners, so they are kept in insertion order in a
+	// slice; route search looks them up on every relaxation.
+	portOwnersByNode []ovgPortOwner
 	Container        *layoutgraph. // 8 bytes
 				Node
 	Index        int  // 8 bytes
@@ -24,6 +26,12 @@ type OVGNode struct {
 type ovgPortMetadata struct {
 	directions   portDirectionSet
 	isCenterPort bool
+}
+
+// ovgPortOwner is one graph node owning a port at an OVG node's point.
+type ovgPortOwner struct {
+	owner    *layoutgraph.Node
+	metadata ovgPortMetadata
 }
 
 // A rounded OVG coordinate can represent more than one side of the same node.
@@ -72,22 +80,28 @@ func NewOVGNode(p *geo.Point) *OVGNode {
 	return &OVGNode{Point: p}
 }
 
-func (n *OVGNode) ensurePortOwners() {
-	if n.portOwnersByNode == nil {
-		n.portOwnersByNode = make(map[*layoutgraph.Node]ovgPortMetadata, 2)
+// portOwnerIndex returns the position of owner in portOwnersByNode, or -1.
+func (n *OVGNode) portOwnerIndex(owner *layoutgraph.Node) int {
+	for i := range n.portOwnersByNode {
+		if n.portOwnersByNode[i].owner == owner {
+			return i
+		}
 	}
+	return -1
 }
 
 func (n *OVGNode) addPortMetadata(owner *layoutgraph.Node, added ovgPortMetadata) {
 	if owner == nil {
 		return
 	}
-	n.ensurePortOwners()
-
-	metadata := n.portOwnersByNode[owner]
+	i := n.portOwnerIndex(owner)
+	if i < 0 {
+		n.portOwnersByNode = append(n.portOwnersByNode, ovgPortOwner{owner: owner})
+		i = len(n.portOwnersByNode) - 1
+	}
+	metadata := &n.portOwnersByNode[i].metadata
 	metadata.directions |= added.directions
 	metadata.isCenterPort = metadata.isCenterPort || added.isCenterPort
-	n.portOwnersByNode[owner] = metadata
 }
 
 func (n *OVGNode) addPortOwner(owner *layoutgraph.Node, direction geo.Orientation, isCenterPort bool) {
@@ -107,8 +121,12 @@ func (n *OVGNode) setCenterPort(owner *layoutgraph.Node) {
 }
 
 func (n *OVGNode) portMetadataFor(owner *layoutgraph.Node) (ovgPortMetadata, bool) {
-	metadata, ok := n.portOwnersByNode[owner]
-	return metadata, ok
+	for i := range n.portOwnersByNode {
+		if n.portOwnersByNode[i].owner == owner {
+			return n.portOwnersByNode[i].metadata, true
+		}
+	}
+	return ovgPortMetadata{}, false
 }
 
 func (n *OVGNode) isPort() bool {
@@ -136,13 +154,9 @@ func (n *OVGNode) portDirectionsForObstacle(owner *layoutgraph.Node) portDirecti
 }
 
 func (n *OVGNode) setPortDirections(owner *layoutgraph.Node, directions portDirectionSet) {
-	metadata, ok := n.portMetadataFor(owner)
-	if !ok {
-		return
+	if i := n.portOwnerIndex(owner); i >= 0 {
+		n.portOwnersByNode[i].metadata.directions = directions
 	}
-	n.ensurePortOwners()
-	metadata.directions = directions
-	n.portOwnersByNode[owner] = metadata
 }
 
 func (n *OVGNode) isCenterPortOf(owner *layoutgraph.Node) bool {
@@ -150,7 +164,9 @@ func (n *OVGNode) isCenterPortOf(owner *layoutgraph.Node) bool {
 	return ok && metadata.isCenterPort
 }
 
-func (n *OVGNode) portOwners() map[*layoutgraph.Node]ovgPortMetadata {
+// portOwners returns the point's owners in the order they were added. Callers
+// must not retain the slice across port metadata changes.
+func (n *OVGNode) portOwners() []ovgPortOwner {
 	return n.portOwnersByNode
 }
 
@@ -158,8 +174,8 @@ func (n *OVGNode) sharesPortOwner(other *OVGNode) bool {
 	if n == nil || other == nil {
 		return false
 	}
-	for owner := range n.portOwners() {
-		if other.isPortOf(owner) {
+	for _, entry := range n.portOwners() {
+		if other.isPortOf(entry.owner) {
 			return true
 		}
 	}

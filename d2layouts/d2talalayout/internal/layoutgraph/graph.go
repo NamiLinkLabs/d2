@@ -66,6 +66,8 @@ type Graph struct {
 	CommonUncleSiblings map[*Node]Nodes
 
 	edgeLengthCache map[uint64]float64
+	// edgeCrossingCache holds placementcost's incremental crossing state.
+	edgeCrossingCache EdgeCrossingCache
 }
 
 type descendantWalkEntry struct {
