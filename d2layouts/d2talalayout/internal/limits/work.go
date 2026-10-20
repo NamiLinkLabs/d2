@@ -50,6 +50,26 @@ const (
 	// MaxLabelPlacementWorkUnits bounds the quadratic overlap and candidate
 	// search performed while positioning labels and icons.
 	MaxLabelPlacementWorkUnits int64 = 50_000_000
+
+	// MaxRefinementWorkUnits bounds the optional placement refinement of one
+	// layout attempt in deterministic commit units: the operations, validated
+	// nodes and overlap-candidate references of every transaction commit. When
+	// it is used up the remaining refinement stages are skipped and the layout
+	// keeps its last valid placement. Transaction work per commit unit measured
+	// 9-85 on the benchmark corpus (bench/LIMITS.md), so this stops refinement
+	// well inside MaxAutolayoutTransactionWorkUnits, while the 200-object
+	// corpus graph still refines completely (about 8 million units).
+	MaxRefinementWorkUnits int64 = 12_000_000
+
+	// MaxRefinementStageWorkUnits bounds one refinement stage, so a single
+	// expensive pass cannot starve the cheaper passes that follow it.
+	MaxRefinementStageWorkUnits int64 = 6_000_000
+
+	// MaxAutolayoutTransactionWorkUnits is the aggregate transaction guard of
+	// one layout attempt. Optional refinement is bounded by the deterministic
+	// MaxRefinementWorkUnits; this guard remains the backstop for the
+	// transaction work of every stage together.
+	MaxAutolayoutTransactionWorkUnits int64 = 2 * MaxTransactionWorkUnits
 )
 
 // WorkGuard accounts a complete operation's signed work units and polls its

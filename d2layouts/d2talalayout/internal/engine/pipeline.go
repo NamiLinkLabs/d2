@@ -32,6 +32,10 @@ type LayoutOptions struct {
 type pipelineStage struct {
 	name string
 	run  func(*pipeline, context.Context) error
+	// refinement marks an optional placement pass. Such a pass only improves
+	// an already valid placement, so it is metered by the deterministic
+	// refinement budget and skipped once that budget is used up.
+	refinement bool
 }
 
 type routingSnapshot struct {
@@ -72,6 +76,12 @@ type pipeline struct {
 	forceReroute             bool
 	edgeRoutingComplete      bool
 	alignAxesNeeded          bool
+	limits                   WorkLimits
+	// refinement meters the optional placement passes of the current run.
+	refinement *layoutgraph.RefinementBudget
+	// skippedRefinementStages counts optional passes skipped because the
+	// refinement budget was used up.
+	skippedRefinementStages int
 }
 
 // defaultPipelineStages is immutable after initialization. Tests that wrap or
@@ -85,16 +95,16 @@ var defaultPipelineStages = [...]pipelineStage{
 	{name: "PreprocessClusters", run: (*pipeline).preprocessClusters},
 	{name: "PreprocessHubs", run: (*pipeline).preprocessHubs},
 	{name: "NodePlacement", run: (*pipeline).nodePlacementStage},
-	{name: "SwapStuff", run: (*pipeline).swapNodesStage},
-	{name: "Transpose", run: (*pipeline).transposeStage},
-	{name: "AlignAxes", run: (*pipeline).alignAxes},
-	{name: "GapNormalization", run: (*pipeline).gapNormalizationStage},
-	{name: "AlignAxes", run: (*pipeline).alignAxes},
-	{name: "OptimizeClusters", run: (*pipeline).optimizeClustersStage},
-	{name: "AlignAxes", run: (*pipeline).alignAxes},
-	{name: "BalanceSymmetry", run: (*pipeline).balanceSymmetryStage},
-	{name: "Equidistance", run: (*pipeline).equidistanceStage},
-	{name: "AlignAxes", run: (*pipeline).alignAxes},
+	{name: "SwapStuff", run: (*pipeline).swapNodesStage, refinement: true},
+	{name: "Transpose", run: (*pipeline).transposeStage, refinement: true},
+	{name: "AlignAxes", run: (*pipeline).alignAxes, refinement: true},
+	{name: "GapNormalization", run: (*pipeline).gapNormalizationStage, refinement: true},
+	{name: "AlignAxes", run: (*pipeline).alignAxes, refinement: true},
+	{name: "OptimizeClusters", run: (*pipeline).optimizeClustersStage, refinement: true},
+	{name: "AlignAxes", run: (*pipeline).alignAxes, refinement: true},
+	{name: "BalanceSymmetry", run: (*pipeline).balanceSymmetryStage, refinement: true},
+	{name: "Equidistance", run: (*pipeline).equidistanceStage, refinement: true},
+	{name: "AlignAxes", run: (*pipeline).alignAxes, refinement: true},
 	{name: "BinPack", run: (*pipeline).binPack},
 	{name: "CleanupStuff", run: (*pipeline).cleanupGroupsStage},
 	{name: "Rescale", run: (*pipeline).rescaleStage},
@@ -401,10 +411,12 @@ func (p *pipeline) resetFullLayoutRouteState() {
 
 // runAllStages executes the layout stages in order against the pipeline graph.
 func (p *pipeline) runAllStages(ctx context.Context) error {
-	ctx, _, err := layoutgraph.EnsureTransactionWorkGuard(ctx, "AutolayoutTransactions")
+	ctx, _, err := layoutgraph.EnsureTransactionWorkGuardWithLimit(ctx, "AutolayoutTransactions", limits.MaxAutolayoutTransactionWorkUnits)
 	if err != nil {
 		return err
 	}
+	p.refinement = p.limits.refinementBudget()
+	p.skippedRefinementStages = 0
 	stages := p.stagePlan()
 	timed := p.stageDurations != nil
 	if timed && len(p.stageDurations) != len(stages) {
@@ -425,11 +437,22 @@ func (p *pipeline) runAllStages(ctx context.Context) error {
 			// pre-routing BinPack or the new route search.
 			p.resetFullLayoutRouteState()
 		}
+		stageCtx := ctx
+		if stage.refinement {
+			if p.refinement.TotalExhausted() {
+				// The placement is complete and valid; further refinement is
+				// optional. Skipping is decided by deterministic commit units.
+				p.skippedRefinementStages++
+				continue
+			}
+			p.refinement.BeginStage()
+			stageCtx = layoutgraph.ContextWithRefinementBudget(ctx, p.refinement)
+		}
 		var start time.Time
 		if timed {
 			start = time.Now()
 		}
-		if err := stage.run(p, ctx); err != nil {
+		if err := stage.run(p, stageCtx); err != nil {
 			return err
 		}
 		if err := ctx.Err(); err != nil {
@@ -511,6 +534,7 @@ func runLayout(ctx context.Context, graph *layoutgraph.Graph, options LayoutOpti
 	}
 	defer cancelWork()
 	pipeline := newPipeline(graph, options.Seed, instrumentation.storeSnapshots)
+	pipeline.limits = workLimitsFromContext(ctx)
 	if instrumentation.measureStageDurations {
 		pipeline.enableStageTiming()
 	}

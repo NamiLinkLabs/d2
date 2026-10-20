@@ -98,6 +98,7 @@ func compoundCrossAxisDetours(g *layoutgraph.Graph) int {
 
 func reroutePlaced(ctx context.Context, g *layoutgraph.Graph) error {
 	p := newPipeline(g, 0, false)
+	p.limits = workLimitsFromContext(ctx)
 	p.resetFullLayoutRouteState()
 	// Reuse routing and label cleanup on placed nodes without regrouping,
 	// rescaling, or invoking another full seed attempt.

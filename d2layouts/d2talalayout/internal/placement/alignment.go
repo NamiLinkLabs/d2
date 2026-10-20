@@ -68,6 +68,10 @@ func alignAxes(ctx context.Context, g *layoutgraph.Graph, txn *layoutgraph.Trans
 	}
 
 	for _, e := range g.Edges {
+		// Each edge's best move is committed before the next edge.
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		if _, is := isTreeEdge[e]; is {
 			continue
 		}

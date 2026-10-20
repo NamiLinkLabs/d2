@@ -88,6 +88,11 @@ func swapOptimize(ctx context.Context, nodes layoutgraph.Nodes, g *layoutgraph.G
 		return false, err
 	}
 	for _, node := range nodes {
+		// Every accepted swap below is committed before the next node, so the
+		// placement is complete and valid at this point.
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		if _, has := g.NodeToTree[node]; has {
 			continue
 		}

@@ -86,6 +86,9 @@ type Transaction struct {
 	overlapActiveNodes    []transactionSweepNode
 	overlapNodeIndices    map[*Node][]int
 	overlapNodeIndexReady bool
+	// overlapReferences is the candidate-reference count of the latest
+	// overlap build. It feeds the deterministic refinement meter.
+	overlapReferences int64
 	// Geometry trial clones can share an immutable rollback point. Their first
 	// accepted UpdateState must not recycle that shared state as scratch.
 	priorGraphStateShared bool
@@ -129,6 +132,10 @@ func existingTransactionWorkGuard(ctx context.Context, location string) (*limits
 }
 
 func ensureTransactionWorkGuard(ctx context.Context, location string) (context.Context, *limits.WorkGuard, error) {
+	return ensureTransactionWorkGuardWithLimit(ctx, location, maxTransactionWorkUnits)
+}
+
+func ensureTransactionWorkGuardWithLimit(ctx context.Context, location string, limit int64) (context.Context, *limits.WorkGuard, error) {
 	guard, exists, err := existingTransactionWorkGuard(ctx, location)
 	if err != nil {
 		return nil, nil, err
@@ -136,7 +143,7 @@ func ensureTransactionWorkGuard(ctx context.Context, location string) (context.C
 	if exists {
 		return ctx, guard, nil
 	}
-	guard, err = limits.NewWorkGuard(ctx, location, maxTransactionWorkUnits)
+	guard, err = limits.NewWorkGuard(ctx, location, limit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1000,6 +1007,7 @@ func (t *Transaction) buildPostStateOverlapCandidates(ctx context.Context, dirty
 		}
 	}
 
+	t.overlapReferences = retainedReferences
 	for _, candidates := range t.overlapCandidates {
 		if err := t.guard.Step(); err != nil {
 			return err
@@ -1183,6 +1191,10 @@ func (t *Transaction) Commit(ctx context.Context) (err error) {
 	if t.guard == nil {
 		return fmt.Errorf("TALA transaction commit requires a work guard")
 	}
+	// Meter optional refinement before any early exit so the charge depends
+	// only on the deterministic sequence of commits, never on map order.
+	refinement := refinementBudgetFromContext(ctx)
+	refinement.charge(1 + int64(len(t.Ops)) + int64(len(t.Graph.Nodes)))
 	if err := t.guard.Finish(); err != nil {
 		return err
 	}
@@ -1280,6 +1292,7 @@ func (t *Transaction) Commit(ctx context.Context) (err error) {
 	if err := t.buildPostStateOverlapCandidates(ctx, useDirtyValidation); err != nil {
 		return err
 	}
+	refinement.charge(t.overlapReferences)
 	for nodeIndex, n := range t.Graph.Nodes {
 		if len(t.overlapCandidates[nodeIndex]) == 0 {
 			continue

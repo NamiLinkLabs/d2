@@ -430,6 +430,9 @@ func optimizeClustersAtomic(ctx context.Context, g *layoutgraph.Graph, order []*
 	}()
 	changed := false
 	for _, vessel := range order {
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		cluster := g.Clusters[vessel]
 		changed2, err := optimizeClusterWithRollback(ctx, cluster, false, rollback)
 		if err != nil {
