@@ -45,12 +45,27 @@ func (bounds obstructionBounds) excludes(node *layoutgraph.Node) bool {
 	right, bottom := x+node.Width, y+node.Height
 	// Paired comparisons also handle negative dimensions, and never reject a
 	// dimension containing NaN. Infinite obstacle bounds use the original path.
-	if math.IsInf(x, 0) || math.IsInf(y, 0) || math.IsInf(right, 0) || math.IsInf(bottom, 0) ||
-		math.IsNaN(x) || math.IsNaN(y) || math.IsNaN(right) || math.IsNaN(bottom) {
-		return false
-	}
-	return (x < bounds.left && right < bounds.left) ||
+	// The interval test runs first, so only an obstacle it would reject needs
+	// the finiteness check; the result is the same boolean as checking
+	// finiteness first.
+	if !((x < bounds.left && right < bounds.left) ||
 		(x > bounds.right && right > bounds.right) ||
 		(y < bounds.top && bottom < bounds.top) ||
-		(y > bounds.bottom && bottom > bounds.bottom)
+		(y > bounds.bottom && bottom > bounds.bottom)) {
+		return false
+	}
+	return finiteBox(x, y, right, bottom)
+}
+
+// float64ExponentMask selects the exponent bits of a float64; they are all
+// set exactly for ±Inf and NaN.
+const float64ExponentMask = 0x7ff << 52
+
+// finiteBox reports whether all four box coordinates are finite, i.e. none
+// is ±Inf or NaN (the same as checking each with math.IsInf and math.IsNaN).
+func finiteBox(x, y, right, bottom float64) bool {
+	return math.Float64bits(x)&float64ExponentMask != float64ExponentMask &&
+		math.Float64bits(y)&float64ExponentMask != float64ExponentMask &&
+		math.Float64bits(right)&float64ExponentMask != float64ExponentMask &&
+		math.Float64bits(bottom)&float64ExponentMask != float64ExponentMask
 }

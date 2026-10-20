@@ -136,3 +136,18 @@ func TestObstructionBoundsGeneratedRouteParity(t *testing.T) {
 		}
 	}
 }
+
+// finiteBox must agree with math.IsInf/math.IsNaN on every special value.
+func TestFiniteBoxMatchesIsInfIsNaN(t *testing.T) {
+	values := []float64{0, math.Copysign(0, -1), 1, -1, math.MaxFloat64, -math.MaxFloat64,
+		math.SmallestNonzeroFloat64, math.Inf(1), math.Inf(-1), math.NaN(), math.Float64frombits(0x7ff0000000000001)}
+	finite := func(v float64) bool { return !math.IsInf(v, 0) && !math.IsNaN(v) }
+	for _, x := range values {
+		for _, y := range values {
+			want := finite(x) && finite(y) && finite(x+y) && finite(y-x)
+			if got := finiteBox(x, y, x+y, y-x); got != want {
+				t.Fatalf("finiteBox(%v, %v, %v, %v) = %v, want %v", x, y, x+y, y-x, got, want)
+			}
+		}
+	}
+}
