@@ -17,8 +17,21 @@ import (
 	"github.com/d2lang/d2/lib/geo"
 )
 
+// placementRun holds the deterministic parameters shared by every nesting
+// level of one placement.
+type placementRun struct {
+	seed int64
+	// iterations is the annealing iteration factor (per √nodes).
+	iterations int
+}
+
 // placeNodes is phase 1 of the algorithm
 func placeNodes(ctx context.Context, g *layoutgraph.Graph, root *layoutgraph.Node, randomSeed int64, prevEdgeAbductions []*layoutgraph.EdgeAbduction, ancestorObstacles []geo.Box) error {
+	return placeNodesWith(ctx, g, root, placementRun{seed: randomSeed, iterations: nodePlacementIterations}, prevEdgeAbductions, ancestorObstacles)
+}
+
+func placeNodesWith(ctx context.Context, g *layoutgraph.Graph, root *layoutgraph.Node, run placementRun, prevEdgeAbductions []*layoutgraph.EdgeAbduction, ancestorObstacles []geo.Box) error {
+	randomSeed := run.seed
 	// Edge cases
 	if len(g.Nodes) == 0 {
 		return nil
@@ -113,7 +126,7 @@ func placeNodes(ctx context.Context, g *layoutgraph.Graph, root *layoutgraph.Nod
 		// If the direct child is a container with more children, then recurse first
 		// So we go from most nested to least (root)
 		if child.IsContainer() {
-			if err := placeNodes(ctx, g, child, randomSeed, edgeAbductions, fixedObstacles); err != nil {
+			if err := placeNodesWith(ctx, g, child, run, edgeAbductions, fixedObstacles); err != nil {
 				return err
 			}
 			loops.UpdateOffsets(child)
@@ -123,7 +136,7 @@ func placeNodes(ctx context.Context, g *layoutgraph.Graph, root *layoutgraph.Nod
 		if child.IsClusterVessel() {
 			for _, n := range g.Clusters[child].Nodes {
 				if n.IsContainer() {
-					if err := placeNodes(ctx, g, n, randomSeed, edgeAbductions, fixedObstacles); err != nil {
+					if err := placeNodesWith(ctx, g, n, run, edgeAbductions, fixedObstacles); err != nil {
 						return err
 					}
 					childrenGraph.Containers = g.Containers
@@ -170,7 +183,7 @@ func placeNodes(ctx context.Context, g *layoutgraph.Graph, root *layoutgraph.Nod
 		// probably, we want to skip placing nodes that were already placed
 		if subgraph.Nodes[0].Hierarchy == nil {
 			rng := rand.New(rand.NewSource(randomSeed))
-			if err := placeNodesOrthogonally(ctx, root, subgraph, edgeAbductions, rng, ancestorObstacles, randomSeed); err != nil {
+			if err := placeNodesOrthogonally(ctx, root, subgraph, edgeAbductions, rng, ancestorObstacles, run.iterations, randomSeed); err != nil {
 				return err
 			}
 			for _, n := range subgraph.Nodes {
@@ -245,7 +258,7 @@ func placeNodes(ctx context.Context, g *layoutgraph.Graph, root *layoutgraph.Nod
 // This routine is heavily based on the algorithm proposed in Graph Compact Orthogonal Layout Algorithm by Freivalds and Glagolevs
 func placeNodesOrthogonally(ctx context.Context, root *layoutgraph.Node, subgraph *layoutgraph.Graph,
 	edgeAbductions []*layoutgraph.EdgeAbduction, randGenerator *rand.Rand,
-	obstacles []geo.Box, seed ...int64) error {
+	obstacles []geo.Box, iterationFactor int, seed ...int64) error {
 	fixed := subgraph.FixedNodes()
 	initialized := false
 	var err error
@@ -261,7 +274,7 @@ func placeNodesOrthogonally(ctx context.Context, root *layoutgraph.Node, subgrap
 	// After nodes in this nesting level have been initialized, the inner cluster nodes and container children need to also move
 	subgraph.SyncNestedGeometry()
 
-	numIterations := int(float64(nodePlacementIterations) * math.Sqrt(float64(len(subgraph.Nodes))))
+	numIterations := int(float64(iterationFactor) * math.Sqrt(float64(len(subgraph.Nodes))))
 	temp := 2 * math.Sqrt(float64(len(subgraph.Nodes)))
 	coolingFactor := math.Pow(0.2/temp, 1.0/float64(numIterations))
 
