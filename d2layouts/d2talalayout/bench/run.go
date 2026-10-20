@@ -43,6 +43,9 @@ var Engines = []Engine{
 	// they run one after another; MaxConcurrency 1 reproduces that natively.
 	{Name: "tala", D2: "tala", TALA: talaOptions(d2talalayout.DefaultOptions().Seeds...)},
 	{Name: "tala-1seed", D2: "tala", TALA: talaOptions(1)},
+	// Quality levels with their own default seeds, sequential as in D2.js.
+	{Name: "tala-balanced", D2: "tala", TALA: &d2talalayout.Options{Quality: d2talalayout.QualityBalanced, MaxConcurrency: 1}},
+	{Name: "tala-fast", D2: "tala", TALA: &d2talalayout.Options{Quality: d2talalayout.QualityFast, MaxConcurrency: 1}},
 	{Name: "dagre", D2: "dagre"},
 	{Name: "elk", D2: "elk"},
 }
