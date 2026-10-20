@@ -7,6 +7,24 @@ export class D2 {
 
   render(diagram: Diagram, options?: RenderOptions): Promise<string>;
 
+  /**
+   * Routes connections with TALA's obstacle-avoiding edge router between shapes
+   * whose geometry the caller has already decided, e.g. after moving boxes in a
+   * compiled diagram. The D2 source is compiled but not laid out; every shape
+   * must be given its final box.
+   *
+   * Routes are orthogonal polylines from the source shape's outline to the
+   * destination's. To draw one, set it as the connection's `route` and set its
+   * `isCurve` to false.
+   *
+   * Invalid requests (unknown or repeated ids, missing shapes, non-finite
+   * numbers, sizes that are not positive) reject. Connections TALA cannot route
+   * in time or at all are reported in `errors`; the others still get routes.
+   * Connections from a shape to itself are always reported there, and
+   * sequence diagram lifelines are unknown ids: they only exist after layout.
+   */
+  routeEdges(request: RouteEdgesRequest): Promise<RouteEdgesResponse>;
+
   /** Terminates the backing worker and rejects any pending operations. */
   dispose(): Promise<void>;
 }
@@ -93,6 +111,74 @@ export interface CompileRequest {
   inputPath?: string;
   /** The CompileOptions to pass to the compiler*/
   options?: CompileOptions;
+}
+
+export interface RouteEdgesRequest {
+  /** A mapping of D2 file paths to their content */
+  fs: Record<string, string>;
+  /** The path of the entry D2 file [default: index] */
+  inputPath?: string;
+  /**
+   * The options the diagram was compiled with. Fonts, theme and sketch change
+   * how labels are measured; layout picks the default label positions for
+   * shapes that don't give one.
+   */
+  options?: CompileOptions;
+  /** The final box of every shape of the root board, as in diagram.shapes. */
+  shapes: RouteShape[];
+  /** Ids of the connections to route, as in diagram.connections[i].id, e.g. "(a -> b)[0]" or "g.(q -> r)[0]". */
+  edges: string[];
+  /**
+   * Current routes of other connections, which stay as they are. TALA spreads
+   * the new routes and labels around them; connections left out are ignored
+   * while routing. diagram.connections can be passed as is: entries listed in
+   * `edges`, unknown ids and unusable routes are skipped.
+   */
+  connections?: RouteConnection[];
+  /** Time budget for the whole call, in milliseconds [default: 1500, max: 60000] */
+  timeoutMs?: number;
+}
+
+export interface RouteShape {
+  /** Shape id, as in diagram.shapes[i].id */
+  id: string;
+  /** Absolute top-left corner, as in diagram.shapes[i].pos */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** As in diagram.shapes[i].labelPosition. When left out, the layout engine's default is used. */
+  labelPosition?: string;
+  /** As in diagram.shapes[i].iconPosition. When left out, the layout engine's default is used. */
+  iconPosition?: string;
+}
+
+export interface RouteConnection {
+  id: string;
+  route: RoutePoint[];
+  labelPosition?: string;
+  labelPercentage?: number;
+}
+
+export interface RoutePoint {
+  x: number;
+  y: number;
+}
+
+export interface RouteLabel {
+  /** Goes in the connection's labelPosition */
+  position: string;
+  /** Goes in the connection's labelPercentage */
+  percentage: number;
+}
+
+export interface RouteEdgesResponse {
+  /** New route of each routed connection, keyed by connection id */
+  routes: Record<string, RoutePoint[]>;
+  /** Where TALA placed the label of each routed connection that has one */
+  labels?: Record<string, RouteLabel>;
+  /** Why each requested connection without a route got none, e.g. the time budget ran out */
+  errors?: Record<string, string>;
 }
 
 export interface CompileResponse {

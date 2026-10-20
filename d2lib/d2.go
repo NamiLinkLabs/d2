@@ -92,15 +92,7 @@ func compileInput(ctx context.Context, input string, compileOpts *CompileOptions
 		renderOpts = &d2svg.RenderOpts{}
 	}
 
-	g, config, err := d2compiler.Compile(compileOpts.InputPath, strings.NewReader(input), &d2compiler.CompileOptions{
-		Context:              ctx,
-		UTF16Pos:             compileOpts.UTF16Pos,
-		MaxVariableExpansion: compileOpts.MaxVariableExpansion,
-		MaxGlobExpansion:     compileOpts.MaxGlobExpansion,
-		MaxEdgeExpansion:     compileOpts.MaxEdgeExpansion,
-		MaxEdgeExpansionWork: compileOpts.MaxEdgeExpansionWork,
-		FS:                   compileOpts.FS,
-	})
+	g, config, err := d2compiler.Compile(compileOpts.InputPath, strings.NewReader(input), compilerOptions(ctx, compileOpts))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,6 +128,52 @@ func compileInput(ctx context.Context, input string, compileOpts *CompileOptions
 		d.Config = config
 	}
 	return d, g, err
+}
+
+func compilerOptions(ctx context.Context, compileOpts *CompileOptions) *d2compiler.CompileOptions {
+	return &d2compiler.CompileOptions{
+		Context:              ctx,
+		UTF16Pos:             compileOpts.UTF16Pos,
+		MaxVariableExpansion: compileOpts.MaxVariableExpansion,
+		MaxGlobExpansion:     compileOpts.MaxGlobExpansion,
+		MaxEdgeExpansion:     compileOpts.MaxEdgeExpansion,
+		MaxEdgeExpansionWork: compileOpts.MaxEdgeExpansionWork,
+		FS:                   compileOpts.FS,
+	}
+}
+
+// CompileGraph compiles input and prepares its root board the way Compile does
+// right before layout: configuration from the source and defaults are applied
+// to compileOpts and renderOpts, the theme is set and every object and edge
+// label is measured. No layout runs, so objects have sizes but no positions
+// and edges have no routes. Layers, scenarios and steps are compiled but not
+// measured.
+func CompileGraph(ctx context.Context, input string, compileOpts *CompileOptions, renderOpts *d2svg.RenderOpts) (*d2graph.Graph, error) {
+	if compileOpts == nil {
+		compileOpts = &CompileOptions{}
+	}
+	if renderOpts == nil {
+		renderOpts = &d2svg.RenderOpts{}
+	}
+
+	g, config, err := d2compiler.Compile(compileOpts.InputPath, strings.NewReader(input), compilerOptions(ctx, compileOpts))
+	if err != nil {
+		return nil, err
+	}
+	applyConfigs(config, compileOpts, renderOpts)
+	applyDefaults(compileOpts, renderOpts)
+	if config != nil {
+		applyGraphData(g, config.Data)
+	}
+	if err := g.ApplyTheme(*renderOpts.ThemeID); err != nil {
+		return nil, err
+	}
+	if len(g.Objects) > 0 {
+		if err := g.SetDimensions(compileOpts.MeasuredTexts, compileOpts.Ruler, compileOpts.FontFamily, compileOpts.MonoFontFamily); err != nil {
+			return nil, err
+		}
+	}
+	return g, nil
 }
 
 func applyGraphData(g *d2graph.Graph, data map[string]interface{}) {

@@ -117,6 +117,51 @@ both specify the same option.
 
 Renders a compiled diagram to SVG.
 
+### `routeEdges(request: RouteEdgesRequest): Promise<RouteEdgesResponse>`
+
+Routes connections with TALA's obstacle-avoiding edge router between shapes whose final
+geometry you have decided, for example after moving shapes in a compiled diagram. The
+source is compiled but not laid out, so every shape of the root board needs its box.
+
+```javascript
+const { diagram, fs } = await d2.compile(source, { layout: 'dagre' });
+// ...move shapes in diagram.shapes...
+const { routes, labels, errors } = await d2.routeEdges({
+  fs,
+  options: { layout: 'dagre' },
+  shapes: diagram.shapes.map((s) => ({
+    id: s.id, x: s.pos.x, y: s.pos.y, width: s.width, height: s.height,
+    labelPosition: s.labelPosition, iconPosition: s.iconPosition,
+  })),
+  edges: ['(a -> b)[0]'],
+  connections: diagram.connections, // optional: routes to keep and work around
+});
+for (const c of diagram.connections) {
+  if (!routes[c.id]) continue;
+  c.route = routes[c.id];
+  c.isCurve = false;
+  if (labels?.[c.id]) {
+    c.labelPosition = labels[c.id].position;
+    c.labelPercentage = labels[c.id].percentage;
+  }
+}
+const svg = await d2.render(diagram);
+```
+
+- `edges`: connection ids as in `diagram.connections[i].id`.
+- `connections`: current routes of other connections. They are kept, and new routes and
+  labels are spread around them. Ids in `edges`, unknown ids and unusable routes are
+  skipped, so `diagram.connections` can be passed as is.
+- `timeoutMs`: budget for the whole call [default: 1500]. Up to 10 connections are first
+  routed together; if that fails or takes more than half the budget, each connection is
+  routed on its own until the budget runs out.
+
+Invalid requests reject: unknown or repeated ids, shapes missing from `shapes`, coordinates
+that are not finite numbers, and sizes that are not positive. Connections that could not be
+routed, in time or at all, are listed in `errors` with the reason; the others get routes.
+Connections from a shape to itself are always listed there; move their route with the shape.
+Sequence diagram lifelines only exist after layout, so their ids are unknown.
+
 ### `dispose(): Promise<void>`
 
 Terminates the worker backing this D2 instance and rejects any pending operations. Call
