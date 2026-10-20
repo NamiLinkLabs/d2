@@ -124,6 +124,10 @@ export class D2 {
     return this.sendMessage("render", { diagram, options });
   }
 
+  async routeEdges(request) {
+    return this.sendMessage("routeEdges", request);
+  }
+
   async encode(script) {
     return this.sendMessage("encode", script);
   }

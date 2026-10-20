@@ -5,6 +5,8 @@ include changes to the main d2 project.**
 
 ## Next
 
+- Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
+
 ## [0.1.34]
 ### September 7, 2026
 

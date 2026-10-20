@@ -50,6 +50,17 @@ export function setupMessageHandler(isNode, port, initWasm) {
         }
         break;
 
+      case "routeEdges":
+        try {
+          const result = await d2.routeEdges(JSON.stringify(data));
+          const response = JSON.parse(result);
+          if (response.error) throw new Error(response.error.message);
+          currentPort.postMessage({ id, type: "result", data: response.data });
+        } catch (err) {
+          currentPort.postMessage({ id, type: "error", error: err.message });
+        }
+        break;
+
       case "encode":
         try {
           const result = d2.encode(data);

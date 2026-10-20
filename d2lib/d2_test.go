@@ -214,3 +214,56 @@ g -> b
 		})
 	}
 }
+
+func TestCompileGraphMeasuresWithoutLayout(t *testing.T) {
+	ruler, err := textmeasure.NewRuler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const input = "vars: {d2-config: {theme-id: 300}}\ng: {a -> b: hello}\nx -> g.a\n"
+	g, err := CompileGraph(context.Background(), input, &CompileOptions{Ruler: ruler}, nil)
+	if err != nil {
+		t.Fatalf("CompileGraph() error = %v", err)
+	}
+	if g.Theme == nil || g.Theme.ID != 300 {
+		t.Fatalf("theme = %v, want the source configuration's theme", g.Theme)
+	}
+	_, laidOut, err := Compile(context.Background(), input, &CompileOptions{
+		Ruler: ruler,
+		LayoutResolver: func(string) (d2graph.LayoutGraph, error) {
+			// Place objects without changing anything layout-independent.
+			return func(_ context.Context, g *d2graph.Graph) error {
+				for _, obj := range g.Objects {
+					obj.TopLeft = geo.NewPoint(0, 0)
+				}
+				return nil
+			}, nil
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if len(g.Objects) != len(laidOut.Objects) || len(g.Edges) != len(laidOut.Edges) {
+		t.Fatalf("CompileGraph() has %d objects and %d edges, want %d and %d", len(g.Objects), len(g.Edges), len(laidOut.Objects), len(laidOut.Edges))
+	}
+	for i, obj := range g.Objects {
+		if obj.Box == nil || obj.TopLeft != nil {
+			t.Fatalf("object %q box = %#v, want a measured box without a position", obj.AbsID(), obj.Box)
+		}
+		want := laidOut.Objects[i]
+		if obj.AbsID() != want.AbsID() || obj.LabelDimensions != want.LabelDimensions {
+			t.Fatalf("object %q label dimensions = %v, want %v", obj.AbsID(), obj.LabelDimensions, want.LabelDimensions)
+		}
+	}
+	for i, edge := range g.Edges {
+		if len(edge.Route) != 0 {
+			t.Fatalf("edge %q has a route before layout", edge.AbsID())
+		}
+		if edge.LabelDimensions != laidOut.Edges[i].LabelDimensions {
+			t.Fatalf("edge %q label dimensions = %v, want %v", edge.AbsID(), edge.LabelDimensions, laidOut.Edges[i].LabelDimensions)
+		}
+	}
+	if g.Edges[0].LabelDimensions.Width == 0 {
+		t.Fatal("edge label was not measured")
+	}
+}
