@@ -22,6 +22,8 @@ type CorpusSpec struct {
 var StandardCorpus = []CorpusSpec{
 	{Name: "arch_010", Objects: 10, Seed: 10},
 	{Name: "arch_060", Objects: 60, Seed: 60},
+	// The largest size the unmodified engine completes on this family.
+	{Name: "arch_100", Objects: 100, Seed: 100},
 	{Name: "arch_200", Objects: 200, Seed: 200},
 	{Name: "arch_500", Objects: 500, Seed: 500},
 }
