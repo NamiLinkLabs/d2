@@ -1,6 +1,8 @@
 name: ci
+# The full suite (e2e tests, the D2.js build, the race detector and a release
+# archive) runs on master and on demand. Pull requests get the quick checks in
+# quick.yml instead; run this workflow by hand on a branch for the full picture.
 on:
-  pull_request:
   push:
     branches: [master]
   workflow_dispatch:
