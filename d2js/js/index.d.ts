@@ -84,6 +84,14 @@ export interface DagreOptions {
 export interface TALAOptions {
   /** Deterministic layout attempts. `tala-seeds` in the diagram still takes precedence. */
   seeds?: number[];
+  /**
+   * Deterministic speed/quality trade-off [default: 'full'].
+   * 'full' runs every seed with the full pipeline; 'balanced' runs every seed with a reduced pipeline
+   * (shorter placement search, one routing order, no SwapStuff/GapNormalization passes);
+   * 'fast' runs only the first seed with that reduced pipeline (for previews, e.g. while dragging).
+   * `tala-quality` in the diagram (`vars: {d2-config: {data: {tala-quality: fast}}}`) still takes precedence.
+   */
+  quality?: "full" | "balanced" | "fast";
 }
 
 export interface CompileRequest {
