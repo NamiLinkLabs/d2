@@ -91,6 +91,56 @@ func NodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 }
 
 func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool) (float64, error) {
+	return memoNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, nil)
+}
+
+// symmetryMemo caches nodeSymmetry results while the graph and the edge
+// abductions are fixed, e.g. for one whole-graph EdgeLength evaluation. The
+// recursive neighbor and child terms otherwise recompute the same node's
+// symmetry once for every node that refers to it. nodeSymmetry only reads
+// the graph, so a cached result is exactly the value a fresh call returns.
+type symmetryMemo struct {
+	values map[symmetryMemoKey]float64
+}
+
+type symmetryMemoKey struct {
+	node           *layoutgraph.Node
+	checkNeighbors bool
+}
+
+var symmetryMemoPool = typedpool.New(func() *symmetryMemo {
+	return &symmetryMemo{values: make(map[symmetryMemoKey]float64)}
+})
+
+func borrowSymmetryMemo() *symmetryMemo {
+	return symmetryMemoPool.Get()
+}
+
+func returnSymmetryMemo(memo *symmetryMemo) {
+	if len(memo.values) > maxPooledEdgeScratchEntries {
+		return
+	}
+	clear(memo.values)
+	symmetryMemoPool.Put(memo)
+}
+
+func memoNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool, memo *symmetryMemo) (float64, error) {
+	if memo == nil {
+		return computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, nil)
+	}
+	key := symmetryMemoKey{node: node, checkNeighbors: checkNeighbors}
+	if value, ok := memo.values[key]; ok {
+		return value, nil
+	}
+	value, err := computeNodeSymmetry(ctx, node, edgeAbductions, checkNeighbors, memo)
+	if err != nil {
+		return 0, err
+	}
+	memo.values[key] = value
+	return value, nil
+}
+
+func computeNodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []*layoutgraph.EdgeAbduction, checkNeighbors bool, memo *symmetryMemo) (float64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, fmt.Errorf("EdgeLength: %w", err)
 	}
@@ -165,7 +215,7 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 			if err := scoringCancellationError(ctx, i); err != nil {
 				return 0, err
 			}
-			symmetry, err := nodeSymmetry(ctx, nodeReplacement, edgeAbductions, checkNeighbors)
+			symmetry, err := memoNodeSymmetry(ctx, nodeReplacement, edgeAbductions, checkNeighbors, memo)
 			if err != nil {
 				return 0, err
 			}
@@ -355,7 +405,7 @@ func nodeSymmetry(ctx context.Context, node *layoutgraph.Node, edgeAbductions []
 			if matched[i] {
 				continue
 			}
-			adjNodeSymm, err := nodeSymmetry(ctx, adjacentNode, edgeAbductions, false)
+			adjNodeSymm, err := memoNodeSymmetry(ctx, adjacentNode, edgeAbductions, false, memo)
 			if err != nil {
 				return 0, err
 			}

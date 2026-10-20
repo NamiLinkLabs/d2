@@ -134,6 +134,8 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 
 		for worker := range workerCount {
 			wg.Go(func() {
+				memo := borrowSymmetryMemo()
+				defer returnSymmetryMemo(memo)
 				defer func() {
 					if recovered := recover(); recovered != nil {
 						panicOnce.Do(func() {
@@ -158,7 +160,7 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 							errOnce.Do(func() { workerErr = err })
 							return
 						}
-						symmetry, err := nodeSymmetry(ctx, n, options.EdgeAbductions, true)
+						symmetry, err := memoNodeSymmetry(ctx, n, options.EdgeAbductions, true, memo)
 						if err != nil {
 							errOnce.Do(func() { workerErr = err })
 							return
@@ -184,6 +186,8 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 			return 0, workerErr
 		}
 	} else {
+		memo := borrowSymmetryMemo()
+		defer returnSymmetryMemo(memo)
 		for _, n := range graph.Nodes {
 			nl, err := NodeEdgeLength(ctx, n, options)
 			if err != nil {
@@ -194,7 +198,7 @@ func EdgeLength(ctx context.Context, graph *layoutgraph.Graph, options EdgeLengt
 				if err != nil {
 					return 0, err
 				}
-				symmetry, err := nodeSymmetry(ctx, n, options.EdgeAbductions, true)
+				symmetry, err := memoNodeSymmetry(ctx, n, options.EdgeAbductions, true, memo)
 				if err != nil {
 					return 0, err
 				}
