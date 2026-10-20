@@ -161,7 +161,7 @@ type Result struct {
 	EditErr      error
 }
 
-// Measure lays out source and its one-line edit with engine and computes all
+// MeasureCase lays out source and its one-line edit with engine and computes all
 // metrics. edit may be empty to skip the stability measurement.
 func MeasureCase(ctx context.Context, name, source, edit string, engine Engine, timeout time.Duration) Result {
 	r := Result{Case: name, Engine: engine.Name}
