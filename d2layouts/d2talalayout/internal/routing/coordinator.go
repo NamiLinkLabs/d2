@@ -695,7 +695,8 @@ func routeSentinelEdge(tree *layoutgraph.Tree,
 	for _, n := range nodesFromSourcePortToTargetPort {
 		if n.isPort() {
 			validOwner := false
-			for owner := range n.portOwners() {
+			for _, entry := range n.portOwners() {
+				owner := entry.owner
 				if edge.From.IsDescendantOf(owner) || edge.To.IsDescendantOf(owner) {
 					validOwner = true
 					break

@@ -1030,11 +1030,11 @@ func (ovg *OVG) addTunnels(g *layoutgraph.Graph, guard *ovgBuildGuard) error {
 				return err
 			}
 			if canonical != candidate {
-				for owner, metadata := range candidate.portOwners() {
+				for _, entry := range candidate.portOwners() {
 					if err := guard.step(); err != nil {
 						return err
 					}
-					canonical.addPortMetadata(owner, metadata)
+					canonical.addPortMetadata(entry.owner, entry.metadata)
 				}
 				entry.OVGNode = canonical
 			}
@@ -1368,11 +1368,13 @@ func (ovg *OVG) isMisdirectedPortPair(first, second *OVGNode, isHorizontal bool,
 	// A shared point can represent ports of several touching nodes. Reject the
 	// connection only if every possible owner pair is misdirected; one valid
 	// interpretation is enough to make the OVG segment usable.
-	for firstOwner, firstMetadata := range firstOwners {
+	for _, first := range firstOwners {
+		firstOwner, firstMetadata := first.owner, first.metadata
 		if err := guard.step(); err != nil {
 			return false, err
 		}
-		for secondOwner, secondMetadata := range secondOwners {
+		for _, second := range secondOwners {
+			secondOwner, secondMetadata := second.owner, second.metadata
 			if err := guard.step(); err != nil {
 				return false, err
 			}
@@ -1720,11 +1722,11 @@ func (ovg *OVG) mergePorts(other *OVG, guard *ovgBuildGuard) error {
 				return err
 			}
 			if canonical != port {
-				for owner, metadata := range port.portOwners() {
+				for _, entry := range port.portOwners() {
 					if err := guard.step(); err != nil {
 						return err
 					}
-					canonical.addPortMetadata(owner, metadata)
+					canonical.addPortMetadata(entry.owner, entry.metadata)
 				}
 			}
 			canonicalPorts[i] = canonical
