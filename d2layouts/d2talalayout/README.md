@@ -25,6 +25,10 @@ The adapter exposes local, in-process entry points:
   `Options.MaxConcurrency` separately bounds the number of live graph clones.
 - Layout and routing honor the caller's context; timeout policy belongs to the
   embedding application.
+- D2 `top`/`left` pins are absolute diagram coordinates at every nesting
+  level. The adapter rewrites nested pins into the engine's
+  container-relative pins and implicitly pins the containers that enclose
+  them (see `pins.go`).
 
 ## Tests
 

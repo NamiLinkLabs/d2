@@ -268,9 +268,28 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 		workCtx, cancelWork = context.WithCancel(ctx)
 	}
 	defer cancelWork()
-	best, err := runLocalSeeds(workCtx, input, seeds, concurrency)
+	pins := newAbsolutePins(input.graph)
+	best, err := layoutSeedInput(workCtx, input, seeds, concurrency)
 	if err != nil {
 		return err
+	}
+	// Nested pins use an estimated container padding first. When the selected
+	// layout shows a different padding, one more pass places them exactly.
+	if pins.correct(workCtx, best.graph) {
+		best, err = layoutSeedInput(workCtx, input, seeds, concurrency)
+		if err != nil {
+			return err
+		}
+	}
+	return applySeedResult(workCtx, graph, best)
+}
+
+// layoutSeedInput runs every seed and the optional compound strategies on
+// input and returns the selected result without applying it.
+func layoutSeedInput(workCtx context.Context, input seedInput, seeds []int64, concurrency int) (seedResult, error) {
+	best, err := runLocalSeeds(workCtx, input, seeds, concurrency)
+	if err != nil {
+		return seedResult{}, err
 	}
 	ordinary := best
 	best, err = considerSeedCandidate(workCtx, best, func() (seedResult, error) {
@@ -284,7 +303,7 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 		return evaluateSeedResult(workCtx, input, candidate)
 	})
 	if err != nil {
-		return err
+		return seedResult{}, err
 	}
 	if best.graph != ordinary.graph {
 		selected := best
@@ -296,10 +315,10 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 			return evaluateSeedResult(workCtx, input, candidate)
 		})
 		if err != nil {
-			return err
+			return seedResult{}, err
 		}
 	}
-	return applySeedResult(workCtx, graph, best)
+	return best, nil
 }
 
 // Optional strategies may reject a geometry or exhaust their own search. They
