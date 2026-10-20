@@ -27,6 +27,7 @@ type OVG struct {
 
 	fixedOverlapsMu    sync.Mutex
 	fixedOverlapsCache []fixedOverlapsCacheEntry
+	pointIndexCache    ovgPointIndexCache
 	buildGuard         *ovgBuildGuard
 }
 
@@ -57,6 +58,7 @@ func (g *OVG) Connect(nodeA, nodeB *OVGNode) *OVGEdge {
 	}
 
 	edge := NewOVGEdge(nodeA, nodeB)
+	edge.index = len(g.Edges)
 	g.Edges = append(g.Edges, edge)
 	nodeA.addEdge(edge)
 	nodeB.addEdge(edge)
