@@ -1,0 +1,129 @@
+//go:build js && wasm
+
+package d2wasm
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
+	"github.com/d2lang/d2/d2layouts/d2elklayout"
+	"github.com/d2lang/d2/d2layouts/d2talalayout"
+)
+
+// ELKOptions tunes ELK. Fields left out keep D2's defaults.
+type ELKOptions struct {
+	NodeSpacing     *int    `json:"nodeSpacing"`
+	EdgeNodeSpacing *int    `json:"edgeNodeSpacing"`
+	EdgeEdgeSpacing *int    `json:"edgeEdgeSpacing"`
+	SelfLoopSpacing *int    `json:"selfLoopSpacing"`
+	Padding         *string `json:"padding"`
+}
+
+// DagreOptions tunes dagre. Fields left out keep D2's defaults.
+type DagreOptions struct {
+	NodeSep *int `json:"nodeSep"`
+	EdgeSep *int `json:"edgeSep"`
+}
+
+// TALAOptions tunes TALA. Fields left out keep TALA's defaults.
+type TALAOptions struct {
+	// Seeds selects the deterministic layout attempts; diagram-level tala-seeds still win.
+	Seeds []int64 `json:"seeds"`
+}
+
+func nonNegative(name string, v *int) error {
+	if v != nil && *v < 0 {
+		return &WASMError{Message: fmt.Sprintf("%s must not be negative", name), Code: 400}
+	}
+	return nil
+}
+
+func (o *ELKOptions) resolve() (*d2elklayout.ConfigurableOpts, error) {
+	opts := d2elklayout.DefaultOpts
+	if o == nil {
+		return &opts, nil
+	}
+	for name, v := range map[string]*int{"elk.nodeSpacing": o.NodeSpacing, "elk.edgeNodeSpacing": o.EdgeNodeSpacing, "elk.edgeEdgeSpacing": o.EdgeEdgeSpacing, "elk.selfLoopSpacing": o.SelfLoopSpacing} {
+		if err := nonNegative(name, v); err != nil {
+			return nil, err
+		}
+	}
+	if o.NodeSpacing != nil {
+		opts.NodeSpacing = *o.NodeSpacing
+	}
+	if o.EdgeNodeSpacing != nil {
+		opts.EdgeNodeSpacing = *o.EdgeNodeSpacing
+	}
+	if o.EdgeEdgeSpacing != nil {
+		v := *o.EdgeEdgeSpacing
+		opts.EdgeEdgeSpacing = &v
+	}
+	if o.SelfLoopSpacing != nil {
+		opts.SelfLoopSpacing = *o.SelfLoopSpacing
+	}
+	if o.Padding != nil {
+		opts.Padding = *o.Padding
+	}
+	return &opts, nil
+}
+
+func (o *DagreOptions) resolve() (*d2dagrelayout.ConfigurableOpts, error) {
+	opts := d2dagrelayout.DefaultOpts
+	if o == nil {
+		return &opts, nil
+	}
+	if err := nonNegative("dagre.nodeSep", o.NodeSep); err != nil {
+		return nil, err
+	}
+	if err := nonNegative("dagre.edgeSep", o.EdgeSep); err != nil {
+		return nil, err
+	}
+	if o.NodeSep != nil {
+		opts.NodeSep = *o.NodeSep
+	}
+	if o.EdgeSep != nil {
+		opts.EdgeSep = *o.EdgeSep
+	}
+	return &opts, nil
+}
+
+func (o *TALAOptions) resolve() *d2talalayout.Options {
+	opts := d2talalayout.DefaultOptions()
+	if o != nil && len(o.Seeds) > 0 {
+		opts.Seeds = append([]int64(nil), o.Seeds...)
+	}
+	return &opts
+}
+
+// layoutResolver picks the layout engine and applies the caller's tuning.
+func layoutResolver(opts *CompileOptions) (func(string) (d2graph.LayoutGraph, error), error) {
+	var elk *ELKOptions
+	var dagre *DagreOptions
+	var tala *TALAOptions
+	if opts != nil {
+		elk, dagre, tala = opts.ELK, opts.Dagre, opts.TALA
+	}
+	elkOpts, err := elk.resolve()
+	if err != nil {
+		return nil, err
+	}
+	dagreOpts, err := dagre.resolve()
+	if err != nil {
+		return nil, err
+	}
+	talaOpts := tala.resolve()
+	return func(engine string) (d2graph.LayoutGraph, error) {
+		switch engine {
+		case "dagre":
+			return func(ctx context.Context, g *d2graph.Graph) error { return d2dagrelayout.Layout(ctx, g, dagreOpts) }, nil
+		case "elk":
+			return func(ctx context.Context, g *d2graph.Graph) error { return d2elklayout.Layout(ctx, g, elkOpts) }, nil
+		case "tala":
+			return func(ctx context.Context, g *d2graph.Graph) error { return d2talalayout.Layout(ctx, g, talaOpts) }, nil
+		default:
+			return nil, &WASMError{Message: fmt.Sprintf("layout option '%s' not recognized", engine), Code: 400}
+		}
+	}, nil
+}

@@ -246,3 +246,67 @@ func assertSingleWASMWarning(t *testing.T, warnings []string, want string) {
 		t.Fatalf("warning = %q, want %q", warnings[0], want)
 	}
 }
+
+func compileForTest(t *testing.T, options string) (CompileResponse, *WASMError) {
+	t.Helper()
+	call := wrapWASMCall(Compile)
+	defer call.Release()
+	got := call.Invoke(`{"fs":{"index":"a -> b\nb -> c\na -> c\n"},"options":` + options + `}`).String()
+	var response struct {
+		Data  *CompileResponse `json:"data"`
+		Error *WASMError       `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(got), &response); err != nil {
+		t.Fatalf("invalid response: %v", err)
+	}
+	if response.Error != nil {
+		return CompileResponse{}, response.Error
+	}
+	return *response.Data, nil
+}
+
+func shapeX(r CompileResponse, id string) int {
+	for _, s := range r.Diagram.Shapes {
+		if s.ID == id {
+			return s.Pos.X
+		}
+	}
+	return -1
+}
+
+func TestCompileLayoutOptions(t *testing.T) {
+	base, werr := compileForTest(t, `{"layout":"dagre"}`)
+	if werr != nil {
+		t.Fatalf("dagre: %v", werr.Message)
+	}
+	wide, werr := compileForTest(t, `{"layout":"dagre","dagre":{"nodeSep":300}}`)
+	if werr != nil {
+		t.Fatalf("dagre wide: %v", werr.Message)
+	}
+	if shapeX(base, "c") == shapeX(wide, "c") && shapeX(base, "b") == shapeX(wide, "b") {
+		t.Fatalf("dagre.nodeSep had no effect")
+	}
+	elk, werr := compileForTest(t, `{"layout":"elk"}`)
+	if werr != nil {
+		t.Fatalf("elk: %v", werr.Message)
+	}
+	elkWide, werr := compileForTest(t, `{"layout":"elk","elk":{"nodeSpacing":400,"padding":"[top=10,left=10,bottom=10,right=10]"}}`)
+	if werr != nil {
+		t.Fatalf("elk wide: %v", werr.Message)
+	}
+	same := true
+	for i := range elk.Diagram.Shapes {
+		if elk.Diagram.Shapes[i].Pos != elkWide.Diagram.Shapes[i].Pos {
+			same = false
+		}
+	}
+	if same {
+		t.Fatalf("elk options had no effect")
+	}
+	if _, werr := compileForTest(t, `{"layout":"dagre","dagre":{"nodeSep":-1}}`); werr == nil || werr.Code != 400 {
+		t.Fatalf("negative spacing should be rejected, got %v", werr)
+	}
+	if _, werr := compileForTest(t, `{"layout":"tala","tala":{"seeds":[7]}}`); werr != nil {
+		t.Fatalf("tala seeds: %v", werr.Message)
+	}
+}

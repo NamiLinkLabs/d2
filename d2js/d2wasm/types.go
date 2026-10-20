@@ -59,11 +59,15 @@ type RenderOptions struct {
 
 type CompileOptions struct {
 	RenderOptions
-	Layout       *string `json:"layout"`
-	FontRegular  *[]byte `json:"FontRegular"`
-	FontItalic   *[]byte `json:"FontItalic"`
-	FontBold     *[]byte `json:"FontBold"`
-	FontSemibold *[]byte `json:"FontSemibold"`
+	Layout *string `json:"layout"`
+	// Engine tuning; only the options of the engine in use apply.
+	ELK          *ELKOptions   `json:"elk"`
+	Dagre        *DagreOptions `json:"dagre"`
+	TALA         *TALAOptions  `json:"tala"`
+	FontRegular  *[]byte       `json:"FontRegular"`
+	FontItalic   *[]byte       `json:"FontItalic"`
+	FontBold     *[]byte       `json:"FontBold"`
+	FontSemibold *[]byte       `json:"FontSemibold"`
 }
 
 type CompileResponse struct {
