@@ -1540,17 +1540,17 @@
       "underline": false,
       "labelWidth": 125,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
-      "labelPercentage": 0,
+      "labelPosition": "UNLOCKED_TOP",
+      "labelPercentage": 0.07500000298023224,
       "link": "",
       "route": [
         {
-          "x": -610,
-          "y": 465
+          "x": -503,
+          "y": 465.5
         },
         {
-          "x": -599,
-          "y": 491
+          "x": -503,
+          "y": 521.5
         }
       ],
       "animated": false,
@@ -1903,17 +1903,17 @@
       "underline": false,
       "labelWidth": 180,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
+      "labelPosition": "OUTSIDE_TOP_CENTER",
       "labelPercentage": 0,
       "link": "",
       "route": [
         {
-          "x": 521,
-          "y": 337.5
+          "x": 517,
+          "y": 338
         },
         {
-          "x": 515,
-          "y": 480.5
+          "x": 517,
+          "y": 521.5
         }
       ],
       "animated": false,
@@ -1942,17 +1942,17 @@
       "underline": false,
       "labelWidth": 146,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
+      "labelPosition": "OUTSIDE_TOP_CENTER",
       "labelPercentage": 0,
       "link": "",
       "route": [
         {
           "x": 245,
-          "y": 798
+          "y": 721.5
         },
         {
           "x": -245,
-          "y": 741
+          "y": 721.5
         }
       ],
       "animated": false,
@@ -1986,14 +1986,23 @@
       "link": "",
       "route": [
         {
-          "x": 245.5,
-          "y": 666
+          "x": 245,
+          "y": 1015.5
         },
         {
-          "x": -245.5,
-          "y": 353
+          "x": -695.7999877929688,
+          "y": 1015.5
+        },
+        {
+          "x": -931,
+          "y": 905.5
+        },
+        {
+          "x": -931,
+          "y": 465.5
         }
       ],
+      "isCurve": true,
       "animated": false,
       "tooltip": "",
       "icon": null,

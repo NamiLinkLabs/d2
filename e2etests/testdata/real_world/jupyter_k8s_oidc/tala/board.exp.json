@@ -1931,8 +1931,8 @@
       "underline": false,
       "labelWidth": 91,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
-      "labelPercentage": 0,
+      "labelPosition": "UNLOCKED_TOP",
+      "labelPercentage": 0.30000001192092896,
       "link": "",
       "route": [
         {
@@ -2213,11 +2213,11 @@
       "route": [
         {
           "x": 119,
-          "y": 702.5
+          "y": 702
         },
         {
           "x": 119,
-          "y": 521.5
+          "y": 522
         }
       ],
       "animated": false,
