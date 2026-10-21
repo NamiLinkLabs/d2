@@ -191,8 +191,8 @@ func collect(ctx context.Context, diagram *d2target.Diagram) ([]line, error) {
 			continue
 		}
 		if segments+len(pts)-1 > maxSegments {
-			// Later connections are drawn on top: leaving them out loses the
-			// fewest gaps below them, and the same ones every time.
+			// Out of room: keep the connections drawn first, the same ones
+			// every time.
 			break
 		}
 		segments += len(pts) - 1
