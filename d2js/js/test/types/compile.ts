@@ -47,3 +47,15 @@ d2.compile(source, { layout: "unknown" });
 d2.compile({ inputPath: "index" });
 // @ts-expect-error Layout options belong in input.options, not the request root.
 d2.compile({ fs: { index: source }, layout: "tala" });
+
+d2.compile(source, {
+  layout: "elk",
+  elk: { inLayerNodeSpacing: 30, inLayerEdgeSpacing: 5, inLayerEdgeNodeSpacing: 20, padding: 15 },
+});
+d2.compile(source, { layout: "elk", elk: { padding: "[top=30,left=10,bottom=10,right=10]" } });
+d2.compile(source, { layout: "dagre", dagre: { nodeSep: 40, rankSep: 60, padding: 10 } });
+d2.compile(source, { layout: "dagre", dagre: { padding: "[top=20,left=5,bottom=5,right=5]" } });
+// @ts-expect-error Padding is a number or a string.
+d2.compile(source, { layout: "dagre", dagre: { padding: true } });
+// @ts-expect-error ELK options use D2.js names, not the diagram's data keys.
+d2.compile(source, { layout: "elk", elk: { "elk-nodeNode": 30 } });

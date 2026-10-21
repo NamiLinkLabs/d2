@@ -79,24 +79,51 @@ export interface CompileOptions extends RenderOptions {
   fontSemibold?: Uint8Array;
 }
 
+/**
+ * ELK tuning. A diagram can set the same options itself under
+ * `vars.d2-config.data` (e.g. `elk-nodeNode: 30`, named like the CLI flags),
+ * and values set there take precedence over these.
+ */
 export interface ELKOptions {
   /** Space between nodes in neighbouring layers [default: 70] */
   nodeSpacing?: number;
-  /** Space between edges and nodes [default: 40] */
+  /** Space between edges and nodes in neighbouring layers [default: 40] */
   edgeNodeSpacing?: number;
-  /** Space between parallel edges [default: 50] */
+  /** Space between edges routed between the same pair of layers [default: 50] */
   edgeEdgeSpacing?: number;
   /** Space around self-loops [default: 50] */
   selfLoopSpacing?: number;
-  /** Container padding in ELK syntax [default: '[top=50,left=50,bottom=50,right=50]'] */
-  padding?: string;
+  /** Space between nodes of the same layer [default: 20] */
+  inLayerNodeSpacing?: number;
+  /** Space between edges running through the same layer [default: 10] */
+  inLayerEdgeSpacing?: number;
+  /** Space between nodes and edges running past them in the same layer [default: 40] */
+  inLayerEdgeNodeSpacing?: number;
+  /**
+   * Container padding: one number for all four sides, or
+   * '[top=..,left=..,bottom=..,right=..]' [default: 50]
+   */
+  padding?: number | string;
 }
 
+/**
+ * dagre tuning. A diagram can set the same options itself under
+ * `vars.d2-config.data` (e.g. `dagre-ranksep: 60`, named like the CLI flags),
+ * and values set there take precedence over these.
+ */
 export interface DagreOptions {
   /** Horizontal space between nodes of the same rank [default: 60] */
   nodeSep?: number;
   /** Horizontal space between edges [default: 20] */
   edgeSep?: number;
+  /** Space between ranks. Edge labels can make it larger [default: 100] */
+  rankSep?: number;
+  /**
+   * Padding containers are fitted to around their contents: one number, or
+   * '[top=..,left=..,bottom=..,right=..]'. Containers never grow beyond the
+   * room dagre gives them [default: 30]
+   */
+  padding?: number | string;
 }
 
 export interface TALAOptions {

@@ -6,6 +6,7 @@ include changes to the main d2 project.**
 ## Next
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
+- Tune ELK, dagre and TALA with the `elk`, `dagre` and `tala` compile options. ELK gains in-layer node, edge and edge-node spacing; dagre gains `rankSep` and container `padding`; padding takes a number or `[top=..,left=..,bottom=..,right=..]`. Layout options a diagram sets under `vars.d2-config.data` take precedence, and invalid ones are compile errors with a source range.
 
 ## [0.1.34]
 ### September 7, 2026
