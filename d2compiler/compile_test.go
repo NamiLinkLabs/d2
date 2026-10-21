@@ -5795,6 +5795,76 @@ vars: {
 					assert.Equal(t, "1", (config.Data["later"]).([]interface{})[0])
 				},
 			},
+			{
+				name: "data-layout",
+				run: func(t *testing.T) {
+					_, config := assertCompile(t, `
+vars: {
+	d2-config: {
+		data: {
+      elk-algorithm: layered
+      elk-nodeNode: 30
+      elk-nodeNodeBetweenLayers: 50
+      elk-edgeNode: 20
+      elk-edgeEdge: 10
+      elk-padding: 15
+      dagre-nodesep: 40
+      dagre-ranksep: 60
+      dagre-padding: "[top=20,left=10,bottom=10,right=10]"
+      tala-seeds: [1; -2]
+      tala-future-option: anything
+      cat: hat
+    }
+  }
+}
+`, ``)
+					assert.Equal(t, 12, len(config.Data))
+					assert.Equal(t, "30", config.Data["elk-nodeNode"])
+					assert.Equal(t, "15", config.Data["elk-padding"])
+					assert.Equal(t, "[top=20,left=10,bottom=10,right=10]", config.Data["dagre-padding"])
+					assert.Equal(t, "-2", (config.Data["tala-seeds"]).([]interface{})[1])
+				},
+			},
+			{
+				name: "data-layout-invalid",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+		data: {
+      elk-nodeNode: -3
+      elk-edgeNode: lol
+      elk-padding: "[top=x]"
+      dagre-ranksep: [1; 2]
+      tala-seeds: [1; nope]
+      elk-algorithm: disco
+    }
+  }
+}
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:5:7: expected a whole number of pixels from 0 to 10000 for "elk-nodeNode", got "-3"
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:6:7: expected a whole number of pixels from 0 to 10000 for "elk-edgeNode", got "lol"
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:7:7: expected a number or "[top=..,left=..,bottom=..,right=..]" for "elk-padding", got "[top=x]": top: "x" is not a whole number
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:8:7: expected a whole number of pixels from 0 to 10000 for "dagre-ranksep", got "[1; 2]"
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:9:7: invalid "tala-seeds" entry at index 1 (nope): must be a signed 64-bit integer
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:10:7: expected one of layered, mrtree, radial, force, stress, rectpacking, sporeOverlap, sporeCompaction, box, fixed, random for "elk-algorithm", got "disco"`)
+				},
+			},
+			{
+				name: "data-layout-unknown",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+		data: {
+      elk-nodeSpacing: 30
+      dagre-rnaksep: 60
+    }
+  }
+}
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-unknown.d2:5:7: "elk-nodeSpacing" is not a valid ELK option
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-unknown.d2:6:7: "dagre-rnaksep" is not a valid dagre option, did you mean "dagre-ranksep"?`)
+				},
+			},
 		}
 
 		for _, tc := range tca {

@@ -1,0 +1,503 @@
+{
+  "graph": {
+    "name": "",
+    "isFolderOnly": true,
+    "ast": {
+      "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,0:0:0-19:0:384",
+      "nodes": [
+        {
+          "map_key": {
+            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,1:0:1-18:1:383",
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,1:0:1-1:4:5",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,1:0:1-1:4:5",
+                    "value": [
+                      {
+                        "string": "vars",
+                        "raw_string": "vars"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "primary": {},
+            "value": {
+              "map": {
+                "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,1:6:7-18:1:383",
+                "nodes": [
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,2:1:10-17:3:381",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,2:1:10-2:10:19",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,2:1:10-2:10:19",
+                              "value": [
+                                {
+                                  "string": "d2-config",
+                                  "raw_string": "d2-config"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "map": {
+                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,2:12:21-17:3:381",
+                          "nodes": [
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,3:2:25-16:5:377",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,3:2:25-3:6:29",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,3:2:25-3:6:29",
+                                        "value": [
+                                          {
+                                            "string": "data",
+                                            "raw_string": "data"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "map": {
+                                    "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,3:8:31-16:5:377",
+                                    "nodes": [
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,4:6:39-4:28:61",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,4:6:39-4:19:52",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,4:6:39-4:19:52",
+                                                  "value": [
+                                                    {
+                                                      "string": "elk-algorithm",
+                                                      "raw_string": "elk-algorithm"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "unquoted_string": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,4:21:54-4:28:61",
+                                              "value": [
+                                                {
+                                                  "string": "layered",
+                                                  "raw_string": "layered"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,5:6:68-5:22:84",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,5:6:68-5:18:80",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,5:6:68-5:18:80",
+                                                  "value": [
+                                                    {
+                                                      "string": "elk-nodeNode",
+                                                      "raw_string": "elk-nodeNode"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,5:20:82-5:22:84",
+                                              "raw": "30",
+                                              "value": "30"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,6:6:91-6:35:120",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,6:6:91-6:31:116",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,6:6:91-6:31:116",
+                                                  "value": [
+                                                    {
+                                                      "string": "elk-nodeNodeBetweenLayers",
+                                                      "raw_string": "elk-nodeNodeBetweenLayers"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,6:33:118-6:35:120",
+                                              "raw": "50",
+                                              "value": "50"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,7:6:127-7:22:143",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,7:6:127-7:18:139",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,7:6:127-7:18:139",
+                                                  "value": [
+                                                    {
+                                                      "string": "elk-edgeNode",
+                                                      "raw_string": "elk-edgeNode"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,7:20:141-7:22:143",
+                                              "raw": "20",
+                                              "value": "20"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,8:6:150-8:22:166",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,8:6:150-8:18:162",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,8:6:150-8:18:162",
+                                                  "value": [
+                                                    {
+                                                      "string": "elk-edgeEdge",
+                                                      "raw_string": "elk-edgeEdge"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,8:20:164-8:22:166",
+                                              "raw": "10",
+                                              "value": "10"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,9:6:173-9:21:188",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,9:6:173-9:17:184",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,9:6:173-9:17:184",
+                                                  "value": [
+                                                    {
+                                                      "string": "elk-padding",
+                                                      "raw_string": "elk-padding"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,9:19:186-9:21:188",
+                                              "raw": "15",
+                                              "value": "15"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,10:6:195-10:23:212",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,10:6:195-10:19:208",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,10:6:195-10:19:208",
+                                                  "value": [
+                                                    {
+                                                      "string": "dagre-nodesep",
+                                                      "raw_string": "dagre-nodesep"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,10:21:210-10:23:212",
+                                              "raw": "40",
+                                              "value": "40"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,11:6:219-11:23:236",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,11:6:219-11:19:232",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,11:6:219-11:19:232",
+                                                  "value": [
+                                                    {
+                                                      "string": "dagre-ranksep",
+                                                      "raw_string": "dagre-ranksep"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "number": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,11:21:234-11:23:236",
+                                              "raw": "60",
+                                              "value": "60"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,12:6:243-12:58:295",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,12:6:243-12:19:256",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,12:6:243-12:19:256",
+                                                  "value": [
+                                                    {
+                                                      "string": "dagre-padding",
+                                                      "raw_string": "dagre-padding"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "double_quoted_string": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,12:21:258-12:58:295",
+                                              "value": [
+                                                {
+                                                  "string": "[top=20,left=10,bottom=10,right=10]",
+                                                  "raw_string": "[top=20,left=10,bottom=10,right=10]"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,13:6:302-13:25:321",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,13:6:302-13:16:312",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,13:6:302-13:16:312",
+                                                  "value": [
+                                                    {
+                                                      "string": "tala-seeds",
+                                                      "raw_string": "tala-seeds"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "array": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,13:18:314-13:25:321",
+                                              "nodes": [
+                                                {
+                                                  "number": {
+                                                    "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,13:19:315-13:20:316",
+                                                    "raw": "1",
+                                                    "value": "1"
+                                                  }
+                                                },
+                                                {
+                                                  "number": {
+                                                    "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,13:22:318-13:24:320",
+                                                    "raw": "-2",
+                                                    "value": "-2"
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,14:6:328-14:34:356",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,14:6:328-14:24:346",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,14:6:328-14:24:346",
+                                                  "value": [
+                                                    {
+                                                      "string": "tala-future-option",
+                                                      "raw_string": "tala-future-option"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "unquoted_string": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,14:26:348-14:34:356",
+                                              "value": [
+                                                {
+                                                  "string": "anything",
+                                                  "raw_string": "anything"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "map_key": {
+                                          "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,15:6:363-15:14:371",
+                                          "key": {
+                                            "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,15:6:363-15:9:366",
+                                            "path": [
+                                              {
+                                                "unquoted_string": {
+                                                  "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,15:6:363-15:9:366",
+                                                  "value": [
+                                                    {
+                                                      "string": "cat",
+                                                      "raw_string": "cat"
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          },
+                                          "primary": {},
+                                          "value": {
+                                            "unquoted_string": {
+                                              "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout.d2,15:11:368-15:14:371",
+                                              "value": [
+                                                {
+                                                  "string": "hat",
+                                                  "raw_string": "hat"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "root": {
+      "id": "",
+      "id_val": "",
+      "attributes": {
+        "label": {
+          "value": ""
+        },
+        "labelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "style": {},
+        "iconStyle": {},
+        "near_key": null,
+        "shape": {
+          "value": ""
+        },
+        "direction": {
+          "value": ""
+        },
+        "constraint": null
+      },
+      "zIndex": 0
+    },
+    "edges": null,
+    "objects": null
+  },
+  "err": null
+}
