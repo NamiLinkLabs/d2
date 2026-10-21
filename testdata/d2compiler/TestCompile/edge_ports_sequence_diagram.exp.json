@@ -1,0 +1,11 @@
+{
+  "graph": null,
+  "err": {
+    "errs": [
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/edge_ports_sequence_diagram.d2,1:9:33-1:25:49",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/edge_ports_sequence_diagram.d2:2:10: source-port and target-port cannot be used in sequence diagrams"
+      }
+    ]
+  }
+}

@@ -1560,6 +1560,130 @@ x -> y: {
 			},
 		},
 		{
+			name: "edge_ports_basic",
+
+			text: `a -> b: {source-port: right; target-port: top}
+c <- d: {source-port: bottom}
+e -> f
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.Equal(t, 3, len(g.Edges))
+				assert.String(t, "right", g.Edges[0].SrcPort.Value)
+				assert.String(t, "top", g.Edges[0].DstPort.Value)
+				// source-port pins the endpoint written first, even when the arrow points at it.
+				assert.String(t, "c", g.Edges[1].Src.ID)
+				assert.String(t, "bottom", g.Edges[1].SrcPort.Value)
+				assert.Equal(t, true, g.Edges[1].DstPort == nil)
+				assert.Equal(t, true, g.Edges[2].SrcPort == nil && g.Edges[2].DstPort == nil)
+				assert.Equal(t, true, g.Edges[0].SrcPort.MapKey != nil)
+			},
+		},
+		{
+			name: "edge_ports_case_insensitive",
+
+			text: `a -> b: {source-port: LEFT; target-port: Bottom}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.String(t, "left", g.Edges[0].SrcPort.Value)
+				assert.String(t, "bottom", g.Edges[0].DstPort.Value)
+			},
+		},
+		{
+			name: "edge_ports_indexed",
+
+			text: `a -> b
+a -> b
+(a -> b)[1].target-port: left
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.Equal(t, true, g.Edges[0].DstPort == nil)
+				assert.String(t, "left", g.Edges[1].DstPort.Value)
+			},
+		},
+		{
+			name: "edge_ports_glob",
+
+			text: `a -> b
+x: {c -> d}
+(** -> **)[*].source-port: bottom
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.Equal(t, 2, len(g.Edges))
+				for _, e := range g.Edges {
+					assert.String(t, "bottom", e.SrcPort.Value)
+				}
+			},
+		},
+		{
+			name: "edge_ports_class",
+
+			text: `classes: {
+  out-right: {source-port: right; style.stroke: red}
+}
+a -> b: {class: out-right}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.String(t, "right", g.Edges[0].SrcPort.Value)
+				assert.String(t, "red", g.Edges[0].Style.Stroke.Value)
+			},
+		},
+		{
+			name: "edge_ports_sql_table_not_column",
+
+			text: `t: {shape: sql_table; id: int}
+t -> u: {source-port: bottom}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.String(t, "bottom", g.Edges[0].SrcPort.Value)
+			},
+		},
+		{
+			name: "edge_ports_invalid_value",
+
+			text: `a -> b: {source-port: middle}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge_ports_invalid_value.d2:1:23: source-port must be one of top, right, bottom, left, got "middle"`,
+		},
+		{
+			name: "edge_ports_on_object",
+
+			text: `a: {target-port: top}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge_ports_on_object.d2:1:5: "target-port" can only be used on connections`,
+		},
+		{
+			name: "edge_ports_in_arrowhead",
+
+			text: `a -> b: {target-arrowhead.target-port: top}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge_ports_in_arrowhead.d2:1:27: "target-port" must be set on the connection, not on its arrowhead`,
+		},
+		{
+			name: "edge_ports_composite",
+
+			text: `a -> b: {source-port: {top: 1}}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge_ports_composite.d2:1:10: reserved field source-port does not accept composite`,
+		},
+		{
+			name: "edge_ports_sequence_diagram",
+
+			text: `shape: sequence_diagram
+a -> b: {target-port: top}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge_ports_sequence_diagram.d2:2:10: source-port and target-port cannot be used in sequence diagrams`,
+		},
+		{
+			name: "edge_ports_sql_column",
+
+			text: `t: {shape: sql_table; id: int}
+u: {shape: sql_table; ref: int}
+t.id -> u.ref: {source-port: top; target-port: left}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge_ports_sql_column.d2:3:17: source-port cannot be used on a connection from a sql_table column
+d2/testdata/d2compiler/TestCompile/edge_ports_sql_column.d2:3:35: target-port cannot be used on a connection to a sql_table column`,
+		},
+		{
 			name: "edge_map_arrowhead",
 
 			text: `x -> y: {
