@@ -4,6 +4,7 @@ package d2svg
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"encoding/base64"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	"github.com/d2lang/d2/d2renderers/d2fonts"
 	"github.com/d2lang/d2/d2renderers/d2latex"
 	"github.com/d2lang/d2/d2renderers/d2sketch"
+	"github.com/d2lang/d2/d2renderers/internal/crossgaps"
 	"github.com/d2lang/d2/d2renderers/internal/patternassets"
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/d2themes"
@@ -508,7 +510,7 @@ func renderLegendConnectionIcon(c d2target.Connection, x, y int, theme *d2themes
 	fmt.Fprintf(finalBuf, `<g transform="translate(%d, %d) scale(%s)">`,
 		x, y, svg.FormatFloat(1.0/sizeFactor))
 
-	_, err := drawConnection(buf, legendHash, legendConn, markers, idToShape, false, theme, newMarkdownRenderer(nil, nil, theme))
+	_, err := drawConnection(buf, legendHash, "", legendConn, markers, idToShape, false, theme, newMarkdownRenderer(nil, nil, theme))
 	if err != nil {
 		return "", err
 	}
@@ -1081,7 +1083,9 @@ func makeBorderLabelMask(labelPosition label.Position, labelTL *geo.Point, label
 	)
 }
 
-func drawConnection(writer io.Writer, diagramHash string, connection d2target.Connection, markers map[string]struct{}, idToShape map[string]d2target.Shape, sketch bool, inlineTheme *d2themes.Theme, markdown *markdownRenderer) (labelMask string, _ error) {
+// drawConnection masks the connection's line with the diagram's shared label
+// mask, named diagramHash, or with maskID when it isn't empty.
+func drawConnection(writer io.Writer, diagramHash, maskID string, connection d2target.Connection, markers map[string]struct{}, idToShape map[string]d2target.Shape, sketch bool, inlineTheme *d2themes.Theme, markdown *markdownRenderer) (labelMask string, _ error) {
 	classes := []string{base64.URLEncoding.EncodeToString([]byte(svg.EscapeText(connection.ID)))}
 	classes = append(classes, connection.Classes...)
 	groupAttributes := []svg.Attribute{svg.Attr("class", strings.Join(classes, " "))}
@@ -1173,7 +1177,10 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 
 	srcAdj, dstAdj := getArrowheadAdjustments(connection, idToShape)
 	path := pathData(connection, srcAdj, dstAdj)
-	mask := svg.Attr("mask", svg.LocalIRI(svg.LiteralID(diagramHash)))
+	if maskID == "" {
+		maskID = diagramHash
+	}
+	mask := svg.Attr("mask", svg.LocalIRI(svg.LiteralID(maskID)))
 
 	if sketch {
 		out, err := d2sketch.ConnectionWithAttributes(connection, path, []svg.Attribute{mask})
@@ -2993,6 +3000,15 @@ func renderValidated(diagram *d2target.Diagram, opts *RenderOpts) ([]byte, error
 
 	sortObjects(allObjects)
 
+	var gaps map[string][]crossgaps.Gap
+	if opts.IntersectionGaps != nil && *opts.IntersectionGaps {
+		gaps, err = crossgaps.Find(context.Background(), diagram, crossgaps.Options{Sketch: sketch})
+		if err != nil {
+			return nil, err
+		}
+	}
+	var gapMasks []string
+
 	appendixItemBuf := &bytes.Buffer{}
 
 	var labelMasks []string
@@ -3006,7 +3022,12 @@ func renderValidated(diagram *d2target.Diagram, opts *RenderOpts) ([]byte, error
 	markdown := newMarkdownRenderer(diagram.FontFamily, diagram.MonoFontFamily, inlineTheme)
 	for _, obj := range allObjects {
 		if c, is := obj.(d2target.Connection); is {
-			labelMask, err := drawConnection(buf, isolatedDiagramHash, c, markers, idToShape, sketch, inlineTheme, markdown)
+			maskID := ""
+			if connectionGaps := gaps[c.ID]; len(connectionGaps) > 0 {
+				maskID = gapMaskID(isolatedDiagramHash, len(gapMasks))
+				gapMasks = append(gapMasks, gapMask(maskID, isolatedDiagramHash, &c, connectionGaps, sketch))
+			}
+			labelMask, err := drawConnection(buf, isolatedDiagramHash, maskID, c, markers, idToShape, sketch, inlineTheme, markdown)
 			if err != nil {
 				return nil, err
 			}
@@ -3118,6 +3139,9 @@ func renderValidated(diagram *d2target.Diagram, opts *RenderOpts) ([]byte, error
 		strings.Join(labelMasks, "\n"),
 		`</mask>`,
 	}, "\n"))
+	for _, m := range gapMasks {
+		buf.WriteString(m)
+	}
 
 	// Validate the theme before expanding the background, preserving error order.
 	var themeStylesheet string

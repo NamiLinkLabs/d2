@@ -122,6 +122,7 @@ func (b *builder) buildConnection(connection d2target.Connection) (*d2scene.Node
 			geometryChildren = append(geometryChildren, dstArrowNode)
 		}
 	}
+	geometryChildren = b.withGaps(&connection, geometryChildren)
 	if b.connectionMask == nil {
 		group.Children = append(group.Children, geometryChildren...)
 	} else {
