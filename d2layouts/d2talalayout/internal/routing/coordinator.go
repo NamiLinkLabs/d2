@@ -470,6 +470,9 @@ func routeEdgesWithFlavors(
 			}
 			// A tree's edges otherwise leave the parent through one shared
 			// port as a bus; separate edges are routed like any other edge.
+			// The OVG keeps the tree's bus lines and parent-aligned child
+			// ports (addTreeNodes): sharing them is penalized, but they let
+			// a child aligned with its parent get a straight route.
 			if g.SeparateEdges {
 				continue
 			}
