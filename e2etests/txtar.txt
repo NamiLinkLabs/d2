@@ -1773,3 +1773,34 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 
 a->b
 
+
+-- layout-options-data --
+vars: {
+  d2-config: {
+    data: {
+      elk-nodeNode: 10
+      elk-edgeNode: 10
+      elk-padding: 15
+      dagre-ranksep: 60
+      dagre-padding: 10
+    }
+  }
+}
+
+frame: {
+  picture: {
+    shape: image
+    icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHJlY3Qgd2lkdGg9JzY0JyBoZWlnaHQ9JzY0JyByeD0nOCcgZmlsbD0nIzRhOTBkOScvPjxjaXJjbGUgY3g9JzIwJyBjeT0nMjInIHI9JzcnIGZpbGw9JyNmZmYnLz48cGF0aCBkPSdNNiA1NGwxOC0yMCAxMCAxMCA4LTggMTYgMTh6JyBmaWxsPScjZmZmJy8+PC9zdmc+"
+  }
+}
+services: {
+  api
+  worker
+  cache
+}
+client -> frame.picture
+client -> services.api: requests
+services.api -> services.cache
+services.api -> services.worker
+services.worker -> db
+client -> db
