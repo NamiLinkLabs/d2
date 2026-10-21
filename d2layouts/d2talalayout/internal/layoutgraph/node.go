@@ -152,8 +152,8 @@ func (node *Node) boundingBoxValues(allNodes Nodes, roundDimensions bool) (geo.P
 		}
 	}
 	if node.Icon != nil && node.shapeType != imageType && node.Icon.Position.IsOutside() && allNodes != nil {
-		iconSize := float64(MaxIconSize)
-		iconTL := node.LabelTopLeft(node.Icon.Position, iconSize, iconSize)
+		iconWidth, iconHeight := node.Icon.ReservedDims()
+		iconTL := node.IconTopLeft(node.Icon.Position, iconWidth, iconHeight)
 
 		outsidePadding := 2. * label.PADDING
 
@@ -165,11 +165,11 @@ func (node *Node) boundingBoxValues(allNodes Nodes, roundDimensions bool) (geo.P
 		if top < tl.Y {
 			tl.Y = top
 		}
-		right := math.Ceil(iconTL.X + iconSize + outsidePadding)
+		right := math.Ceil(iconTL.X + iconWidth + outsidePadding)
 		if right > br.X {
 			br.X = right
 		}
-		bottom := math.Ceil(iconTL.Y + iconSize + outsidePadding)
+		bottom := math.Ceil(iconTL.Y + iconHeight + outsidePadding)
 		if bottom > br.Y {
 			br.Y = bottom
 		}
@@ -949,24 +949,26 @@ func (n *Node) UpdateSpacing() {
 	}
 
 	if n.Icon != nil && n.Icon.PositionFixed() {
-		iconSize := float64(MaxIconSize + 2*label.PADDING)
+		iconWidth, iconHeight := n.Icon.ReservedDims()
+		iconWidth += 2 * label.PADDING
+		iconHeight += 2 * label.PADDING
 		switch n.Icon.Position {
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
-			n.margin.top = math.Max(n.margin.top, iconSize)
+			n.margin.top = math.Max(n.margin.top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:
-			n.margin.bottom = math.Max(n.margin.bottom, iconSize)
+			n.margin.bottom = math.Max(n.margin.bottom, iconHeight)
 		case label.OutsideLeftTop, label.OutsideLeftMiddle, label.OutsideLeftBottom:
-			n.margin.left = math.Max(n.margin.left, iconSize)
+			n.margin.left = math.Max(n.margin.left, iconWidth)
 		case label.OutsideRightTop, label.OutsideRightMiddle, label.OutsideRightBottom:
-			n.margin.right = math.Max(n.margin.right, iconSize)
+			n.margin.right = math.Max(n.margin.right, iconWidth)
 		case label.InsideTopLeft, label.InsideTopCenter, label.InsideTopRight:
-			n.padding.top = math.Max(n.padding.top, iconSize)
+			n.padding.top = math.Max(n.padding.top, iconHeight)
 		case label.InsideBottomLeft, label.InsideBottomCenter, label.InsideBottomRight:
-			n.padding.bottom = math.Max(n.padding.bottom, iconSize)
+			n.padding.bottom = math.Max(n.padding.bottom, iconHeight)
 		case label.InsideMiddleLeft:
-			n.padding.left = math.Max(n.padding.left, iconSize)
+			n.padding.left = math.Max(n.padding.left, iconWidth)
 		case label.InsideMiddleRight:
-			n.padding.right = math.Max(n.padding.right, iconSize)
+			n.padding.right = math.Max(n.padding.right, iconWidth)
 		}
 	}
 
@@ -1981,6 +1983,26 @@ func (node *Node) LabelTopLeft(labelPosition label.Position, width, height float
 	return labelPosition.GetPointOnBox(box, label.PADDING, width, height)
 }
 
+// IconTopLeft returns the top-left point for an icon of the given size and
+// position relative to node. Unlike LabelTopLeft, border positions are placed
+// on the node's outer box, matching the renderers.
+func (node *Node) IconTopLeft(iconPosition label.Position, width, height float64) *geo.Point {
+	var box *geo.Box
+	if iconPosition.IsOutside() || iconPosition.IsBorder() {
+		box = node.GetBox()
+	} else {
+		box = node.InnerBox()
+	}
+
+	return iconPosition.GetPointOnBox(box, label.PADDING, width, height)
+}
+
+// IconBox returns the box the node's icon occupies at iconPosition.
+func (node *Node) IconBox(iconPosition label.Position) geo.Box {
+	width, height := node.IconDims(iconPosition)
+	return geo.Box{TopLeft: node.IconTopLeft(iconPosition, width, height), Width: width, Height: height}
+}
+
 // NodeOverlapCount reports how many nodes overlap node within delta.
 func (node *Node) NodeOverlapCount(nodes Nodes, delta float64) int {
 	count := 0
@@ -2263,7 +2285,17 @@ func (n *Node) isMajorityTarget() bool {
 	return counter > 0
 }
 
-// IconSize returns the icon size appropriate for iconPosition on n.
+// IconDims returns the icon width and height at iconPosition on n: the
+// explicit size when set, otherwise the square automatic size of IconSize.
+func (n *Node) IconDims(iconPosition label.Position) (width, height float64) {
+	if n.Icon.HasExplicitSize() {
+		return n.Icon.Width, n.Icon.Height
+	}
+	size := n.IconSize(iconPosition)
+	return size, size
+}
+
+// IconSize returns the automatic icon size appropriate for iconPosition on n.
 func (n *Node) IconSize(iconPosition label.Position) float64 {
 	minDimension := math.Min(n.Width, n.Height)
 	var size float64

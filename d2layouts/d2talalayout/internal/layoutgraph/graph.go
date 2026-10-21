@@ -1177,10 +1177,13 @@ func (g *Graph) containerPadding(container *Node, considerChildren bool) Spacing
 		padding /= 4.
 	}
 
+	var iconPadding float64
 	if container.Icon != nil && container.shapeType != imageType {
 		// we don't know if the icon will be placed at an inside position, but leave enough padding so it has that option
 		// Note: we don't know what the exact icon size will be until the final layout size so we use max
-		padding = float64(MaxIconSize + 2*label.PADDING)
+		iconWidth, iconHeight := container.Icon.ReservedDims()
+		iconPadding = math.Max(iconWidth, iconHeight) + 2*label.PADDING
+		padding = iconPadding
 	}
 
 	if container.Label != nil && !container.Label.Position.IsOutside() {
@@ -1217,10 +1220,13 @@ func (g *Graph) containerPadding(container *Node, considerChildren bool) Spacing
 
 	if considerChildren {
 		var hasChildWithIcon bool
+		var childIconSize float64
 		var childrenMargin Spacing
 		for _, child := range g.Containers[container] {
-			if !hasChildWithIcon && child.Icon != nil && child.shapeType != imageType && !child.Icon.PositionFixed() {
+			if child.Icon != nil && child.shapeType != imageType && !child.Icon.PositionFixed() {
 				hasChildWithIcon = true
+				iconWidth, iconHeight := child.Icon.ReservedDims()
+				childIconSize = math.Max(childIconSize, math.Max(iconWidth, iconHeight))
 			}
 			childrenMargin.left = math.Max(childrenMargin.left, child.margin.left)
 			childrenMargin.right = math.Max(childrenMargin.right, child.margin.right)
@@ -1235,7 +1241,7 @@ func (g *Graph) containerPadding(container *Node, considerChildren bool) Spacing
 		if hasChildWithIcon {
 			// we don't know if the icon will be placed at an inside position, but leave enough padding so it has that option
 			// Note: we don't know what the exact icon size will be until the final layout size so we use max
-			padding = float64(MaxIconSize + 2*label.PADDING)
+			padding = math.Max(iconPadding, childIconSize+2*label.PADDING)
 		}
 	}
 

@@ -122,13 +122,13 @@ func NodeBoundingBox(
 		}
 	}
 	if node.Icon != nil && !node.IsImage() && node.Icon.Position.IsOutside() && allNodes != nil {
-		iconSize := float64(layoutgraph.MaxIconSize)
-		iconTopLeft := node.LabelTopLeft(node.Icon.Position, iconSize, iconSize)
+		iconWidth, iconHeight := node.Icon.ReservedDims()
+		iconTopLeft := node.IconTopLeft(node.Icon.Position, iconWidth, iconHeight)
 		outsidePadding := 2. * label.PADDING
 		topLeft.X = math.Min(topLeft.X, math.Floor(iconTopLeft.X-outsidePadding))
 		topLeft.Y = math.Min(topLeft.Y, math.Floor(iconTopLeft.Y-outsidePadding))
-		bottomRight.X = math.Max(bottomRight.X, math.Ceil(iconTopLeft.X+iconSize+outsidePadding))
-		bottomRight.Y = math.Max(bottomRight.Y, math.Ceil(iconTopLeft.Y+iconSize+outsidePadding))
+		bottomRight.X = math.Max(bottomRight.X, math.Ceil(iconTopLeft.X+iconWidth+outsidePadding))
+		bottomRight.Y = math.Max(bottomRight.Y, math.Ceil(iconTopLeft.Y+iconHeight+outsidePadding))
 	}
 	return topLeft, bottomRight, nil
 }
