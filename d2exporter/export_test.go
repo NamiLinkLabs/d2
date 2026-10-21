@@ -180,14 +180,23 @@ x -> plain: hi {
 				tassert.Equal(t, "B2", x.Stroke)
 				tassert.Equal(t, "AA4", x.Color)
 				tassert.Equal(t, "AA4", x.GetFontColor())
+				tassert.True(t, x.ExplicitThemeFill)
+				tassert.True(t, x.ExplicitThemeStroke)
 				tassert.True(t, x.ExplicitThemeFontColor)
 
+				// Theme defaults are theme color codes too, but not explicit.
 				plain := shapeByID(t, d, "plain")
+				tassert.Equal(t, "B6", plain.Fill)
+				tassert.Equal(t, "B1", plain.Stroke)
+				tassert.False(t, plain.ExplicitThemeFill)
+				tassert.False(t, plain.ExplicitThemeStroke)
 				tassert.False(t, plain.ExplicitThemeFontColor)
 
 				tassert.Equal(t, 1, len(d.Connections))
 				tassert.Equal(t, "AB5", d.Connections[0].Stroke)
 				tassert.Equal(t, "AB4", d.Connections[0].GetFontColor())
+				tassert.True(t, d.Connections[0].ExplicitThemeStroke)
+				tassert.True(t, d.Connections[0].ExplicitThemeFontColor)
 			},
 		},
 		{

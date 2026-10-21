@@ -76,6 +76,7 @@
       "primaryAccentColor": "B2",
       "secondaryAccentColor": "AA2",
       "neutralAccentColor": "N2",
+      "explicitThemeStroke": true,
       "explicitThemeFontColor": true
     },
     {
@@ -274,7 +275,8 @@
       "level": 1,
       "primaryAccentColor": "B2",
       "secondaryAccentColor": "AA2",
-      "neutralAccentColor": "N2"
+      "neutralAccentColor": "N2",
+      "explicitThemeStroke": true
     }
   ],
   "connections": [],

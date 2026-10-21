@@ -44,6 +44,8 @@
       "labelHeight": 0,
       "zIndex": 0,
       "level": 1,
+      "explicitThemeFill": true,
+      "explicitThemeStroke": true,
       "explicitThemeFontColor": true
     },
     {
@@ -118,7 +120,9 @@
       "animated": false,
       "tooltip": "",
       "icon": null,
-      "zIndex": 0
+      "zIndex": 0,
+      "explicitThemeStroke": true,
+      "explicitThemeFontColor": true
     }
   ],
   "root": {

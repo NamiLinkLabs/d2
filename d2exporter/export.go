@@ -149,6 +149,11 @@ func applyTheme(shape *d2target.Shape, obj *d2graph.Object, theme *d2themes.Them
 	}
 }
 
+// isThemeColor reports whether a style color was set to a theme color code.
+func isThemeColor(s *d2graph.Scalar) bool {
+	return s != nil && color.IsThemeColor(s.Value)
+}
+
 func applyStyles(shape *d2target.Shape, obj *d2graph.Object) {
 	if obj.Style.Opacity != nil {
 		shape.Opacity, _ = strconv.ParseFloat(obj.Style.Opacity.Value, 64)
@@ -245,9 +250,9 @@ func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
 		}
 	}
 	applyStyles(shape, obj)
-	if obj.Style.FontColor != nil && color.IsThemeColor(obj.Style.FontColor.Value) {
-		shape.ExplicitThemeFontColor = true
-	}
+	shape.ExplicitThemeFill = isThemeColor(obj.Style.Fill)
+	shape.ExplicitThemeStroke = isThemeColor(obj.Style.Stroke)
+	shape.ExplicitThemeFontColor = isThemeColor(obj.Style.FontColor)
 
 	switch strings.ToLower(obj.Shape.Value) {
 	case d2target.ShapeClass:
@@ -479,6 +484,9 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 
 	connection.Src = edge.Src.AbsID()
 	connection.Dst = edge.Dst.AbsID()
+
+	connection.ExplicitThemeStroke = isThemeColor(edge.Style.Stroke)
+	connection.ExplicitThemeFontColor = isThemeColor(edge.Style.FontColor)
 
 	if theme != nil && theme.SpecialRules.C4 {
 		if edge.Style.StrokeDash == nil {
