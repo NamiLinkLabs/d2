@@ -116,6 +116,31 @@ local.code -> aws.ec2: {
 			},
 		},
 		{
+			name: "nested-edge-routing",
+			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
+				// The connection from the near shape is routed around b
+				// unless --nested-edge-routing asks for a straight line.
+				writeFile(t, dir, "near.d2", "a -> b\nlegend: {near: top-right}\nlegend -> a\n")
+				straightPaths := regexp.MustCompile(`<path d="M [-0-9.]+ [-0-9.]+ L [-0-9.]+ [-0-9.]+" [^>]*class="connection`)
+				count := func(args ...string) int {
+					err := runTestMainPersist(t, ctx, dir, env, append(args, "near.d2", "near.svg")...)
+					assert.Success(t, err)
+					return len(straightPaths.FindAll(readFile(t, dir, "near.svg"), -1))
+				}
+				routed := count("--layout=elk")
+				straight := count("--layout=elk", "--nested-edge-routing=straight")
+				if routed != 1 || straight != 2 {
+					t.Fatalf("straight connections: %d routed, %d with --nested-edge-routing=straight; want 1 and 2", routed, straight)
+				}
+				env.Setenv("D2_NESTED_EDGE_ROUTING", "straight")
+				if fromEnv := count("--layout=elk"); fromEnv != 2 {
+					t.Fatalf("D2_NESTED_EDGE_ROUTING=straight left %d straight connections, want 2", fromEnv)
+				}
+				err := runTestMain(t, ctx, dir, env, "--nested-edge-routing=curved", "near.d2", "near.svg")
+				assert.ErrorString(t, err, `failed to wait xmain test: e2etests-cli/d2: bad usage: --nested-edge-routing must be "around-shapes" or "straight", not "curved"`)
+			},
+		},
+		{
 			name: "center",
 			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
 				writeFile(t, dir, "hello-world.d2", `x -> y`)

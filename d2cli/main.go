@@ -94,6 +94,7 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 		return err
 	}
 	layoutFlag := ms.Opts.String("D2_LAYOUT", "layout", "l", "dagre", `the layout engine used`)
+	ms.Opts.String("D2_NESTED_EDGE_ROUTING", "nested-edge-routing", "", nestedEdgeRoutingAroundShapes, "how to draw the connections that cross into or out of grids, constant nears and sequence diagrams, and those between grid cells, which the layout engine does not route: 'around-shapes' routes them around the other shapes, 'straight' draws straight lines, which is faster on very large diagrams")
 	themeFlag, err := ms.Opts.Int64("D2_THEME", "theme", "t", 0, "the diagram theme ID")
 	if err != nil {
 		return err
@@ -189,6 +190,9 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 	isometricFlag, err = resolveIsometricFlag(ms)
 	if err != nil {
 		return xmain.UsageErrorf("%v", err)
+	}
+	if _, err := nestedEdgeRouter(ms); err != nil {
+		return err
 	}
 
 	fontFamily, monoFontFamily, err := loadFonts(ms, *fontRegularFlag, *fontItalicFlag, *fontBoldFlag, *fontSemiboldFlag, *fontMonoFlag, *fontMonoBoldFlag, *fontMonoItalicFlag, *fontMonoSemiboldFlag)

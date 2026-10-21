@@ -70,12 +70,41 @@ func LayoutResolver(_ context.Context, ms *xmain.State) func(string) (d2graph.La
 	}
 }
 
+const (
+	nestedEdgeRoutingAroundShapes = "around-shapes"
+	nestedEdgeRoutingStraight     = "straight"
+)
+
+// nestedEdgeRouter returns d2layouts.StraightRouter when --nested-edge-routing
+// asks for straight lines, and nil for each engine's own router.
+func nestedEdgeRouter(ms *xmain.State) (d2graph.RouteEdges, error) {
+	routing, err := layoutStringFlag(ms, "nested-edge-routing", nestedEdgeRoutingAroundShapes)
+	if err != nil {
+		return nil, err
+	}
+	switch routing {
+	case nestedEdgeRoutingAroundShapes:
+		return nil, nil
+	case nestedEdgeRoutingStraight:
+		return d2layouts.StraightRouter, nil
+	default:
+		return nil, xmain.UsageErrorf("--nested-edge-routing must be %q or %q, not %q", nestedEdgeRoutingAroundShapes, nestedEdgeRoutingStraight, routing)
+	}
+}
+
 // RouterResolver selects the edge router for the edges a built-in engine
 // does not route itself.
-func RouterResolver(_ context.Context, _ *xmain.State) func(string) (d2graph.RouteEdges, error) {
+func RouterResolver(_ context.Context, ms *xmain.State) func(string) (d2graph.RouteEdges, error) {
+	straight, err := nestedEdgeRouter(ms)
 	return func(name string) (d2graph.RouteEdges, error) {
 		if !isBuiltinLayout(name) {
 			return nil, layoutNotFound(name)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if straight != nil {
+			return straight, nil
 		}
 		return d2layouts.RouterFor(name), nil
 	}

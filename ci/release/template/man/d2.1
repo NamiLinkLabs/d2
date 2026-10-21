@@ -158,6 +158,14 @@ Browser executable that watch opens. Setting to 0 opens no browser
 Set the diagram layout engine to the passed string. For a list of available options, run
 .Ar layout
 .Ns .
+.It Fl -nested-edge-routing Ar around-shapes
+How to draw the connections that cross into or out of grids, constant nears and sequence
+diagrams, and those between grid cells, which the layout engine does not route.
+.Ar around-shapes
+routes them around the other shapes;
+.Ar straight
+draws straight lines, which is faster on very large diagrams
+.Ns .
 .It Fl b , -bundle Ar true
 Bundle all assets and layers into the output svg
 .Ns .
@@ -231,6 +239,8 @@ Many flags can also be set with environment variables.
 See -w[atch] flag.
 .It Ev Sy D2_LAYOUT
 See -l[ayout] flag.
+.It Ev Sy D2_NESTED_EDGE_ROUTING
+See --nested-edge-routing flag.
 .It Ev Sy D2_THEME
 See -t[heme] flag.
 .It Ev Sy D2_DARK_THEME
