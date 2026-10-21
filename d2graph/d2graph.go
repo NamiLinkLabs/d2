@@ -227,6 +227,11 @@ type Attributes struct {
 	IconPosition    *Scalar `json:"iconPosition,omitempty"`
 	TooltipPosition *Scalar `json:"tooltipPosition,omitempty"`
 
+	// IconWidth and IconHeight are the explicit icon.width and icon.height.
+	// When unset, the icon size is automatic.
+	IconWidth  *Scalar `json:"iconWidth,omitempty"`
+	IconHeight *Scalar `json:"iconHeight,omitempty"`
+
 	// These names are attached to the rendered elements in SVG
 	// so that users can target them however they like outside of D2
 	Classes []string `json:"classes,omitempty"`
@@ -640,6 +645,47 @@ func (obj *Object) HasLabel() bool {
 
 func (obj *Object) HasIcon() bool {
 	return obj.Icon != nil && obj.Shape.Value != d2target.ShapeImage
+}
+
+// ExplicitIconSize returns the icon size set with icon.width and icon.height,
+// or 0, 0 when the size is automatic. When only one of them is set, the icon
+// box is square.
+func (attrs *Attributes) ExplicitIconSize() (width, height int) {
+	if attrs.IconWidth != nil {
+		width, _ = strconv.Atoi(attrs.IconWidth.Value)
+	}
+	if attrs.IconHeight != nil {
+		height, _ = strconv.Atoi(attrs.IconHeight.Value)
+	}
+	if width <= 0 {
+		width = height
+	}
+	if height <= 0 {
+		height = width
+	}
+	if width <= 0 || height <= 0 {
+		return 0, 0
+	}
+	return width, height
+}
+
+// IconSize returns the explicit icon size of a shape with a drawn icon, or
+// 0, 0 when it has no icon or the size is automatic. Explicit sizes do not
+// apply to image shapes, where the icon is the shape itself.
+func (obj *Object) IconSize() (width, height int) {
+	if !obj.HasIcon() {
+		return 0, 0
+	}
+	return obj.ExplicitIconSize()
+}
+
+// IconReservedSize is the icon size that layouts reserve before they know the
+// final size of the shape: the explicit size, or the largest automatic size.
+func (obj *Object) IconReservedSize() (width, height float64) {
+	if w, h := obj.IconSize(); w > 0 {
+		return float64(w), float64(h)
+	}
+	return d2target.MAX_ICON_SIZE, d2target.MAX_ICON_SIZE
 }
 
 func (obj *Object) AbsID() string {
