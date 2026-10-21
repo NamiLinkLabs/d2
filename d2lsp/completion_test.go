@@ -172,6 +172,29 @@ layers: {
 			want:   getDirectionCompletions(),
 		},
 		{
+			name:   "source-port completions",
+			text:   "a -> b: { source-port: }",
+			line:   0,
+			column: 22,
+			want:   getPortSideCompletions(),
+		},
+		{
+			name: "target-port map completions",
+			text: `a -> b: {
+  target-port:
+}`,
+			line:   1,
+			column: 14,
+			want:   getPortSideCompletions(),
+		},
+		{
+			name:   "indexed edge port completions",
+			text:   "a -> b\n(a -> b)[0].target-port: ",
+			line:   1,
+			column: 24,
+			want:   getPortSideCompletions(),
+		},
+		{
 			name:   "icon url completions",
 			text:   "a -> b: { icon: }",
 			line:   0,

@@ -1924,6 +1924,48 @@ a.b -> a.c: {style.animated: true}
 `,
 		},
 		{
+			name: "edge_set_port",
+			text: `x -> y
+`,
+			key:   `(x -> y)[0].source-port`,
+			value: go2.Pointer(`right`),
+
+			exp: `x -> y: {source-port: right}
+`,
+		},
+		{
+			name: "edge_update_port_map",
+			text: `x -> y: {source-port: right; target-port: top}
+`,
+			key:   `(x -> y)[0].target-port`,
+			value: go2.Pointer(`left`),
+
+			exp: `x -> y: {source-port: right; target-port: left}
+`,
+		},
+		{
+			name: "edge_update_port_flat",
+			text: `x -> y -> z
+(x -> y)[0].source-port: top
+`,
+			key:   `(x -> y)[0].source-port`,
+			value: go2.Pointer(`bottom`),
+
+			exp: `x -> y -> z
+(x -> y)[0].source-port: bottom
+`,
+		},
+		{
+			name: "edge_set_port_in_label_map",
+			text: `x -> y: hi
+`,
+			key:   `(x -> y)[0].target-port`,
+			value: go2.Pointer(`bottom`),
+
+			exp: `x -> y: hi {target-port: bottom}
+`,
+		},
+		{
 			name: "edge_chain_nested_set",
 			text: `oreo: {
   q -> z -> p: wsup
@@ -6454,6 +6496,27 @@ x
 			text: `x -> y: { style.stroke: red }
 `,
 			key: `(x -> y)[0].style.stroke`,
+
+			exp: `x -> y
+`,
+		},
+		{
+			name: "edge_port",
+
+			text: `x -> y: {source-port: right; target-port: top}
+`,
+			key: `(x -> y)[0].source-port`,
+
+			exp: `x -> y: {target-port: top}
+`,
+		},
+		{
+			name: "edge_port_flat",
+
+			text: `x -> y
+(x -> y)[0].target-port: top
+`,
+			key: `(x -> y)[0].target-port`,
 
 			exp: `x -> y
 `,

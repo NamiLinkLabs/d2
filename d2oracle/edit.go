@@ -738,6 +738,16 @@ func _set(g *d2graph.Graph, baseAST *d2ast.Map, key string, tag, value *string) 
 					attrs.HorizontalGap.MapKey.SetScalar(mk.Value.ScalarBox())
 					return nil
 				}
+			case "source-port":
+				if edge != nil && inlined(edge.SrcPort) {
+					edge.SrcPort.MapKey.SetScalar(mk.Value.ScalarBox())
+					return nil
+				}
+			case "target-port":
+				if edge != nil && inlined(edge.DstPort) {
+					edge.DstPort.MapKey.SetScalar(mk.Value.ScalarBox())
+					return nil
+				}
 			case "source-arrowhead", "target-arrowhead":
 				var arrowhead *d2graph.Attributes
 				if reservedKey == "source-arrowhead" {
