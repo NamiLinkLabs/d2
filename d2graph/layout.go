@@ -338,9 +338,20 @@ func (obj *Object) GetMargin() geo.Spacing {
 		position := label.FromString(*obj.IconPosition)
 
 		iconWidth, iconHeight := obj.IconReservedSize()
+		// a border icon sticks out of the shape by half its size
+		borderWidth := iconWidth/2 + label.PADDING
+		borderHeight := iconHeight/2 + label.PADDING
 		iconWidth += label.PADDING
 		iconHeight += label.PADDING
 		switch position {
+		case label.BorderTopLeft, label.BorderTopCenter, label.BorderTopRight:
+			margin.Top = math.Max(margin.Top, borderHeight)
+		case label.BorderBottomLeft, label.BorderBottomCenter, label.BorderBottomRight:
+			margin.Bottom = math.Max(margin.Bottom, borderHeight)
+		case label.BorderLeftTop, label.BorderLeftMiddle, label.BorderLeftBottom:
+			margin.Left = math.Max(margin.Left, borderWidth)
+		case label.BorderRightTop, label.BorderRightMiddle, label.BorderRightBottom:
+			margin.Right = math.Max(margin.Right, borderWidth)
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
 			margin.Top = math.Max(margin.Top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:

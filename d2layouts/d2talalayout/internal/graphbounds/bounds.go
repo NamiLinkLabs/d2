@@ -121,7 +121,7 @@ func NodeBoundingBox(
 			bottomRight.Y = math.Ceil(labelTopLeft.Y + node.Label.Height + padding)
 		}
 	}
-	if node.Icon != nil && !node.IsImage() && node.Icon.Position.IsOutside() && allNodes != nil {
+	if node.Icon != nil && !node.IsImage() && (node.Icon.Position.IsOutside() || node.Icon.Position.IsBorder()) && allNodes != nil {
 		iconWidth, iconHeight := node.Icon.ReservedDims()
 		iconTopLeft := node.IconTopLeft(node.Icon.Position, iconWidth, iconHeight)
 		outsidePadding := 2. * label.PADDING

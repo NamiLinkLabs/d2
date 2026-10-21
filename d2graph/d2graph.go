@@ -2037,9 +2037,20 @@ func (obj *Object) SpacingOpt(labelPadding, iconPadding float64, maxIconSize boo
 			size := float64(d2target.GetIconSize(obj.Box, position.String()))
 			iconWidth, iconHeight = size, size
 		}
+		// a border icon sticks out of the shape by half its size
+		borderWidth := iconWidth/2 + iconPadding
+		borderHeight := iconHeight/2 + iconPadding
 		iconWidth += iconPadding
 		iconHeight += iconPadding
 		switch position {
+		case label.BorderTopLeft, label.BorderTopCenter, label.BorderTopRight:
+			margin.Top = math.Max(margin.Top, borderHeight)
+		case label.BorderBottomLeft, label.BorderBottomCenter, label.BorderBottomRight:
+			margin.Bottom = math.Max(margin.Bottom, borderHeight)
+		case label.BorderLeftTop, label.BorderLeftMiddle, label.BorderLeftBottom:
+			margin.Left = math.Max(margin.Left, borderWidth)
+		case label.BorderRightTop, label.BorderRightMiddle, label.BorderRightBottom:
+			margin.Right = math.Max(margin.Right, borderWidth)
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
 			margin.Top = math.Max(margin.Top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:

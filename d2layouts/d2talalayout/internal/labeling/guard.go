@@ -393,7 +393,7 @@ func clusterNodeBoundingBoxPlacement(node *layoutgraph.Node, nodes layoutgraph.N
 			br.Y = math.Ceil(labelTopLeft.Y + node.Label.Height + padding)
 		}
 	}
-	if node.Icon != nil && !node.IsImage() && node.Icon.Position.IsOutside() {
+	if node.Icon != nil && !node.IsImage() && (node.Icon.Position.IsOutside() || node.Icon.Position.IsBorder()) {
 		iconWidth, iconHeight := node.Icon.ReservedDims()
 		iconTopLeft := node.IconTopLeft(node.Icon.Position, iconWidth, iconHeight)
 		outsidePadding := 2. * label.PADDING

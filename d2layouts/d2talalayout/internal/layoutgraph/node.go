@@ -151,7 +151,7 @@ func (node *Node) boundingBoxValues(allNodes Nodes, roundDimensions bool) (geo.P
 			}
 		}
 	}
-	if node.Icon != nil && node.shapeType != imageType && node.Icon.Position.IsOutside() && allNodes != nil {
+	if node.Icon != nil && node.shapeType != imageType && (node.Icon.Position.IsOutside() || node.Icon.Position.IsBorder()) && allNodes != nil {
 		iconWidth, iconHeight := node.Icon.ReservedDims()
 		iconTL := node.IconTopLeft(node.Icon.Position, iconWidth, iconHeight)
 
@@ -950,9 +950,20 @@ func (n *Node) UpdateSpacing() {
 
 	if n.Icon != nil && n.Icon.PositionFixed() {
 		iconWidth, iconHeight := n.Icon.ReservedDims()
+		// a border icon sticks out of the node by half its size
+		borderWidth := iconWidth/2 + 2*label.PADDING
+		borderHeight := iconHeight/2 + 2*label.PADDING
 		iconWidth += 2 * label.PADDING
 		iconHeight += 2 * label.PADDING
 		switch n.Icon.Position {
+		case label.BorderTopLeft, label.BorderTopCenter, label.BorderTopRight:
+			n.margin.top = math.Max(n.margin.top, borderHeight)
+		case label.BorderBottomLeft, label.BorderBottomCenter, label.BorderBottomRight:
+			n.margin.bottom = math.Max(n.margin.bottom, borderHeight)
+		case label.BorderLeftTop, label.BorderLeftMiddle, label.BorderLeftBottom:
+			n.margin.left = math.Max(n.margin.left, borderWidth)
+		case label.BorderRightTop, label.BorderRightMiddle, label.BorderRightBottom:
+			n.margin.right = math.Max(n.margin.right, borderWidth)
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
 			n.margin.top = math.Max(n.margin.top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:
