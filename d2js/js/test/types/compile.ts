@@ -35,6 +35,12 @@ configured.then((response) => {
 
   // @ts-expect-error The response exposes renderOptions, not options.
   response.options;
+
+  const shape = response.diagram.shapes[0];
+  const themedShape: boolean | undefined =
+    shape.explicitThemeFill ?? shape.explicitThemeStroke ?? shape.explicitThemeFontColor;
+  const edge = response.diagram.connections[0];
+  const themedEdge: boolean | undefined = edge.explicitThemeStroke ?? edge.explicitThemeFontColor;
 });
 
 // @ts-expect-error Compile options belong directly in the second argument.

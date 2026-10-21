@@ -2,6 +2,11 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- style: `fill`, `stroke` and `font-color` accept theme color codes (`N1`-`N7`,
+  `B1`-`B6`, `AA2`, `AA4`, `AA5`, `AB4`, `AB5`), e.g. `style.fill: B2`. They
+  follow the active theme and its `theme-overrides`, switch with the dark theme,
+  and are suggested by language-server completions. Gradient stops still need
+  concrete colors. [#896](https://github.com/d2lang/d2/issues/896)
 
 #### Improvements 🧹
 

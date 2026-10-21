@@ -6,6 +6,7 @@ include changes to the main d2 project.**
 ## Next
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
+- Type the `explicitThemeFill`, `explicitThemeStroke` and `explicitThemeFontColor` diagram fields, which mark theme color codes (such as `style.fill: B2`) chosen in the source rather than applied by the theme
 
 ## [0.1.34]
 ### September 7, 2026

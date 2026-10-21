@@ -255,6 +255,14 @@ export interface ShapeBase {
   primaryAccentColor?: string;
   secondaryAccentColor?: string;
   neutralAccentColor?: string;
+  /**
+   * Theme defaults are theme color codes (such as "B2") too, so these mark the
+   * colors that hold a theme color code chosen in the source
+   * (style.fill: B2). Omitted when false.
+   */
+  explicitThemeFill?: boolean;
+  explicitThemeStroke?: boolean;
+  explicitThemeFontColor?: boolean;
 }
 
 export interface Point {
@@ -330,6 +338,11 @@ export interface Connection extends Text {
   icon?: string /* url.URL */;
   iconPosition?: string;
   zIndex: number /* int */;
+  /**
+   * See ShapeBase.explicitThemeFill.
+   */
+  explicitThemeStroke?: boolean;
+  explicitThemeFontColor?: boolean;
 }
 
 export type Arrowhead =
