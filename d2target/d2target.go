@@ -820,11 +820,16 @@ type Shape struct {
 	PrimaryAccentColor   string `json:"primaryAccentColor,omitempty"`
 	SecondaryAccentColor string `json:"secondaryAccentColor,omitempty"`
 	NeutralAccentColor   string `json:"neutralAccentColor,omitempty"`
+
+	// ExplicitThemeFontColor is set when Color is a theme color code chosen with
+	// style.font-color, not a theme default. sql_table and class headers otherwise
+	// read a theme color code in Color as unset and use Stroke for their text.
+	ExplicitThemeFontColor bool `json:"explicitThemeFontColor,omitempty"`
 }
 
 func (s Shape) GetFontColor() string {
 	if s.Type == ShapeClass || s.Type == ShapeSQLTable {
-		if !color.IsThemeColor(s.Color) {
+		if s.ExplicitThemeFontColor || !color.IsThemeColor(s.Color) {
 			return s.Color
 		}
 		return s.Stroke

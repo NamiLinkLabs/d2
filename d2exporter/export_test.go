@@ -161,9 +161,93 @@ func testLabel(t *testing.T) {
 			dsl: `x -> y: yo { style.font-color: red }
 `,
 		},
+		{
+			name: "theme_color_codes",
+			dsl: `x: yo {
+  style.fill: N1
+  style.stroke: B2
+  style.font-color: AA4
+}
+plain
+x -> plain: hi {
+  style.stroke: AB5
+  style.font-color: AB4
+}
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				x := shapeByID(t, d, "x")
+				tassert.Equal(t, "N1", x.Fill)
+				tassert.Equal(t, "B2", x.Stroke)
+				tassert.Equal(t, "AA4", x.Color)
+				tassert.Equal(t, "AA4", x.GetFontColor())
+				tassert.True(t, x.ExplicitThemeFontColor)
+
+				plain := shapeByID(t, d, "plain")
+				tassert.False(t, plain.ExplicitThemeFontColor)
+
+				tassert.Equal(t, 1, len(d.Connections))
+				tassert.Equal(t, "AB5", d.Connections[0].Stroke)
+				tassert.Equal(t, "AB4", d.Connections[0].GetFontColor())
+			},
+		},
+		{
+			name: "special_shape_theme_font_color",
+			dsl: `table: {
+  shape: sql_table
+  id: int
+  style.stroke: B1
+  style.font-color: N7
+}
+person: {
+  shape: class
+  field: int
+  style.font-color: B2
+}
+hex: {
+  shape: sql_table
+  id: int
+  style.font-color: "#ff0000"
+}
+default: {
+  shape: sql_table
+  id: int
+  style.stroke: B1
+}
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				table := shapeByID(t, d, "table")
+				tassert.True(t, table.ExplicitThemeFontColor)
+				tassert.Equal(t, "N7", table.GetFontColor())
+
+				person := shapeByID(t, d, "person")
+				tassert.True(t, person.ExplicitThemeFontColor)
+				tassert.Equal(t, "B2", person.GetFontColor())
+
+				hex := shapeByID(t, d, "hex")
+				tassert.False(t, hex.ExplicitThemeFontColor)
+				tassert.Equal(t, "#ff0000", hex.GetFontColor())
+
+				// Without a font color, the header text uses the stroke, as before.
+				def := shapeByID(t, d, "default")
+				tassert.False(t, def.ExplicitThemeFontColor)
+				tassert.Equal(t, "N1", def.Color)
+				tassert.Equal(t, "B1", def.GetFontColor())
+			},
+		},
 	}
 
 	runa(t, tcs)
+}
+
+func shapeByID(t *testing.T, d *d2target.Diagram, id string) d2target.Shape {
+	t.Helper()
+	for _, s := range d.Shapes {
+		if s.ID == id {
+			return s
+		}
+	}
+	t.Fatalf("shape %q not found", id)
+	return d2target.Shape{}
 }
 
 func testTheme(t *testing.T) {

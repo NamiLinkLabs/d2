@@ -245,6 +245,9 @@ func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
 		}
 	}
 	applyStyles(shape, obj)
+	if obj.Style.FontColor != nil && color.IsThemeColor(obj.Style.FontColor.Value) {
+		shape.ExplicitThemeFontColor = true
+	}
 
 	switch strings.ToLower(obj.Shape.Value) {
 	case d2target.ShapeClass:
