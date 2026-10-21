@@ -378,6 +378,12 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 			}
 		}
 	}
+	if edge.SrcPort != nil {
+		connection.SrcPort = edge.SrcPort.Value
+	}
+	if edge.DstPort != nil {
+		connection.DstPort = edge.DstPort.Value
+	}
 	if theme != nil && theme.SpecialRules.NoCornerRadius {
 		connection.BorderRadius = 0
 	}

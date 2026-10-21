@@ -151,6 +151,22 @@ scenarios: {
 	if calls != 2 {
 		t.Fatalf("custom-layout calls = %d, want 2", calls)
 	}
+
+	for _, change := range []string{
+		"(a -> b)[0].target-port: top",
+		"(a -> b)[0].source-port: left",
+	} {
+		pinOnly := `a -> b: {source-port: right}
+scenarios: {
+  changed: {
+    ` + change + `
+  }
+}`
+		_, calls = compileForLayoutReuseTest(t, pinOnly, true)
+		if calls != 2 {
+			t.Fatalf("%s: layout calls = %d, want 2", change, calls)
+		}
+	}
 }
 
 func TestCompileLayoutReuseRequiresExplicitStableResolver(t *testing.T) {

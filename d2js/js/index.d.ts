@@ -313,6 +313,15 @@ export interface Connection extends Text {
   dst: string;
   dstArrow: Arrowhead;
   dstLabel?: Text;
+  /**
+   * Side of the src shape the connection is pinned to with `source-port`.
+   * Absent when the layout engine chose the attachment point freely.
+   */
+  srcPort?: PortSide;
+  /**
+   * Side of the dst shape the connection is pinned to with `target-port`.
+   */
+  dstPort?: PortSide;
   opacity: number /* float64 */;
   strokeDash: number /* float64 */;
   strokeWidth: number /* int */;
@@ -331,6 +340,9 @@ export interface Connection extends Text {
   iconPosition?: string;
   zIndex: number /* int */;
 }
+
+/** A side of a shape that `source-port` / `target-port` can pin a connection end to. */
+export type PortSide = "top" | "right" | "bottom" | "left";
 
 export type Arrowhead =
   | "none"
@@ -380,6 +392,10 @@ export interface Edge {
   index: number /* int */;
   srcTableColumnIndex?: number /* int */;
   dstTableColumnIndex?: number /* int */;
+  /** Set by `source-port`; value is a PortSide. */
+  srcPort?: Scalar;
+  /** Set by `target-port`; value is a PortSide. */
+  dstPort?: Scalar;
   labelPosition?: string;
   labelPercentage?: number /* float64 */;
   isCurve: boolean;

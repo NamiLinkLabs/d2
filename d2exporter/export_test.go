@@ -139,6 +139,21 @@ func testConnection(t *testing.T) {
 x -> y
 `,
 		},
+		{
+			name: "ports",
+			dsl: `x -> y: {source-port: right; target-port: top}
+y <- z: {target-port: left}
+x -> z
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				tassert.Equal(t, "right", d.Connections[0].SrcPort)
+				tassert.Equal(t, "top", d.Connections[0].DstPort)
+				tassert.Equal(t, "", d.Connections[1].SrcPort)
+				tassert.Equal(t, "left", d.Connections[1].DstPort)
+				tassert.Equal(t, "", d.Connections[2].SrcPort)
+				tassert.Equal(t, "", d.Connections[2].DstPort)
+			},
+		},
 	}
 
 	runa(t, tcs)

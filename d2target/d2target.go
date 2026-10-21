@@ -908,6 +908,12 @@ type Connection struct {
 	DstArrow Arrowhead `json:"dstArrow"`
 	DstLabel *Text     `json:"dstLabel,omitempty"`
 
+	// SrcPort and DstPort are the sides of the Src / Dst shapes that the
+	// connection is pinned to with source-port / target-port ("top", "right",
+	// "bottom" or "left"). Empty means the layout engine chose freely.
+	SrcPort string `json:"srcPort,omitempty"`
+	DstPort string `json:"dstPort,omitempty"`
+
 	Opacity      float64 `json:"opacity"`
 	StrokeDash   float64 `json:"strokeDash"`
 	StrokeWidth  int     `json:"strokeWidth"`
