@@ -243,3 +243,27 @@ func TestValidateRenderTargetIconSize(t *testing.T) {
 		t.Fatalf("negative connection icon width: %v", err)
 	}
 }
+
+func TestBoundingBoxIncludesConnectionIcons(t *testing.T) {
+	t.Parallel()
+
+	d := NewDiagram()
+	d.Connections = []Connection{{
+		Route:        []*geo.Point{geo.NewPoint(0, 0), geo.NewPoint(200, 0)},
+		StrokeWidth:  2,
+		Opacity:      1,
+		Icon:         &url.URL{Scheme: "https", Host: "example.com"},
+		IconPosition: label.InsideMiddleCenter.String(),
+		IconWidth:    96,
+		IconHeight:   96,
+	}}
+	// Shapes are needed for a non-empty bounding box.
+	s := iconTestShape(ShapeRectangle, "", 0, 0)
+	s.Icon = nil
+	s.Pos, s.Width, s.Height = Point{X: 0, Y: 100}, 10, 10
+	d.Shapes = []Shape{s}
+	tl, br := d.BoundingBox()
+	if tl.Y != -48 || br.X != 200+1 || tl.X != 0-1 {
+		t.Fatalf("bounds %v %v, want the 96 px connection icon (y from -48) included", tl, br)
+	}
+}

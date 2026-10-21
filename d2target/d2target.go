@@ -546,6 +546,15 @@ func (diagram Diagram) BoundingBox() (topLeft, bottomRight Point) {
 			y2 = go2.Max(y2, int(math.Ceil(point.Y))+int(math.Ceil(float64(connection.StrokeWidth)/2.)))
 		}
 
+		if connection.Icon != nil {
+			if iconTL := connection.GetIconPosition(); iconTL != nil {
+				iconWidth, iconHeight := connection.IconSize()
+				x1 = go2.Min(x1, int(math.Floor(iconTL.X)))
+				y1 = go2.Min(y1, int(math.Floor(iconTL.Y)))
+				x2 = go2.Max(x2, int(math.Ceil(iconTL.X+iconWidth)))
+				y2 = go2.Max(y2, int(math.Ceil(iconTL.Y+iconHeight)))
+			}
+		}
 		if connection.Label != "" {
 			labelTL := connection.GetLabelTopLeft()
 			x1 = go2.Min(x1, int(labelTL.X))
