@@ -34,6 +34,10 @@ type TALAOptions struct {
 	// Quality is "full" (default), "balanced" or "fast"; diagram-level
 	// tala-quality still wins. Fast runs only the first seed.
 	Quality *string `json:"quality"`
+	// SeparateEdges gives every connection its own route instead of bundling
+	// connections that share an endpoint; diagram-level tala-separate-edges
+	// still wins. It applies to compile and to routeEdges.
+	SeparateEdges *bool `json:"separateEdges"`
 }
 
 func nonNegative(name string, v *int) error {
@@ -108,7 +112,35 @@ func (o *TALAOptions) resolve() (*d2talalayout.Options, error) {
 	if len(o.Seeds) > 0 {
 		opts.Seeds = append([]int64(nil), o.Seeds...)
 	}
+	if o.SeparateEdges != nil {
+		opts.SeparateEdges = *o.SeparateEdges
+	}
 	return &opts, nil
+}
+
+func compileTALAOptions(opts *CompileOptions) *TALAOptions {
+	if opts == nil {
+		return nil
+	}
+	return opts.TALA
+}
+
+// routerResolver picks the engine's edge router, which D2 calls for
+// connections into nested grid and sequence diagrams, with the caller's TALA
+// tuning.
+func routerResolver(opts *CompileOptions) (func(string) (d2graph.RouteEdges, error), error) {
+	talaOpts, err := compileTALAOptions(opts).resolve()
+	if err != nil {
+		return nil, err
+	}
+	return func(engine string) (d2graph.RouteEdges, error) {
+		if engine == "tala" {
+			return func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+				return d2talalayout.RouteEdgesWithOptions(ctx, g, edges, talaOpts)
+			}, nil
+		}
+		return nil, nil
+	}, nil
 }
 
 // layoutResolver picks the layout engine and applies the caller's tuning.

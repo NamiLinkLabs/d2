@@ -148,6 +148,9 @@ for (const c of diagram.connections) {
 const svg = await d2.render(diagram);
 ```
 
+- `options`: the compile options; fonts, theme, sketch and `layout` change how labels are
+  measured and placed, and `tala.separateEdges` keeps new routes apart from connections that
+  share an endpoint, as in compile.
 - `edges`: connection ids as in `diagram.connections[i].id`.
 - `connections`: current routes of other connections. They are kept, and new routes and
   labels are spread around them. Ids in `edges`, unknown ids and unusable routes are
@@ -173,10 +176,13 @@ resources are released. Calling `dispose()` more than once is safe.
 All [RenderOptions](#renderoptions) properties in addition to:
 
 - `layout`: Layout engine to use (`'dagre' | 'elk' | 'tala'`) [default: `'dagre'`]
-- `tala`: TALA tuning, used when `layout` is `'tala'`: `seeds` (deterministic attempts) and
-  `quality` (`'full' | 'balanced' | 'fast'`) [default: `'full'`]. `'fast'` runs one seed with a
-  reduced pipeline for interactive previews, `'balanced'` runs every seed with that pipeline.
-  `tala-seeds` and `tala-quality` in the diagram's `vars.d2-config.data` take precedence.
+- `tala`: TALA tuning, used when `layout` is `'tala'`: `seeds` (deterministic attempts),
+  `quality` (`'full' | 'balanced' | 'fast'`) [default: `'full'`] and `separateEdges`
+  [default: `false`]. `'fast'` runs one seed with a reduced pipeline for interactive previews,
+  `'balanced'` runs every seed with that pipeline. `separateEdges: true` gives every connection
+  its own route instead of bundling connections that share an endpoint; `routeEdges` honours it
+  too. `tala-seeds`, `tala-quality` and `tala-separate-edges` in the diagram's
+  `vars.d2-config.data` take precedence.
 - `fontRegular` A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used.
 - `fontItalic` A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used.
 - `fontBold` A byte array containing .ttf file to use for the bold font. If none provided, Source Sans Pro Bold is used.
