@@ -282,10 +282,77 @@ func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*
 		tail = append(detour, tail...)
 	}
 
-	out := make([]*geo.Point, 0, len(head)+len(interior)+len(tail))
+	out := make([]*geo.Point, 0, len(head)+len(interior)+len(tail)+1)
 	out = append(out, head...)
 	out = append(out, interior...)
+	if srcOK && dstOK && len(interior) == 0 {
+		// Join the two stubs square, like the rest of a pinned route, rather
+		// than with one long diagonal.
+		out = append(out, portConnector(e, head[len(head)-2], head[len(head)-1], tail[0])...)
+	}
 	return append(out, tail...)
+}
+
+// portConnector returns the corners to insert between h (reached from prev)
+// and t, the ends of two pinned stubs: an L, a Z through the midline, or none
+// (a diagonal). Candidates that cut through either endpoint are skipped; of
+// the rest, the one crossing the fewest other shapes wins, then the one with
+// the fewest bends, then the L that continues the route's direction.
+func portConnector(e *Edge, prev, h, t *geo.Point) []*geo.Point {
+	if h.X == t.X || h.Y == t.Y {
+		return nil
+	}
+	mx, my := (h.X+t.X)/2, (h.Y+t.Y)/2
+	horizontalFirst := []*geo.Point{geo.NewPoint(t.X, h.Y)}
+	verticalFirst := []*geo.Point{geo.NewPoint(h.X, t.Y)}
+	if prev.X == h.X {
+		horizontalFirst, verticalFirst = verticalFirst, horizontalFirst
+	}
+	candidates := [][]*geo.Point{
+		horizontalFirst,
+		verticalFirst,
+		{geo.NewPoint(mx, h.Y), geo.NewPoint(mx, t.Y)},
+		{geo.NewPoint(h.X, my), geo.NewPoint(t.X, my)},
+		nil,
+	}
+	var obstacles []*Object
+	if e.Src.Graph != nil {
+		for _, obj := range e.Src.Graph.Objects {
+			if obj == e.Src || obj == e.Dst || obj.Box == nil || obj.TopLeft == nil ||
+				e.Src.IsDescendantOf(obj) || e.Dst.IsDescendantOf(obj) {
+				continue
+			}
+			obstacles = append(obstacles, obj)
+		}
+	}
+	var best []*geo.Point
+	bestCost := math.Inf(1)
+	for _, corners := range candidates {
+		path := append(append([]*geo.Point{h}, corners...), t)
+		ok := true
+		crossings := 0
+		for i := 1; i < len(path) && ok; i++ {
+			if segmentCrossesBox(e.Src.Box, path[i-1], path[i]) || segmentCrossesBox(e.Dst.Box, path[i-1], path[i]) {
+				ok = false
+			}
+			for _, obj := range obstacles {
+				if segmentCrossesBox(obj.Box, path[i-1], path[i]) {
+					crossings++
+				}
+			}
+		}
+		if !ok {
+			continue
+		}
+		bends := len(corners)
+		if corners == nil {
+			bends = 3 // a diagonal is the last resort
+		}
+		if cost := float64(crossings*10 + bends); cost < bestCost {
+			best, bestCost = corners, cost
+		}
+	}
+	return best
 }
 
 func portStub(anchor *geo.Point, side geo.Orientation) *geo.Point {
