@@ -466,6 +466,7 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 			embedding = &sourceEmbedding{}
 		}
 		embedding.write = true
+		embedding.requested = *embedSourceFlag
 		embedding.omitVersion = *omitVersionFlag
 		embedding.target = *targetFlag
 		// Record what flags and environment variables set, before
@@ -679,7 +680,7 @@ func compile(ctx context.Context, ms *xmain.State, fs fs.FS, layout *string, ren
 				return nil, false, err
 			}
 			ctx = withEmbeddedBoard(ctx, boardPath)
-		} else if ext != TXT {
+		} else if ext != TXT && embedding.requested {
 			format := strings.TrimPrefix(strings.TrimPrefix(string(ext), "isometric-"), ".")
 			ms.Log.Warn.Printf("--embed-source applies to SVG and PNG exports; the %s export does not embed the source", strings.ToUpper(format))
 		}

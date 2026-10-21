@@ -30,6 +30,9 @@ import (
 type sourceEmbedding struct {
 	// write is set when SVG and PNG outputs embed the source.
 	write bool
+	// requested is set when the user asked for it, rather than an image
+	// input carrying it over.
+	requested bool
 	// settings are the render settings given as flags or environment
 	// variables, which the output records.
 	settings    sourcemeta.Settings
