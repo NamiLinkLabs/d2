@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/d2lang/d2/d2graph"
-	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/util-go/xmain"
 )
 
@@ -70,14 +69,16 @@ func LayoutResolver(_ context.Context, ms *xmain.State) func(string) (d2graph.La
 	}
 }
 
-// RouterResolver selects the built-in engine's optional edge router.
-func RouterResolver(_ context.Context, _ *xmain.State) func(string) (d2graph.RouteEdges, error) {
+// RouterResolver selects the built-in engine's optional edge router, bound to
+// the same typed options as LayoutResolver.
+func RouterResolver(_ context.Context, ms *xmain.State) func(string) (d2graph.RouteEdges, error) {
+	tala, talaErr := talaRouter(ms)
 	return func(name string) (d2graph.RouteEdges, error) {
 		if !isBuiltinLayout(name) {
 			return nil, layoutNotFound(name)
 		}
 		if strings.EqualFold(name, "tala") {
-			return d2talalayout.RouteEdges, nil
+			return tala, talaErr
 		}
 		return nil, nil
 	}
