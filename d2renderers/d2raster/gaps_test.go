@@ -39,7 +39,16 @@ func gapsDiagram() *d2target.Diagram {
 func renderGaps(t *testing.T, gaps bool) (*image.NRGBA, func(x, y float64) color.NRGBA) {
 	t.Helper()
 	pad := int64(0)
-	document, err := d2scenebuild.Build(context.Background(), gapsDiagram(), d2scenebuild.Options{Pad: &pad, IntersectionGaps: gaps})
+	d := gapsDiagram()
+	// A labelled connection elsewhere gives every connection the shared label
+	// mask, which the gap mask is nested in.
+	labelled := d.Connections[0]
+	labelled.ID = "labelled"
+	labelled.Route = []*geo.Point{geo.NewPoint(0, 300), geo.NewPoint(200, 300)}
+	labelled.Label, labelled.LabelWidth, labelled.LabelHeight, labelled.FontSize = "x", 10, 10, 10
+	labelled.LabelPosition, labelled.FontFamily = "INSIDE_MIDDLE_CENTER", "default"
+	d.Connections = append(d.Connections, labelled)
+	document, err := d2scenebuild.Build(context.Background(), d, d2scenebuild.Options{Pad: &pad, IntersectionGaps: gaps})
 	if err != nil {
 		t.Fatal(err)
 	}
