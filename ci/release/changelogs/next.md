@@ -2,6 +2,7 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- exports: `--embed-source` stores the D2 source, the files it imports and the render flags in SVG and PNG exports. Such an image is valid input, so `d2 diagram.svg diagram.pdf` renders it again and `d2 extract diagram.png` writes its source back out. D2.js gets the `embedSource` option and `extractSource`/`embedSource` functions. It is off by default because the embedded text includes comments and boards the image does not show. [#680](https://github.com/d2lang/d2/issues/680)
 
 #### Improvements 🧹
 
@@ -22,6 +23,7 @@
     policy for local imports and image assets. CLI and watch retain trusted
     local-file access. [#2901](https://github.com/d2lang/d2/pull/2901)
 - Remove the legacy `d2plugin` system; Dagre, ELK, and TALA remain built in. [#2920](https://github.com/d2lang/d2/pull/2920)
+- PNG, PDF and PPTX exports accept SVG icons that carry an embedded D2 source.
 - watch: authenticate HTTP and WebSocket access with a fresh per-process
   capability, exchanged for a token-free browser session. [#2910](https://github.com/d2lang/d2/pull/2910)
 - exports:
