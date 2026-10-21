@@ -152,6 +152,7 @@ func (b *layoutSignatureBuilder) writeAttributes(attrs *d2graph.Attributes) {
 	b.writeOptionalScalar(attrs.HorizontalGap)
 	b.writeOptionalScalar(attrs.LabelPosition)
 	b.writeOptionalScalar(attrs.IconPosition)
+	b.writeOptionalScalar(attrs.LabelPadding)
 
 	if attrs.NearKey == nil {
 		b.writeBool(false)

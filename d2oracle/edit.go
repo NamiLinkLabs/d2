@@ -884,6 +884,11 @@ func _set(g *d2graph.Graph, baseAST *d2ast.Map, key string, tag, value *string) 
 							attrs.LabelPosition.MapKey.SetScalar(mk.Value.ScalarBox())
 							return nil
 						}
+					case "padding":
+						if inlined(attrs.LabelPadding) {
+							attrs.LabelPadding.MapKey.SetScalar(mk.Value.ScalarBox())
+							return nil
+						}
 					}
 				} else {
 					if inlined(&attrs.Label) {

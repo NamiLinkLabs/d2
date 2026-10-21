@@ -2529,6 +2529,26 @@ layers: {
 			expErr:    `failed to set "asdf.link" to "\"_._\"": board [man 1] cannot be modified through this file`,
 		},
 		{
+			name: "edge-label-padding/1",
+
+			text: `a -> b: hi
+`,
+			key:   `(a -> b)[0].label.padding`,
+			value: go2.Pointer(`8`),
+			exp: `a -> b: hi {label.padding: 8}
+`,
+		},
+		{
+			name: "edge-label-padding/2",
+
+			text: `a -> b: hi {label.padding: 4}
+`,
+			key:   `(a -> b)[0].label.padding`,
+			value: go2.Pointer(`8`),
+			exp: `a -> b: hi {label.padding: 8}
+`,
+		},
+		{
 			name: "label-near/1",
 
 			text: `x

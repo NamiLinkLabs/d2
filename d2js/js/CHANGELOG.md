@@ -6,6 +6,7 @@ include changes to the main d2 project.**
 ## Next
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
+- Add `labelPadding` to connections in the diagram, from D2's new `label.padding`
 
 ## [0.1.34]
 ### September 7, 2026

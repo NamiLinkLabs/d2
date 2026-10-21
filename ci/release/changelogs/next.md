@@ -2,6 +2,11 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- connections: set the space kept free around a connection's label with
+  `label.padding`, e.g. `a -> b: hi {label.padding: 8}`, or
+  `(** -> **)[*].label.padding: 8` for every connection. Dagre, ELK, TALA and
+  sequence diagrams reserve the padded box, the line stops at it and
+  `style.fill` covers it. [#2097](https://github.com/d2lang/d2/issues/2097)
 
 #### Improvements 🧹
 

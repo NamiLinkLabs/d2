@@ -86,7 +86,7 @@ func getCompletionItems(text string, line, column int, utf16Pos bool) ([]Complet
 	case "icon", "icon:":
 		return getIconCompletions(), nil
 	case "icon.":
-		return getLabelCompletions(), nil
+		return getIconSubCompletions(), nil
 	case "near", "near:":
 		return getNearCompletions(), nil
 	case "tooltip:", "tooltip":
@@ -424,6 +424,20 @@ func getLabelCompletions() []CompletionItem {
 		Label:      "near",
 		Kind:       StyleCompletion,
 		Detail:     "label position",
+		InsertText: "near: ",
+	}, {
+		Label:      "padding",
+		Kind:       StyleCompletion,
+		Detail:     "connection label padding in pixels (0-100)",
+		InsertText: "padding: ",
+	}}
+}
+
+func getIconSubCompletions() []CompletionItem {
+	return []CompletionItem{{
+		Label:      "near",
+		Kind:       StyleCompletion,
+		Detail:     "icon position",
 		InsertText: "near: ",
 	}}
 }

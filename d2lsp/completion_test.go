@@ -206,13 +206,20 @@ layers: {
 			text:   `a.icon.`,
 			line:   0,
 			column: 7,
-			want:   getLabelCompletions(),
+			want:   getIconSubCompletions(),
 		},
 		{
 			name:   "label flat dot",
 			text:   `a.label.`,
 			line:   0,
 			column: 8,
+			want:   getLabelCompletions(),
+		},
+		{
+			name:   "edge label flat dot",
+			text:   `(a -> b)[0].label.`,
+			line:   0,
+			column: 18,
 			want:   getLabelCompletions(),
 		},
 		{

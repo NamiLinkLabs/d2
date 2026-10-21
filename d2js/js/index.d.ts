@@ -321,6 +321,12 @@ export interface Connection extends Text {
   borderRadius?: number /* float64 */;
   labelPosition: string;
   labelPercentage: number /* float64 */;
+  /**
+   * Space kept free on every side of the label's text, from label.padding.
+   * labelWidth and labelHeight stay the text's size; the layout reserved the
+   * padded box.
+   */
+  labelPadding?: number /* int */;
   link: string;
   prettyLink?: string;
   route: (any /* geo.Point */ | undefined)[];
@@ -426,6 +432,9 @@ export interface Attributes {
   horizontalGap?: Scalar;
   labelPosition?: Scalar;
   iconPosition?: Scalar;
+  tooltipPosition?: Scalar;
+  /** Connections only */
+  labelPadding?: Scalar;
   /**
    * These names are attached to the rendered elements in SVG
    * so that users can target them however they like outside of D2
