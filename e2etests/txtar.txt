@@ -1773,3 +1773,110 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 
 a->b
 
+
+-- theme-color-codes --
+vars: {
+  d2-config: {
+    dark-theme-id: 200
+  }
+  brand: AA4
+}
+
+classes: {
+  accent: {
+    style: {
+      fill: AB4
+      stroke: AB5
+    }
+  }
+}
+
+style.fill: N6
+
+dark: Dark {
+  style: {
+    fill: N1
+    stroke: B2
+    font-color: N7
+    3d: true
+  }
+}
+multi: Multiple {
+  style: {
+    fill: ${brand}
+    stroke: B1
+    multiple: true
+  }
+}
+db: {
+  shape: cylinder
+  style: {
+    fill: AB5
+    shadow: true
+  }
+}
+user: {
+  shape: person
+  style.fill: AA5
+}
+ring: Double {
+  style: {
+    fill: B2
+    font-color: N7
+    double-border: true
+  }
+}
+group: Container {
+  style: {
+    fill: B5
+    stroke: AA2
+    stroke-dash: 3
+  }
+  inner.class: accent
+}
+users: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  name: string
+  style: {
+    fill: B1
+    stroke: B4
+    font-color: N7
+  }
+}
+Polygon: {
+  shape: class
+  +area(): float
+  style: {
+    fill: AA2
+    font-color: N1
+  }
+}
+note: |md
+  # Theme colors
+  follow the **theme**
+| {
+  style.font-color: AA2
+}
+caption: plain text {
+  shape: text
+  style.font-color: B2
+}
+
+dark -> multi: themed {
+  style: {
+    stroke: AA2
+    font-color: B2
+  }
+  source-arrowhead: 1 {
+    style.font-color: N3
+  }
+  target-arrowhead: * {
+    shape: diamond
+    style.filled: true
+    style.font-color: AA2
+  }
+}
+multi -> group.inner: {style.stroke: B4}
+users -> Polygon: {style.stroke: N3}
+user -> db: {style.stroke: B2; style.stroke-width: 3}
