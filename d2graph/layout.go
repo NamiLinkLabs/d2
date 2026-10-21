@@ -337,16 +337,18 @@ func (obj *Object) GetMargin() geo.Spacing {
 	if obj.HasIcon() && obj.IconPosition != nil {
 		position := label.FromString(*obj.IconPosition)
 
-		iconSize := float64(d2target.MAX_ICON_SIZE + label.PADDING)
+		iconWidth, iconHeight := obj.IconReservedSize()
+		iconWidth += label.PADDING
+		iconHeight += label.PADDING
 		switch position {
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
-			margin.Top = math.Max(margin.Top, iconSize)
+			margin.Top = math.Max(margin.Top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:
-			margin.Bottom = math.Max(margin.Bottom, iconSize)
+			margin.Bottom = math.Max(margin.Bottom, iconHeight)
 		case label.OutsideLeftTop, label.OutsideLeftMiddle, label.OutsideLeftBottom:
-			margin.Left = math.Max(margin.Left, iconSize)
+			margin.Left = math.Max(margin.Left, iconWidth)
 		case label.OutsideRightTop, label.OutsideRightMiddle, label.OutsideRightBottom:
-			margin.Right = math.Max(margin.Right, iconSize)
+			margin.Right = math.Max(margin.Right, iconWidth)
 		}
 	}
 
@@ -393,6 +395,8 @@ func (obj *Object) GetLabelTopLeft() *geo.Point {
 	return labelTL
 }
 
+// GetIconTopLeft returns the top left of the icon box that layouts reserve,
+// see IconReservedSize.
 func (obj *Object) GetIconTopLeft() *geo.Point {
 	if obj.IconPosition == nil {
 		return nil
@@ -402,13 +406,30 @@ func (obj *Object) GetIconTopLeft() *geo.Point {
 	iconPosition := label.FromString(*obj.IconPosition)
 
 	var box *geo.Box
-	if iconPosition.IsOutside() {
+	if iconPosition.IsOutside() || iconPosition.IsBorder() {
 		box = s.GetBox()
 	} else {
 		box = s.GetInnerBox()
 	}
 
-	return iconPosition.GetPointOnBox(box, label.PADDING, d2target.MAX_ICON_SIZE, d2target.MAX_ICON_SIZE)
+	width, height := obj.IconReservedSize()
+	return iconPosition.GetPointOnBox(box, label.PADDING, width, height)
+}
+
+// GetIconBox returns the box the object's icon is drawn in at its current
+// size and position, or nil when it has no icon or no icon position yet.
+// It is the box the renderers draw, see d2target.IconBox.
+func (obj *Object) GetIconBox() *geo.Box {
+	if !obj.HasIcon() || obj.IconPosition == nil {
+		return nil
+	}
+	s := obj.ToShape()
+	width, height := obj.IconSize()
+	switch obj.Shape.Value {
+	case d2target.ShapeSQLTable, d2target.ShapeClass:
+		return d2target.IconBox(s.GetBox(), s.GetBox(), *obj.IconPosition, width, height)
+	}
+	return d2target.IconBox(s.GetBox(), s.GetInnerBox(), *obj.IconPosition, width, height)
 }
 
 func (edge *Edge) TraceToShape(points []*geo.Point, startIndex, endIndex int) (newStart, newEnd int) {
@@ -457,8 +478,7 @@ func (edge *Edge) TraceToShape(points []*geo.Point, startIndex, endIndex int) (n
 		// assumes IconPosition is set if there is an Icon
 		iconPosition := label.FromString(*edge.Src.IconPosition)
 		if iconPosition.IsOutside() {
-			iconWidth := float64(d2target.MAX_ICON_SIZE)
-			iconHeight := float64(d2target.MAX_ICON_SIZE)
+			iconWidth, iconHeight := edge.Src.IconReservedSize()
 			iconTL := iconPosition.GetPointOnBox(edge.Src.Box, label.PADDING, iconWidth, iconHeight)
 
 			iconBox := geo.NewBox(iconTL, iconWidth, iconHeight)
@@ -542,6 +562,9 @@ func (edge *Edge) TraceToShape(points []*geo.Point, startIndex, endIndex int) (n
 			iconSize := d2target.GetIconSize(edge.Dst.Box, iconPosition.String())
 			iconWidth := float64(iconSize)
 			iconHeight := float64(iconSize)
+			if w, h := edge.Dst.IconSize(); w > 0 {
+				iconWidth, iconHeight = float64(w), float64(h)
+			}
 			labelTL := iconPosition.GetPointOnBox(edge.Dst.Box, label.PADDING, iconWidth, iconHeight)
 
 			iconBox := geo.NewBox(labelTL, iconWidth, iconHeight)

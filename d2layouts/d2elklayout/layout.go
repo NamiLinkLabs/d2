@@ -1081,16 +1081,18 @@ func adjustPadding(obj *d2graph.Object, width, height float64, padding shapePadd
 		}
 	}
 	if obj.HasIcon() && obj.IconPosition != nil {
-		iconSize := d2target.MAX_ICON_SIZE + 2*label.PADDING
+		reservedWidth, reservedHeight := obj.IconReservedSize()
+		iconWidth := int(math.Ceil(reservedWidth)) + 2*label.PADDING
+		iconHeight := int(math.Ceil(reservedHeight)) + 2*label.PADDING
 		switch label.FromString(*obj.IconPosition) {
 		case label.InsideTopLeft, label.InsideTopCenter, label.InsideTopRight:
-			extraTop = go2.Max(extraTop, iconSize)
+			extraTop = go2.Max(extraTop, iconHeight)
 		case label.InsideBottomLeft, label.InsideBottomCenter, label.InsideBottomRight:
-			extraBottom = go2.Max(extraBottom, iconSize)
+			extraBottom = go2.Max(extraBottom, iconHeight)
 		case label.InsideMiddleLeft:
-			extraLeft = go2.Max(extraLeft, iconSize)
+			extraLeft = go2.Max(extraLeft, iconWidth)
 		case label.InsideMiddleRight:
-			extraRight = go2.Max(extraRight, iconSize)
+			extraRight = go2.Max(extraRight, iconWidth)
 		}
 	}
 
