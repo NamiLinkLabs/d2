@@ -743,6 +743,10 @@ func (ovg *OVG) addTreeNodes(g *layoutgraph.Graph, guard *ovgBuildGuard) error {
 	if err := guard.check(); err != nil {
 		return err
 	}
+	if g.SeparateEdges {
+		// Tree edges are routed like other edges, without the S-shaped bus.
+		return nil
+	}
 	portArrowheads := make(map[*OVGNode]map[layoutgraph.Arrowhead]struct{})
 	// If there are trees in this subgraph, we need to add ovg nodes for the specific tree edge routes
 	for _, node := range g.Nodes {

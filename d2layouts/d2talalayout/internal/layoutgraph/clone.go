@@ -192,6 +192,7 @@ func (state *graphCloneState) copy() error {
 	state.clone.Nodes = filtered
 	state.clone.CellSize = state.source.CellSize
 	state.clone.IsRootHierarchy = state.source.IsRootHierarchy
+	state.clone.SeparateEdges = state.source.SeparateEdges
 	state.clone.CommonUncleSiblings = nil
 	state.clone.edgeLengthCache = make(map[uint64]float64)
 

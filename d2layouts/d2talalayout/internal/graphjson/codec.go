@@ -544,6 +544,7 @@ func Serialize(ctx context.Context, g *layoutgraph.Graph) (*SerializedGraph, err
 		TurnCost:          turnCost,
 		NonCenterPortCost: nonCenterPortCost,
 		IsRootHierarchy:   g.IsRootHierarchy,
+		SeparateEdges:     g.SeparateEdges,
 		Containers:        containers,
 		Hubs:              hubs,
 		Clusters:          clusters,
@@ -1471,6 +1472,7 @@ func deserializeGraphContext(ctx context.Context, graph *SerializedGraph, destin
 	destination.Edges = edges
 	destination.CellSize = graph.CellSize
 	destination.IsRootHierarchy = graph.IsRootHierarchy
+	destination.SeparateEdges = graph.SeparateEdges
 	destination.Containers = containers
 	destination.Hubs = hubs
 	destination.Clusters = clusters

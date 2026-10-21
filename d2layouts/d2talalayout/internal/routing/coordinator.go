@@ -468,6 +468,11 @@ func routeEdgesWithFlavors(
 			if _, is := isTreeEdge[tree.SentinelEdge]; !is {
 				continue
 			}
+			// A tree's edges otherwise leave the parent through one shared
+			// port as a bus; separate edges are routed like any other edge.
+			if g.SeparateEdges {
+				continue
+			}
 
 			route, err := routeSentinelEdge(tree, ovg.Ports, ovg.Centers, existingPortArrowheads)
 			if err != nil {
@@ -1224,10 +1229,22 @@ func routeLineChecked(
 	return bestFromPort, bestToPort, bestCost, nil
 }
 
+// separatesEdges reports whether edge belongs to a graph that gives every
+// edge its own route (layoutgraph.Graph.SeparateEdges). Such an edge never
+// shares a segment with another route on purpose; the router may still
+// overlap routes when nothing else is feasible, as sharedRouteCost is a
+// penalty rather than a constraint.
+func separatesEdges(edge *layoutgraph.Edge) bool {
+	return edge != nil && edge.From != nil && edge.From.Graph != nil && edge.From.Graph.SeparateEdges
+}
+
 // return true if gEdge can overlap with the other edges provided
 func edgeCanOverlapEdges(edge *layoutgraph.Edge, otherEdges []*layoutgraph.Edge, sourceClusterNodes, targetClusterNodes map[*layoutgraph.Node]bool) bool {
 	if len(otherEdges) == 0 {
 		return true
+	}
+	if separatesEdges(edge) {
+		return false
 	}
 	if edge.TargetArrowheadLabel != nil || edge.SourceArrowheadLabel != nil {
 		return false

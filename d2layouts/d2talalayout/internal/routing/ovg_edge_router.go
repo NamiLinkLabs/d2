@@ -476,6 +476,8 @@ func (router *ovgEdgeRouter) usedPorts(
 	duplicateTargetPortsUsed := make(map[geo.Point]bool)
 	sharedClusterSourcePortsUsed := make(map[geo.Point]bool)
 	sharedClusterTargetPortsUsed := make(map[geo.Point]bool)
+	// Separate edges do not pull a cluster's routes onto one shared port.
+	shareClusterPorts := !undesirableClusterArrangement && !router.graph.SeparateEdges
 
 	for _, node := range []*OVGNode{source, target} {
 		if err := router.work.step(); err != nil {
@@ -501,7 +503,7 @@ func (router *ovgEdgeRouter) usedPorts(
 			// routes
 			// ClusterPortSharing Step 1.
 			// we want the same port if a cluster route has the same source or target so record it here
-			if !undesirableClusterArrangement {
+			if shareClusterPorts {
 				if route.GEdge.To == gTarget {
 					if _, is := sourceClusterNodes[route.GEdge.From]; is {
 						sharedClusterTargetPortsUsed[route.ToPort] = true

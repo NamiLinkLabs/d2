@@ -550,9 +550,16 @@ func parseDirection(direction string) geo.Orientation {
 	}
 }
 
-// RouteEdges reroutes edges in g. It mutates g and must not run concurrently
-// against the same graph.
-func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (err error) {
+// RouteEdges reroutes edges in g with the default options. It mutates g and
+// must not run concurrently against the same graph.
+func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+	return RouteEdgesWithOptions(ctx, g, edges, nil)
+}
+
+// RouteEdgesWithOptions reroutes edges in g like RouteEdges. Of opts, only
+// SeparateEdges applies; diagram data under tala-separate-edges takes
+// precedence, as it does for Layout. Nil opts uses the defaults.
+func RouteEdgesWithOptions(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *Options) (err error) {
 	defer recoverAsError("edge routing", &err)
 	if ctx == nil {
 		return fmt.Errorf("TALA edge routing requires a context")
@@ -563,6 +570,10 @@ func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (e
 
 	talaGraph := layoutgraph.NewGraph()
 	bindings, err := translateGraph(ctx, g, talaGraph, true)
+	if err != nil {
+		return err
+	}
+	talaGraph.SeparateEdges, err = resolveSeparateEdges(g, opts)
 	if err != nil {
 		return err
 	}
