@@ -378,7 +378,7 @@ func (c *compiler) validateConfigs(configs *Field) {
 		}
 
 		switch f.Name.ScalarString() {
-		case "sketch", "isometric", "center":
+		case "sketch", "isometric", "center", "intersection-gaps":
 			_, err := strconv.ParseBool(val)
 			if err != nil {
 				c.errorf(f.LastRef().AST(), `expected a boolean for "%s", got "%s"`, f.Name.ScalarString(), val)

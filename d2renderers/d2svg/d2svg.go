@@ -99,6 +99,11 @@ type RenderOpts struct {
 	NoXMLTag    *bool
 	Salt        *string
 	OmitVersion *bool
+
+	// IntersectionGaps leaves an empty gap in a connection where another one
+	// drawn above it crosses (d2lang/d2#1932). Isometric output ignores it: it
+	// already lifts crossing routes over each other.
+	IntersectionGaps *bool
 }
 
 func invalidPaddingError(pad int64) error {

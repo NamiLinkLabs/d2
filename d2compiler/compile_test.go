@@ -5764,6 +5764,35 @@ x -> y
 				},
 			},
 			{
+				name: "intersection-gaps",
+				run: func(t *testing.T) {
+					_, config := assertCompile(t, `
+vars: {
+	d2-config: {
+    intersection-gaps: true
+  }
+}
+
+x -> y
+`, "")
+					assert.Equal(t, true, *config.IntersectionGaps)
+				},
+			},
+			{
+				name: "intersection-gaps-invalid",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+    intersection-gaps: lol
+  }
+}
+
+x -> y
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/intersection-gaps-invalid.d2:4:5: expected a boolean for "intersection-gaps", got "lol"`)
+				},
+			},
+			{
 				name: "not-root",
 				run: func(t *testing.T) {
 					assertCompile(t, `

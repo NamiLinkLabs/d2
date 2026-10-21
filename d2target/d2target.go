@@ -50,6 +50,7 @@ type Config struct {
 	DarkThemeID        *int64          `json:"darkThemeID"`
 	Pad                *int64          `json:"pad"`
 	Center             *bool           `json:"center"`
+	IntersectionGaps   *bool           `json:"intersectionGaps,omitempty"`
 	LayoutEngine       *string         `json:"layoutEngine"`
 	ThemeOverrides     *ThemeOverrides `json:"themeOverrides,omitempty"`
 	DarkThemeOverrides *ThemeOverrides `json:"darkThemeOverrides,omitempty"`
