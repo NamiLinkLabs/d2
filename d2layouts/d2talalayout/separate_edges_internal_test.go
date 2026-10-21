@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
+	"github.com/d2lang/d2/lib/geo"
 )
 
 func TestSeparateEdgesFromData(t *testing.T) {
@@ -61,5 +63,25 @@ func TestLayoutPlanSeparateEdgesPrecedence(t *testing.T) {
 	graph.Data = map[string]any{"tala-separate-edges": "yes"}
 	if _, err := layoutPlan(graph, &Options{SeparateEdges: true}); err == nil || !strings.Contains(err.Error(), "tala-separate-edges must be true or false") {
 		t.Fatalf("invalid data error = %v", err)
+	}
+}
+
+func TestValidateLayoutResultMetadataKeepsSeparateEdges(t *testing.T) {
+	input := layoutgraph.NewGraph()
+	input.SeparateEdges = true
+	node := layoutgraph.NewNode(1, 140, 90)
+	node.TopLeft = geo.NewPoint(0, 0)
+	input.AddNewNodeToContainer(nil, node)
+
+	completed, err := layoutgraph.Clone(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateLayoutResultMetadata(t.Context(), input, completed, nil); err != nil {
+		t.Fatalf("cloned result rejected: %v", err)
+	}
+	completed.SeparateEdges = false
+	if err := validateLayoutResultMetadata(t.Context(), input, completed, nil); err == nil || !strings.Contains(err.Error(), "separate edges metadata changed") {
+		t.Fatalf("result that lost SeparateEdges: error = %v", err)
 	}
 }
