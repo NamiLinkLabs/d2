@@ -321,6 +321,9 @@ func getEdgeRouter(opts *CompileOptions) (d2graph.RouteEdges, error) {
 			return router, nil
 		}
 	}
+	if opts.Layout != nil {
+		return d2layouts.RouterFor(*opts.Layout), nil
+	}
 	return d2layouts.DefaultRouter, nil
 }
 

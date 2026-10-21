@@ -13,9 +13,7 @@ import (
 	"github.com/d2lang/d2/d2layouts/d2near"
 	"github.com/d2lang/d2/d2layouts/d2sequence"
 	"github.com/d2lang/d2/lib/geo"
-	"github.com/d2lang/d2/lib/label"
 	"github.com/d2lang/d2/lib/log"
-	"github.com/d2lang/util-go/go2"
 )
 
 type DiagramType string
@@ -188,8 +186,8 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
 			// Then after re-injecting everything, we extract curr with includeSelf=false,
 			// and externalEdges=[C], nestedGraph.Edges=[B], and graph.Edges=[A].
 			// This will leave A in the graph to be routed by grid layout, and C will have cross-graph edge routing
-			// Note: currently grid layout's cell-cell edge routing, and cross-graph edge routing behave the same,
-			// but these are simple placeholder routings and they may be different in the future
+			// Note: grid layout routes A with the edge router once the cells are placed,
+			// and C is routed by the same router once the nested graphs are injected
 			// ┌grid(g.Root)───────────────────┐    ┌grid(g.Root)───────────────────┐
 			// │ ┌────┐      ┌curr───────────┐ │    │ ┌────┐      ┌curr───────────┐ │
 			// │ │    │      │  ┌──┐    ┌──┐ │ │    │ │    │      │               │ │
@@ -282,6 +280,13 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
 			if err = d2grid.Layout(ctx, g); err != nil {
 				return err
 			}
+			// No layout engine routes the edges between two cells, so route
+			// them around the other cells now that those are placed.
+			if cellEdges := gridCellEdges(g); len(cellEdges) > 0 {
+				if err = edgeRouter(ctx, g, cellEdges); err != nil {
+					return err
+				}
+			}
 
 		case SequenceDiagram:
 			log.Debug(ctx, "layout sequence", slog.Any("rootlevel", g.RootLevel), slog.Any("shapes", g.PrintString()))
@@ -373,16 +378,15 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
 	return err
 }
 
-func DefaultRouter(ctx context.Context, graph *d2graph.Graph, edges []*d2graph.Edge) error {
-	for _, e := range edges {
-		// TODO replace simple straight line edge routing
-		e.Route = []*geo.Point{e.Src.Center(), e.Dst.Center()}
-		e.TraceToShape(e.Route, 0, 1)
-		if e.Label.Value != "" {
-			e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
+// gridCellEdges returns the edges between two cells of the grid diagram g.
+func gridCellEdges(g *d2graph.Graph) []*d2graph.Edge {
+	var edges []*d2graph.Edge
+	for _, e := range g.Edges {
+		if e.Src != e.Dst && e.Src.Parent == g.Root && e.Dst.Parent == g.Root {
+			edges = append(edges, e)
 		}
 	}
-	return nil
+	return edges
 }
 
 func NestedGraphInfo(obj *d2graph.Object) (gi GraphInfo) {
