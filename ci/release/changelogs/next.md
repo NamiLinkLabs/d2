@@ -2,6 +2,7 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- layouts: route the connections that cross into or out of grids, `near` shapes and sequence diagrams, and the connections between grid cells, around the other shapes with every layout engine, in the engine's style (curved with dagre) instead of straight lines through them. `--nested-edge-routing=straight` (D2.js: `nestedEdgeRouting: "straight"`) keeps straight lines, which is faster on very large diagrams. [#1994](https://github.com/d2lang/d2/issues/1994), [#1285](https://github.com/d2lang/d2/issues/1285)
 
 #### Improvements 🧹
 
@@ -33,6 +34,13 @@
 
 #### Bugfixes ⛑️
 
+- grids:
+  - Draw several connections between the same two grid cells apart instead of on
+    top of each other. [#1741](https://github.com/d2lang/d2/issues/1741)
+  - Compile connections between touching cells of a grid with `grid-gap: 0`.
+- tala: Route many connections that cross into or out of grids, nears and
+  sequence diagrams one pair of shapes at a time instead of failing with
+  "TALA route-search work limit exceeded".
 - compiler:
   - Limit combined map/array nesting to 128. [#2894](https://github.com/d2lang/d2/pull/2894)
   - Honor cancellation during parsing and IR compilation, and prevent `d2 fmt`
