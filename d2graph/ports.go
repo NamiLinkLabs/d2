@@ -343,3 +343,16 @@ func segmentCrossesBox(box *geo.Box, a, b *geo.Point) bool {
 	inner := geo.NewBox(geo.NewPoint(box.TopLeft.X+1, box.TopLeft.Y+1), box.Width-2, box.Height-2)
 	return inner.Contains(a) || inner.Contains(b) || len(inner.Intersections(*geo.NewSegment(a, b))) > 0
 }
+
+// RouteStraight routes edges as straight lines between the centers of Src and
+// Dst, cut at their borders, for layouts without an edge router (grid cells,
+// connections between nested layouts). Ends pinned with source-port /
+// target-port start on their side instead, through PinRoute.
+func RouteStraight(edges []*Edge) {
+	anchors := PortAnchors(edges)
+	for _, e := range edges {
+		e.Route = []*geo.Point{e.Src.Center(), e.Dst.Center()}
+		e.TraceToShape(e.Route, 0, 1)
+		e.Route = e.PinRoute(e.Route, anchors[PortEnd{e, true}], anchors[PortEnd{e, false}])
+	}
+}

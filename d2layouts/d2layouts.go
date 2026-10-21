@@ -374,10 +374,9 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
 }
 
 func DefaultRouter(ctx context.Context, graph *d2graph.Graph, edges []*d2graph.Edge) error {
+	// TODO replace simple straight line edge routing
+	d2graph.RouteStraight(edges)
 	for _, e := range edges {
-		// TODO replace simple straight line edge routing
-		e.Route = []*geo.Point{e.Src.Center(), e.Dst.Center()}
-		e.TraceToShape(e.Route, 0, 1)
 		if e.Label.Value != "" {
 			e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
 		}

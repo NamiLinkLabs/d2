@@ -353,3 +353,37 @@ note: {near: top-left; c -> d}`)
 		})
 	}
 }
+
+func TestStraightRoutesHonourEdgePorts(t *testing.T) {
+	t.Parallel()
+	g := compileLayoutTestGraph(t, `grid: {
+  grid-columns: 2
+  a
+  b
+  a -> b: {source-port: bottom; target-port: bottom}
+}
+outside
+grid.b -> outside: {source-port: top; target-port: left}
+outside -> grid.a
+`)
+	ruler, err := textmeasure.NewRuler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.SetDimensions(nil, ruler, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	ctx := log.WithTB(context.Background(), t)
+	if err := LayoutNested(ctx, g, NestedGraphInfo(g.Root), d2dagrelayout.DefaultLayout, DefaultRouter); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range g.Edges {
+		if err := e.PortsHonored(); err != nil {
+			t.Errorf("%v: route %v", err, e.Route)
+		}
+	}
+	// The unpinned cross-layout edge stays a straight center-to-center line.
+	if e := g.Edges[2]; len(e.Route) != 2 {
+		t.Errorf("unpinned edge %s has %d points, want 2", e.AbsID(), len(e.Route))
+	}
+}
