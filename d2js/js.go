@@ -24,6 +24,8 @@ func main() {
 	api.Register("getBoardAtPosition", d2wasm.GetBoardAtPosition)
 	api.Register("encode", d2wasm.Encode)
 	api.Register("decode", d2wasm.Decode)
+	api.Register("extractSource", d2wasm.ExtractSource)
+	api.Register("embedSource", d2wasm.EmbedSource)
 	api.Register("version", d2wasm.GetVersion)
 	api.Register("jsVersion", d2wasm.GetJSVersion)
 

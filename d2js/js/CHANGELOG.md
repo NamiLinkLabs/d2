@@ -6,6 +6,7 @@ include changes to the main d2 project.**
 ## Next
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
+- Add the `embedSource` compile option, which embeds the D2 source in rendered SVGs, and `D2.extractSource()` / `D2.embedSource()` to read it back from SVG and PNG images or add it to other images
 
 ## [0.1.34]
 ### September 7, 2026
