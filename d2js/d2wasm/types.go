@@ -55,6 +55,7 @@ type RenderOptions struct {
 	NoXMLTag           *bool                    `json:"noXMLTag"`
 	ASCII              *bool                    `json:"ascii"`
 	ASCIIMode          *string                  `json:"asciiMode"`
+	IntersectionGaps   *bool                    `json:"intersectionGaps"`
 }
 
 type CompileOptions struct {

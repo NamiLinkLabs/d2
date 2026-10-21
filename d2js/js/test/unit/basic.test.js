@@ -172,6 +172,28 @@ container.child -> outside
     await d2.dispose();
   }, 20000);
 
+  test("intersection gaps render works", async () => {
+    const d2 = new D2();
+    const crossing = "grid-columns: 3\na; b; c; d; e; f; g; h; i\nb -> h\nd -> f\n";
+    const plain = await d2.compile(crossing);
+    expect(plain.renderOptions.intersectionGaps).toBe(false);
+    expect(await d2.render(plain.diagram)).not.toContain("-gap-0");
+    expect(await d2.render(plain.diagram, { intersectionGaps: true })).toContain("-gap-0");
+
+    const configured = await d2.compile(
+      "vars: {d2-config: {intersection-gaps: true}}\n" + crossing
+    );
+    expect(configured.renderOptions.intersectionGaps).toBe(true);
+    expect(await d2.render(configured.diagram, configured.renderOptions)).toContain("-gap-0");
+
+    const overridden = await d2.compile(
+      "vars: {d2-config: {intersection-gaps: true}}\n" + crossing,
+      { intersectionGaps: false }
+    );
+    expect(overridden.renderOptions.intersectionGaps).toBe(false);
+    await d2.dispose();
+  }, 20000);
+
   test("no XML tag works", async () => {
     const d2 = new D2();
     const result = await d2.compile("x -> y");
