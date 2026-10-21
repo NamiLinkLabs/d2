@@ -2,6 +2,24 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- connections: pin an end of a connection to a side of its shape with
+  `source-port` and `target-port` (`top`, `right`, `bottom` or `left`), e.g.
+  `a -> b: {source-port: right; target-port: top}`. `source-port` pins the
+  endpoint written first, as `source-arrowhead` does. The keys work in edge maps,
+  on `(a -> b)[0]`, through globs and in classes. [#628](https://github.com/d2lang/d2/issues/628)
+  - TALA (layout and `routeEdges`) and ELK route the connection out of the
+    pinned side. Dagre has no ports, so its finished route is moved onto the
+    side with a short stub and steered around the shape (best effort); the same
+    applies to straight connections between grid cells and between nested
+    layouts.
+  - On circles, diamonds and other non-rectangular shapes the side is that of
+    the bounding box, and the end sits on the shape's outline.
+  - Exported connections carry `srcPort` / `dstPort`.
+  - Not supported yet: pins on sql_table column connections and in sequence
+    diagrams (rejected), and on self-loops with dagre and TALA (ignored).
+    Layouts do not yet place shapes with pins in mind, so a pinned connection
+    can detour around its own shape.
+  - `source-port` and `target-port` are now reserved keywords.
 
 #### Improvements 🧹
 
