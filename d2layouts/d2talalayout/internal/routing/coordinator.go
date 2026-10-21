@@ -1469,7 +1469,7 @@ func isStraightEdgeFallbackCandidate(edge *layoutgraph.Edge, clusterNodes map[*l
 	if edge.From.Hierarchy != nil {
 		return false
 	}
-	return !edge.HasTableColumn()
+	return !edge.HasTableColumn() && !edge.HasPinnedSide()
 }
 
 func StraightEdgesFallback(ctx context.Context, g *layoutgraph.Graph) error {

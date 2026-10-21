@@ -274,6 +274,8 @@ func TestEvaluateSeedRejectsChangedImmutableGeometryMetadata(t *testing.T) {
 		{name: "edge minimum geometry", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].MinWidth++ }, want: "minimum geometry"},
 		{name: "edge source table column", mutate: func(graph *layoutgraph.Graph) { *graph.Edges[0].FromTableColumnIndex = 1 }, want: "table column attachment"},
 		{name: "edge target table column", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].ToTableColumnIndex = nil }, want: "table column attachment"},
+		{name: "edge source side", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].FromSide = new(geo.Top) }, want: "pinned side metadata"},
+		{name: "edge target side", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].ToSide = new(geo.Left) }, want: "pinned side metadata"},
 		{name: "edge visibility", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].IsInvisible = true }, want: "visibility metadata"},
 		{name: "edge style", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].Style.Stroke = &layoutgraph.StyleScalar{Value: "red"} }, want: "style metadata"},
 		{name: "edge label text", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].Label.Text = "replacement" }, want: "label identity"},

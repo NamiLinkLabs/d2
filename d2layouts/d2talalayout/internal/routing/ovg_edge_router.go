@@ -799,6 +799,15 @@ func (router *ovgEdgeRouter) search(ctx context.Context, gEdge *layoutgraph.Edge
 		}
 	}
 
+	// A pinned end (source-port / target-port) may only use the ports on its
+	// side. This composes with the table column and overlap blocks above.
+	if err := router.blockPortsOffSide(gSource, gEdge.FromSide, blockedSourcePorts); err != nil {
+		return nil, 0, err
+	}
+	if err := router.blockPortsOffSide(gTarget, gEdge.ToSide, blockedTargetPorts); err != nil {
+		return nil, 0, err
+	}
+
 	idealTurnAxes := idealTurnAxes(gSource, gTarget)
 
 	sourcePortsUsed, targetPortsUsed, duplicateSourcePortsUsed, duplicateTargetPortsUsed, sharedClusterSourcePortsUsed, sharedClusterTargetPortsUsed, err := router.usedPorts(
@@ -1385,7 +1394,7 @@ func (router *ovgEdgeRouter) quickRoute(ctx context.Context, gEdge *layoutgraph.
 	gTarget := gEdge.To
 	source := g.Centers[gSource]
 	target := g.Centers[gTarget]
-	if !overlap && !fromOrientation.IsDiagonal() && gSource.DistanceTo(gTarget, true) < 2*(layoutgraph.MinRouteNodeClearance+1) && (gSource.DistanceTo(gTarget, true) > layoutgraph.MinArrowheadClearance) {
+	if !gEdge.HasPinnedSide() && !overlap && !fromOrientation.IsDiagonal() && gSource.DistanceTo(gTarget, true) < 2*(layoutgraph.MinRouteNodeClearance+1) && (gSource.DistanceTo(gTarget, true) > layoutgraph.MinArrowheadClearance) {
 		edges := make([]*layoutgraph.Edge, 0)
 		for _, route := range router.routes {
 			if err := router.work.add(uint64(len(route.OVGNodes)) + 1); err != nil {
@@ -1829,4 +1838,22 @@ func (router *ovgEdgeRouter) tablePorts(edge *layoutgraph.Edge, source, target *
 		}
 	}
 	return sourcePorts, targetPorts, nil
+}
+
+// blockPortsOffSide blocks every port of node that is not on side. A nil side
+// leaves the ports as they are.
+func (router *ovgEdgeRouter) blockPortsOffSide(node *layoutgraph.Node, side *geo.Orientation, blocked map[geo.Point]bool) error {
+	if side == nil {
+		return nil
+	}
+	allowed := node.PortsByOrientation(*side)
+	for _, port := range router.ovg.Ports[node] {
+		if err := router.work.step(); err != nil {
+			return err
+		}
+		if !slices.Contains(allowed, *port.Point) {
+			blocked[*port.Point] = true
+		}
+	}
+	return nil
 }

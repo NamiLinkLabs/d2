@@ -45,6 +45,8 @@ type combineEdgeSnapshot struct {
 	targetArrowheadLabel pointerSnapshot[layoutgraph.Label]
 	fromTableColumnIndex pointerSnapshot[int]
 	toTableColumnIndex   pointerSnapshot[int]
+	fromSide             pointerSnapshot[geo.Orientation]
+	toSide               pointerSnapshot[geo.Orientation]
 }
 
 func captureCombineEdge(edge *layoutgraph.Edge) combineEdgeSnapshot {
@@ -63,6 +65,8 @@ func captureCombineEdge(edge *layoutgraph.Edge) combineEdgeSnapshot {
 		targetArrowheadLabel: snapshotPointer(edge.TargetArrowheadLabel),
 		fromTableColumnIndex: snapshotPointer(edge.FromTableColumnIndex),
 		toTableColumnIndex:   snapshotPointer(edge.ToTableColumnIndex),
+		fromSide:             snapshotPointer(edge.FromSide),
+		toSide:               snapshotPointer(edge.ToSide),
 	}
 }
 
@@ -73,6 +77,8 @@ func (snapshot combineEdgeSnapshot) restore(edge *layoutgraph.Edge) {
 	snapshot.targetArrowheadLabel.restore()
 	snapshot.fromTableColumnIndex.restore()
 	snapshot.toTableColumnIndex.restore()
+	snapshot.fromSide.restore()
+	snapshot.toSide.restore()
 	for _, point := range snapshot.pointValues {
 		point.restore()
 	}
@@ -85,6 +91,8 @@ func (snapshot combineEdgeSnapshot) restore(edge *layoutgraph.Edge) {
 	edge.TargetArrowheadLabel = snapshot.targetArrowheadLabel.pointer
 	edge.FromTableColumnIndex = snapshot.fromTableColumnIndex.pointer
 	edge.ToTableColumnIndex = snapshot.toTableColumnIndex.pointer
+	edge.FromSide = snapshot.fromSide.pointer
+	edge.ToSide = snapshot.toSide.pointer
 }
 
 // CombineSubgraphs arranges laid-out subgraphs and returns a combined graph

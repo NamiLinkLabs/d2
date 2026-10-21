@@ -89,7 +89,11 @@ type SerializedEdge struct {
 	Label                *SerializedLabel   `json:"label,omitempty"`
 	FromTableColumnIndex *int               `json:"fromTableColumnIndex,omitempty"`
 	ToTableColumnIndex   *int               `json:"toTableColumnIndex,omitempty"`
-	Style                SerializedStyle    `json:"style,omitempty"`
+	// FromSide and ToSide are the pinned sides ("top", "right", "bottom",
+	// "left"); empty means free.
+	FromSide string          `json:"fromSide,omitempty"`
+	ToSide   string          `json:"toSide,omitempty"`
+	Style    SerializedStyle `json:"style,omitempty"`
 
 	SourceArrowhead string `json:"sourceArrowhead"`
 	TargetArrowhead string `json:"targetArrowhead"`
