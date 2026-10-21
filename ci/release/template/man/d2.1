@@ -118,6 +118,16 @@ and animated multi-board SVG; use separate themed SVGs or a GIF slideshow.
 .It Fl -center Ar flag
 Center the SVG in the containing viewbox, such as your browser screen
 .Ns .
+.It Fl -intersection-gaps Ar false
+Leave an empty gap in a connection where another one drawn above it crosses.
+Connections are drawn by z-index, then in the order they are declared; the later one stays whole.
+Lines meeting at a shape, running together or crossing at a shallow angle get no gap,
+nor do sequence diagram lifelines.
+Applies to SVG, PNG, GIF, PDF and PPTX; isometric output already lifts crossing routes over each other.
+This can also be enabled using D2_INTERSECTION_GAPS=true or
+vars: {d2-config: {intersection-gaps: true}} in D2 source.
+Use --intersection-gaps=false to disable a source or environment setting.
+.Ns .
 .It Fl -scale Ar -1
 Scale the output. E.g., 0.5 to halve the default size. Default -1 means that SVG's will fit to screen and all others will use their default render size. Setting to 1 turns off SVG fitting to screen
 .Ns .
@@ -243,6 +253,8 @@ See --center flag.
 See -s[ketch] flag.
 .It Ev Sy D2_ISOMETRIC
 See --isometric flag.
+.It Ev Sy D2_INTERSECTION_GAPS
+See --intersection-gaps flag.
 .It Ev Sy D2_BUNDLE
 See -b[undle] flag.
 .It Ev Sy D2_ALLOW_PRIVATE_NETWORK
