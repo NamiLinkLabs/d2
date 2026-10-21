@@ -50,8 +50,11 @@ func talaRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) er
 	return routeAroundShapes(ctx, g, edges, nil)
 }
 
+// routeBestEffort is a seam for tests of the straight fallback.
+var routeBestEffort = d2talalayout.RouteEdgesBestEffort
+
 func routeAroundShapes(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *d2talalayout.BestEffortOptions) error {
-	unrouted, err := d2talalayout.RouteEdgesBestEffort(ctx, g, edges, opts)
+	unrouted, err := routeBestEffort(ctx, g, edges, opts)
 	if err != nil {
 		return err
 	}
