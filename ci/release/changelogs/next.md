@@ -76,8 +76,8 @@
     render targets. [#2916](https://github.com/d2lang/d2/pull/2916)
   - Apply the dangerous-link policy to legend shapes. [#2917](https://github.com/d2lang/d2/pull/2917)
 - icons:
-  - Place `border-*` icons on the shape's outer box like border labels, so corner and edge icons on circles, cylinders and other non-rectangular shapes sit on the shape's edge. [#1653](https://github.com/d2lang/d2/issues/1653)
-  - Include every drawn icon in the diagram bounds: border icons and the 5 px overhang of `outside-top-left` icons are no longer cut off with `--pad 0`, and `shape: image` objects no longer reserve space for an outside icon that is never drawn.
+  - Place `border-*` icons on the shape's outer box like border labels, so corner and edge icons on circles, cylinders and other non-rectangular shapes sit on the shape's edge, and reserve the half that sticks out in dagre, ELK, grid and TALA layouts so neighbours don't overlap it. [#1653](https://github.com/d2lang/d2/issues/1653)
+  - Include every drawn icon in the diagram bounds: border icons, connection icons and the 5 px overhang of `outside-top-left` icons are no longer cut off with `--pad 0`, and `shape: image` objects no longer reserve space for an outside icon that is never drawn.
   - d2oracle: setting `icon.near`, `icon.width`, `icon.height` or `icon.style.border-radius` edits the existing key, and deleting a nested `icon.*` or `label.near` field no longer deletes the object's own `near` or `width`.
 - d2svg:
   - Escape custom shape and connection classes. [#2895](https://github.com/d2lang/d2/pull/2895)
