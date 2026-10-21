@@ -1,0 +1,254 @@
+{
+  "graph": {
+    "name": "",
+    "isFolderOnly": false,
+    "ast": {
+      "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:0:0-1:0:78",
+      "nodes": [
+        {
+          "map_key": {
+            "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:0:0-0:77:77",
+            "key": {
+              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:0:0-0:1:1",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:0:0-0:1:1",
+                    "value": [
+                      {
+                        "string": "x",
+                        "raw_string": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "primary": {},
+            "value": {
+              "map": {
+                "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:3:3-0:77:77",
+                "nodes": [
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:4:4-0:25:25",
+                      "key": {
+                        "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:4:4-0:14:14",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:4:4-0:9:9",
+                              "value": [
+                                {
+                                  "string": "label",
+                                  "raw_string": "label"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:10:10-0:14:14",
+                              "value": [
+                                {
+                                  "string": "near",
+                                  "raw_string": "near"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "unquoted_string": {
+                          "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:16:16-0:25:25",
+                          "value": [
+                            {
+                              "string": "top-right",
+                              "raw_string": "top-right"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:27:27-0:52:52",
+                      "key": {
+                        "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:27:27-0:31:31",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:27:27-0:31:31",
+                              "value": [
+                                {
+                                  "string": "icon",
+                                  "raw_string": "icon"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "unquoted_string": {
+                          "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:33:33-0:52:52",
+                          "value": [
+                            {
+                              "string": "https://a.com/a.svg",
+                              "raw_string": "https://a.com/a.svg"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:54:54-0:76:76",
+                      "key": {
+                        "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:54:54-0:63:63",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:54:54-0:58:58",
+                              "value": [
+                                {
+                                  "string": "icon",
+                                  "raw_string": "icon"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:59:59-0:63:63",
+                              "value": [
+                                {
+                                  "string": "near",
+                                  "raw_string": "near"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "unquoted_string": {
+                          "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:65:65-0:76:76",
+                          "value": [
+                            {
+                              "string": "bottom-left",
+                              "raw_string": "bottom-left"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "root": {
+      "id": "",
+      "id_val": "",
+      "attributes": {
+        "label": {
+          "value": ""
+        },
+        "labelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "style": {},
+        "iconStyle": {},
+        "near_key": null,
+        "shape": {
+          "value": ""
+        },
+        "direction": {
+          "value": ""
+        },
+        "constraint": null
+      },
+      "zIndex": 0
+    },
+    "edges": null,
+    "objects": [
+      {
+        "id": "x",
+        "id_val": "x",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:0:0-0:1:1",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2oracle/TestDelete/near/keeps-label-and-icon-near.d2,0:0:0-0:1:1",
+                    "value": [
+                      {
+                        "string": "x",
+                        "raw_string": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "x"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "icon": {
+            "Scheme": "https",
+            "Opaque": "",
+            "User": null,
+            "Host": "a.com",
+            "Path": "/a.svg",
+            "Fragment": "",
+            "RawQuery": "",
+            "RawPath": "",
+            "RawFragment": "",
+            "ForceQuery": false,
+            "OmitHost": false
+          },
+          "iconStyle": {},
+          "near_key": null,
+          "shape": {
+            "value": "rectangle"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null,
+          "labelPosition": {
+            "value": "top-right"
+          },
+          "iconPosition": {
+            "value": "bottom-left"
+          }
+        },
+        "zIndex": 0
+      }
+    ]
+  },
+  "err": "<nil>"
+}
