@@ -19,19 +19,39 @@ import (
 
 // RouterFor returns the router for the edges LayoutNested routes itself in a
 // diagram laid out with engine: DefaultRouter, with its routes curved like
-// dagre's own for dagre.
+// dagre's own for dagre, and with the budget TALA layouts have always had for
+// TALA.
 func RouterFor(engine string) d2graph.RouteEdges {
-	if strings.EqualFold(engine, "dagre") {
+	switch {
+	case strings.EqualFold(engine, "dagre"):
 		return CurvedRouter(DefaultRouter)
+	case strings.EqualFold(engine, "tala"):
+		return talaRouter
+	default:
+		return DefaultRouter
 	}
-	return DefaultRouter
 }
+
+// defaultRouteWork keeps routing edges together cheap: up to a few hundred
+// thousand work units in common diagrams, about 0.1 s on one core when it
+// runs out.
+var defaultRouteWork = &d2talalayout.BestEffortOptions{TogetherWork: 2_000_000}
 
 // DefaultRouter routes edges around the shapes already placed, with TALA's
 // edge router, and draws the edges that router cannot route within its work
 // budget in a straight line, as StraightRouter does.
 func DefaultRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
-	unrouted, err := d2talalayout.RouteEdgesBestEffort(ctx, g, edges)
+	return routeAroundShapes(ctx, g, edges, defaultRouteWork)
+}
+
+// talaRouter is DefaultRouter with the work budget of d2talalayout.RouteEdges,
+// which TALA layouts used before, for routing edges together.
+func talaRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+	return routeAroundShapes(ctx, g, edges, nil)
+}
+
+func routeAroundShapes(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *d2talalayout.BestEffortOptions) error {
+	unrouted, err := d2talalayout.RouteEdgesBestEffort(ctx, g, edges, opts)
 	if err != nil {
 		return err
 	}
@@ -51,6 +71,12 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 			}
 			e.Route = geo.Route(e.Route).Curve()
 			e.IsCurve = true
+			if e.Label.Value != "" {
+				// The curve leaves the route's corners, where the router may have
+				// put the label. Put it on the middle of the curve, as dagre does.
+				e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
+				e.LabelPercentage = nil
+			}
 		}
 		return nil
 	}

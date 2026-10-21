@@ -9,43 +9,76 @@ import (
 	"github.com/d2lang/d2/lib/geo"
 )
 
-// RouteEdgesBestEffort work budgets, in TALA route-search work units. They
-// are counted rather than timed, so the routes do not depend on the machine.
+// MaxSearchWorkUnits is RouteEdges' route-search budget for each route
+// flavor, in work units.
+const MaxSearchWorkUnits = routing.MaxSearchWorkUnits
+
 const (
-	// maxEdgesRoutedTogether is the most edges the first pass routes in one
-	// call. Routing edges together costs superlinearly more than routing them
-	// one pair at a time.
+	// maxEdgesRoutedTogether is the most edges RouteEdgesBestEffort routes in
+	// one call. Routing edges together costs superlinearly more than routing
+	// them one pair at a time.
 	maxEdgesRoutedTogether = 10
-	// togetherSearchWorkUnits is each route flavor's budget in the first pass.
-	// It stays at RouteEdges' budget, so whenever RouteEdges succeeds the first
-	// pass returns its routes.
-	togetherSearchWorkUnits = routing.MaxSearchWorkUnits
-	// pairSearchWorkUnits is each route flavor's budget for one endpoint pair
-	// in the second pass. One pair alone on a graph of about 150 shapes uses
-	// well under a million.
-	pairSearchWorkUnits = 20_000_000
-	// totalPairSearchWorkUnits bounds the second pass across all pairs. Pairs
-	// left once it is spent are not routed.
-	totalPairSearchWorkUnits = 400_000_000
+	// defaultPairWork is each route flavor's default budget for one pair.
+	// One pair alone on a graph of 150 shapes takes well under 2 million.
+	defaultPairWork = 5_000_000
+	// defaultTotalPairWork is the default budget for all pairs: about a second
+	// on one core.
+	defaultTotalPairWork = 100_000_000
+	// pairShapeWork is what each attempt at a pair is charged per shape for
+	// building TALA's routing graph, on top of its route search.
+	pairShapeWork = 5_000
 )
+
+// BestEffortOptions sets RouteEdgesBestEffort's work budgets. They count
+// route-search steps, in the units of MaxSearchWorkUnits, rather than time,
+// so the routes do not depend on the machine. Zero fields use the defaults.
+type BestEffortOptions struct {
+	// TogetherWork is each route flavor's budget for routing up to 10 edges
+	// together [default: MaxSearchWorkUnits, as in RouteEdges].
+	TogetherWork uint64
+	// PairWork is each route flavor's budget for routing the edges between
+	// one pair of shapes [default: 5,000,000].
+	PairWork uint64
+	// TotalPairWork is the budget for routing pairs, summed over pairs and
+	// route flavors, plus 5,000 per shape for each pair. The pairs left when
+	// it runs out are not routed [default: 100,000,000].
+	TotalPairWork uint64
+}
+
+func (o *BestEffortOptions) withDefaults() BestEffortOptions {
+	var opts BestEffortOptions
+	if o != nil {
+		opts = *o
+	}
+	if opts.TogetherWork == 0 {
+		opts.TogetherWork = MaxSearchWorkUnits
+	}
+	if opts.PairWork == 0 {
+		opts.PairWork = defaultPairWork
+	}
+	if opts.TotalPairWork == 0 {
+		opts.TotalPairWork = defaultTotalPairWork
+	}
+	return opts
+}
 
 // RouteEdgesBestEffort routes edges with TALA's edge router around the shapes
 // already placed in g, like RouteEdges, but leaves the edges it cannot route
 // alone instead of failing. It returns those edges, in their order in edges,
-// with the routes they had before the call.
+// with the routes they had before the call. opts may be nil.
 //
 // Up to 10 edges are first routed together around the other edges' routes,
-// as RouteEdges does. If there are more, or that fails, the edges are routed
-// one endpoint pair at a time, ignoring the other edges, so that edges between
-// the same two shapes still get distinct routes. Connections from a shape to
-// itself are never routed. Every attempt has a fixed work budget, which keeps
-// large diagrams fast and the result deterministic.
+// as RouteEdges does. If there are more, or that runs out of budget, the
+// edges are routed one pair of shapes at a time, ignoring the other edges, so
+// edges between the same two shapes still get distinct routes. Connections
+// from a shape to itself are never routed.
 //
 // Only a nil context or graph, an edge that is nil, repeated or not in g, and
 // the context's cancellation are returned as errors. RouteEdgesBestEffort
 // mutates g, restores the order of g.Edges, and must not run concurrently
 // against the same graph.
-func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (unrouted []*d2graph.Edge, err error) {
+func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *BestEffortOptions) (unrouted []*d2graph.Edge, err error) {
+	budget := opts.withDefaults()
 	if ctx == nil {
 		return nil, fmt.Errorf("TALA edge routing requires a context")
 	}
@@ -105,7 +138,7 @@ func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2grap
 				g.Edges = append(g.Edges, e)
 			}
 		}
-		routeErr := routeEdges(ctx, g, routable, togetherSearchWorkUnits)
+		routeErr := routeEdges(ctx, g, routable, budget.TogetherWork)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -121,12 +154,13 @@ func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2grap
 	// the cleared routes.
 	spent := uint64(0)
 	for _, pair := range groupByEndpoints(routable) {
-		if spent >= totalPairSearchWorkUnits {
+		if spent >= budget.TotalPairWork {
 			break
 		}
 		g.Edges = pair
+		spent += pairShapeWork * uint64(len(g.Objects))
 		telemetry := &routing.SearchTelemetry{}
-		routeErr := routeEdges(routing.WithSearchTelemetry(ctx, telemetry), g, pair, pairSearchWorkUnits)
+		routeErr := routeEdges(routing.WithSearchTelemetry(ctx, telemetry), g, pair, budget.PairWork)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
