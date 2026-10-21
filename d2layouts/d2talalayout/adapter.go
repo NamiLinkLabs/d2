@@ -552,7 +552,12 @@ func parseDirection(direction string) geo.Orientation {
 
 // RouteEdges reroutes edges in g. It mutates g and must not run concurrently
 // against the same graph.
-func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (err error) {
+func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+	return routeEdges(ctx, g, edges, routing.MaxSearchWorkUnits)
+}
+
+// routeEdges is RouteEdges with a route-search budget for each route flavor.
+func routeEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, searchWorkLimit uint64) (err error) {
 	defer recoverAsError("edge routing", &err)
 	if ctx == nil {
 		return fmt.Errorf("TALA edge routing requires a context")
@@ -590,7 +595,7 @@ func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (e
 		workCtx, cancelWork = context.WithCancel(ctx)
 	}
 	defer cancelWork()
-	err = routing.RouteEdges(workCtx, talaGraph, talaEdges)
+	err = routing.RouteEdgesWithSearchLimit(workCtx, talaGraph, talaEdges, searchWorkLimit)
 	if err != nil {
 		return preferContextError(ctx, "edge routing", err)
 	}

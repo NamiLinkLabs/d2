@@ -21,10 +21,18 @@ func hasCompleteEdgeRoute(edge *layoutgraph.Edge) bool {
 }
 
 func RouteEdges(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge) error {
-	return routeEdgesWithBudgets(ctx, g, edges, defaultOVGBuildLimits(), maxRouteStageWorkUnits)
+	return routeEdgesWithBudgets(ctx, g, edges, defaultOVGBuildLimits(), maxRouteStageWorkUnits, maxRouteSearchWorkUnits)
 }
 
-func routeEdgesWithBudgets(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge, ovgLimits ovgBuildLimits, workLimit uint64) error {
+// RouteEdgesWithSearchLimit is RouteEdges with a smaller route-search budget
+// for each route flavor, for callers that have another way to route the edges
+// and would rather fail fast. Limits above MaxSearchWorkUnits are clamped.
+func RouteEdgesWithSearchLimit(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge, searchWorkLimit uint64) error {
+	searchWorkLimit = min(searchWorkLimit, maxRouteSearchWorkUnits)
+	return routeEdgesWithBudgets(ctx, g, edges, defaultOVGBuildLimits(), maxRouteStageWorkUnits, searchWorkLimit)
+}
+
+func routeEdgesWithBudgets(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge, ovgLimits ovgBuildLimits, workLimit, searchWorkLimit uint64) error {
 	if g == nil {
 		return fmt.Errorf("cannot route edges on a nil graph")
 	}
@@ -108,7 +116,7 @@ func routeEdgesWithBudgets(ctx context.Context, g *layoutgraph.Graph, edges []*l
 		}
 		g.ComputeCellSize()
 
-		if _, err := routeAdditionalEdgesWithLimits(ctx, g, edges, ovgLimits); err != nil {
+		if _, err := routeAdditionalEdgesWithResourceLimits(ctx, g, edges, ovgLimits, searchWorkLimit); err != nil {
 			return err
 		}
 		if err := guard.step(); err != nil {
