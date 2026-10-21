@@ -1094,6 +1094,14 @@ func adjustPadding(obj *d2graph.Object, width, height float64, padding shapePadd
 		case label.InsideMiddleRight:
 			extraRight = go2.Max(extraRight, iconWidth)
 		}
+		// The margin for a border icon is taken off the container's box after
+		// layout, which moves its children only half as far, so pad for the
+		// other half to keep their distance to the edge.
+		borderMargin := obj.BorderIconMargin(label.PADDING, false)
+		extraTop += int(math.Ceil(borderMargin.Top / 2))
+		extraBottom += int(math.Ceil(borderMargin.Bottom / 2))
+		extraLeft += int(math.Ceil(borderMargin.Left / 2))
+		extraRight += int(math.Ceil(borderMargin.Right / 2))
 	}
 
 	maxChildWidth, maxChildHeight := math.Inf(-1), math.Inf(-1)

@@ -180,3 +180,37 @@ t: {shape: sql_table; id: int; icon: `+icon+` {near: outside-top-left; width: 24
 		}
 	}
 }
+
+func TestBorderIconMargin(t *testing.T) {
+	t.Parallel()
+
+	const icon = "https://icons.terrastruct.com/essentials%2F213-alarm.svg"
+	g := iconSizeGraph(t, `
+topicon: {icon: `+icon+` {near: border-top-left; width: 40; height: 20}}
+lefticon: {icon: `+icon+` {near: border-left-center; width: 40; height: 20}}
+auto: {icon: `+icon+` {near: border-bottom-right}}
+inside: {icon: `+icon+` {near: top-left; width: 40}}
+`)
+	top := iconSizeObject(t, g, "topicon")
+	if m := top.BorderIconMargin(label.PADDING, true); m.Top != 10+label.PADDING || m.Left != 0 || m.Bottom != 0 {
+		t.Fatalf("border-top margin %+v", m)
+	}
+	if m, _ := top.Spacing(); m.Top != 10+2*label.PADDING {
+		t.Fatalf("border-top spacing %+v", m)
+	}
+	if m := top.GetMargin(); m.Top != 10+label.PADDING {
+		t.Fatalf("border-top GetMargin %+v", m)
+	}
+	left := iconSizeObject(t, g, "lefticon")
+	if m := left.BorderIconMargin(label.PADDING, true); m.Left != 20+label.PADDING || m.Top != 0 {
+		t.Fatalf("border-left margin %+v", m)
+	}
+	auto := iconSizeObject(t, g, "auto")
+	if m := auto.BorderIconMargin(0, true); m.Bottom != d2target.MAX_ICON_SIZE/2 {
+		t.Fatalf("automatic border-bottom margin %+v", m)
+	}
+	inside := iconSizeObject(t, g, "inside")
+	if m := inside.BorderIconMargin(label.PADDING, true); m != (geo.Spacing{}) {
+		t.Fatalf("inside icon margin %+v", m)
+	}
+}

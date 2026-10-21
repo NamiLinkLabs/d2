@@ -1991,6 +1991,42 @@ func (obj *Object) Spacing() (margin, padding geo.Spacing) {
 	return obj.SpacingOpt(2*label.PADDING, 2*label.PADDING, true)
 }
 
+// spacingIconSize is the icon size SpacingOpt reserves: the reserved size, or
+// with maxIconSize false the automatic size for the current box.
+func (obj *Object) spacingIconSize(position label.Position, maxIconSize bool) (width, height float64) {
+	width, height = obj.IconReservedSize()
+	if explicitWidth, _ := obj.IconSize(); explicitWidth == 0 && !maxIconSize {
+		size := float64(d2target.GetIconSize(obj.Box, position.String()))
+		width, height = size, size
+	}
+	return width, height
+}
+
+// BorderIconMargin is the margin a border-* icon needs on its side: it is
+// centered on the shape's edge, so half of it sticks out. It is zero on the
+// other sides and for icons that are not on a border.
+func (obj *Object) BorderIconMargin(iconPadding float64, maxIconSize bool) (margin geo.Spacing) {
+	if !obj.HasIcon() || obj.IconPosition == nil {
+		return margin
+	}
+	position := label.FromString(*obj.IconPosition)
+	if !position.IsBorder() {
+		return margin
+	}
+	width, height := obj.spacingIconSize(position, maxIconSize)
+	switch position {
+	case label.BorderTopLeft, label.BorderTopCenter, label.BorderTopRight:
+		margin.Top = height/2 + iconPadding
+	case label.BorderBottomLeft, label.BorderBottomCenter, label.BorderBottomRight:
+		margin.Bottom = height/2 + iconPadding
+	case label.BorderLeftTop, label.BorderLeftMiddle, label.BorderLeftBottom:
+		margin.Left = width/2 + iconPadding
+	case label.BorderRightTop, label.BorderRightMiddle, label.BorderRightBottom:
+		margin.Right = width/2 + iconPadding
+	}
+	return margin
+}
+
 func (obj *Object) SpacingOpt(labelPadding, iconPadding float64, maxIconSize bool) (margin, padding geo.Spacing) {
 	if obj.HasLabel() {
 		var position label.Position
@@ -2032,25 +2068,15 @@ func (obj *Object) SpacingOpt(labelPadding, iconPadding float64, maxIconSize boo
 			position = label.FromString(*obj.IconPosition)
 		}
 
-		iconWidth, iconHeight := obj.IconReservedSize()
-		if explicitWidth, _ := obj.IconSize(); explicitWidth == 0 && !maxIconSize {
-			size := float64(d2target.GetIconSize(obj.Box, position.String()))
-			iconWidth, iconHeight = size, size
-		}
-		// a border icon sticks out of the shape by half its size
-		borderWidth := iconWidth/2 + iconPadding
-		borderHeight := iconHeight/2 + iconPadding
+		iconWidth, iconHeight := obj.spacingIconSize(position, maxIconSize)
+		borderMargin := obj.BorderIconMargin(iconPadding, maxIconSize)
+		margin.Top = math.Max(margin.Top, borderMargin.Top)
+		margin.Bottom = math.Max(margin.Bottom, borderMargin.Bottom)
+		margin.Left = math.Max(margin.Left, borderMargin.Left)
+		margin.Right = math.Max(margin.Right, borderMargin.Right)
 		iconWidth += iconPadding
 		iconHeight += iconPadding
 		switch position {
-		case label.BorderTopLeft, label.BorderTopCenter, label.BorderTopRight:
-			margin.Top = math.Max(margin.Top, borderHeight)
-		case label.BorderBottomLeft, label.BorderBottomCenter, label.BorderBottomRight:
-			margin.Bottom = math.Max(margin.Bottom, borderHeight)
-		case label.BorderLeftTop, label.BorderLeftMiddle, label.BorderLeftBottom:
-			margin.Left = math.Max(margin.Left, borderWidth)
-		case label.BorderRightTop, label.BorderRightMiddle, label.BorderRightBottom:
-			margin.Right = math.Max(margin.Right, borderWidth)
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
 			margin.Top = math.Max(margin.Top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:
