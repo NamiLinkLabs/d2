@@ -82,8 +82,8 @@ func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2grap
 	if ctx == nil {
 		return nil, fmt.Errorf("TALA edge routing requires a context")
 	}
-	if g == nil {
-		return nil, fmt.Errorf("TALA edge routing requires a graph")
+	if g == nil || g.Root == nil {
+		return nil, fmt.Errorf("tala requires a D2 graph with a root object")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
