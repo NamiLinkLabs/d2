@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"cmp"
 	"math"
 	"slices"
 
@@ -24,6 +25,12 @@ type Metrics struct {
 	Bends int
 	// EdgeLength is the total rendered length of all routes.
 	EdgeLength float64
+	// SharedLength is the total length along which two different
+	// connections' rendered paths run on top of each other: the collinear
+	// overlap of two horizontal (or two vertical) segments on the same line,
+	// summed over every pair of connections. Overlaps of at most 1px are
+	// ignored. It measures how much TALA bundles routes together.
+	SharedLength float64
 	// BBoxWidth and BBoxHeight are the diagram bounding box over shapes and
 	// routes, as computed by d2target.Diagram.BoundingBox.
 	BBoxWidth, BBoxHeight int
@@ -236,6 +243,71 @@ func countCrossings(polylines [][]geo.Point) int {
 	return len(seen)
 }
 
+// sharedLength sums the collinear overlap of axis-aligned segments of
+// different connections. Segments are grouped by the pixel row or column
+// they lie on, so only segments on the same line (within 0.5px), in the same
+// or the next group, are compared.
+func sharedLength(polylines [][]geo.Point) float64 {
+	type span struct {
+		conn     int
+		at       float64
+		from, to float64
+	}
+	type line struct {
+		vertical int64
+		pixel    int64
+	}
+	lines := map[line][]span{}
+	for ci, pts := range polylines {
+		for i := 1; i < len(pts); i++ {
+			a, b := pts[i-1], pts[i]
+			switch {
+			case a == b:
+			case a.Y == b.Y:
+				key := line{0, int64(math.Floor(a.Y))}
+				lines[key] = append(lines[key], span{ci, a.Y, math.Min(a.X, b.X), math.Max(a.X, b.X)})
+			case a.X == b.X:
+				key := line{1, int64(math.Floor(a.X))}
+				lines[key] = append(lines[key], span{ci, a.X, math.Min(a.Y, b.Y), math.Max(a.Y, b.Y)})
+			}
+		}
+	}
+	keys := make([]line, 0, len(lines))
+	for key := range lines {
+		keys = append(keys, key)
+	}
+	// Sum in a fixed order so the float total is reproducible.
+	slices.SortFunc(keys, func(a, b line) int {
+		if c := cmp.Compare(a.vertical, b.vertical); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.pixel, b.pixel)
+	})
+	overlap := func(s, t span) float64 {
+		if s.conn == t.conn || math.Abs(s.at-t.at) >= 0.5 {
+			return 0
+		}
+		if o := math.Min(s.to, t.to) - math.Max(s.from, t.from); o > endpointTolerance {
+			return o
+		}
+		return 0
+	}
+	total := 0.0
+	for _, key := range keys {
+		spans := lines[key]
+		next := lines[line{key.vertical, key.pixel + 1}]
+		for i, s := range spans {
+			for _, t := range spans[i+1:] {
+				total += overlap(s, t)
+			}
+			for _, t := range next {
+				total += overlap(s, t)
+			}
+		}
+	}
+	return total
+}
+
 // Measure computes the layout-quality metrics of diagram.
 func Measure(diagram *d2target.Diagram) Metrics {
 	m := Metrics{Shapes: len(diagram.Shapes), Connections: len(diagram.Connections)}
@@ -247,6 +319,7 @@ func Measure(diagram *d2target.Diagram) Metrics {
 		polylines = append(polylines, pts)
 	}
 	m.Crossings = countCrossings(polylines)
+	m.SharedLength = sharedLength(polylines)
 
 	tl, br := diagram.BoundingBox()
 	m.BBoxWidth, m.BBoxHeight = br.X-tl.X, br.Y-tl.Y

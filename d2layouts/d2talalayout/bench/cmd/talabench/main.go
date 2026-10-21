@@ -35,6 +35,7 @@ type record struct {
 	Crossings     int     `json:"crossings"`
 	Bends         int     `json:"bends"`
 	EdgeLength    float64 `json:"edge_length"`
+	SharedLength  float64 `json:"shared_length"`
 	BBoxWidth     int     `json:"bbox_width"`
 	BBoxHeight    int     `json:"bbox_height"`
 	EmptyFraction float64 `json:"empty_fraction"`
@@ -103,8 +104,8 @@ func main() {
 	fmt.Fprintf(os.Stderr, "talabench: go=%s GOMAXPROCS=%d GOOS/GOARCH=%s/%s timeout=%s\n",
 		runtime.Version(), runtime.GOMAXPROCS(0), runtime.GOOS, runtime.GOARCH, *timeout)
 	if *format == "markdown" {
-		fmt.Println("| case | objects | edges | engine | layout ms | compile ms | crossings | bends | edge length | bbox | empty % | edit layout ms | disp mean | disp max | moved |")
-		fmt.Println("|---|---:|---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|")
+		fmt.Println("| case | objects | edges | engine | layout ms | compile ms | crossings | bends | edge length | shared | bbox | empty % | edit layout ms | disp mean | disp max | moved |")
+		fmt.Println("|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|")
 	}
 	enc := json.NewEncoder(os.Stdout)
 	for _, path := range files {
@@ -124,7 +125,7 @@ func main() {
 			rec := record{
 				Case: r.Case, Engine: r.Engine, Objects: r.Objects, Edges: r.Edges,
 				LayoutMS: ms(r.Layout), CompileMS: ms(r.Compile),
-				Crossings: r.Metrics.Crossings, Bends: r.Metrics.Bends, EdgeLength: r.Metrics.EdgeLength,
+				Crossings: r.Metrics.Crossings, Bends: r.Metrics.Bends, EdgeLength: r.Metrics.EdgeLength, SharedLength: r.Metrics.SharedLength,
 				BBoxWidth: r.Metrics.BBoxWidth, BBoxHeight: r.Metrics.BBoxHeight, EmptyFraction: r.Metrics.EmptyFraction,
 				EditLayoutMS: ms(r.EditLayout),
 			}
@@ -178,7 +179,7 @@ func printRow(rec record, r bench.Result) {
 		if errors.Is(r.Err, bench.ErrTimeout) {
 			status = "timeout"
 		}
-		fmt.Printf("| %s | | | %s | %s (%.0f) | | | | | | | | | | |\n", rec.Case, rec.Engine, status, rec.LayoutMS)
+		fmt.Printf("| %s | | | %s | %s (%.0f) | | | | | | | | | | | |\n", rec.Case, rec.Engine, status, rec.LayoutMS)
 		return
 	}
 	edit, mean, maxd, moved := "", "", "", ""
@@ -193,8 +194,8 @@ func printRow(rec record, r bench.Result) {
 	case r.EditErr != nil:
 		edit = "error"
 	}
-	fmt.Printf("| %s | %d | %d | %s | %.0f | %.0f | %d | %d | %.0f | %dx%d | %.1f | %s | %s | %s | %s |\n",
+	fmt.Printf("| %s | %d | %d | %s | %.0f | %.0f | %d | %d | %.0f | %.0f | %dx%d | %.1f | %s | %s | %s | %s |\n",
 		rec.Case, rec.Objects, rec.Edges, rec.Engine, rec.LayoutMS, rec.CompileMS,
-		rec.Crossings, rec.Bends, rec.EdgeLength, rec.BBoxWidth, rec.BBoxHeight, 100*rec.EmptyFraction,
+		rec.Crossings, rec.Bends, rec.EdgeLength, rec.SharedLength, rec.BBoxWidth, rec.BBoxHeight, 100*rec.EmptyFraction,
 		edit, mean, maxd, moved)
 }
