@@ -27,6 +27,9 @@ var edgePortCases = []struct {
 	{"circle to diamond", "a: {shape: circle}; b: {shape: diamond}; a -> b", "left", "right"},
 	{"fan out", "a; b; c; d; a -> b; a -> c; b -> c; a -> d", "top", "left"},
 	{"sql_table endpoint", "t: {shape: sql_table; id: int}; u; t.id -> u; t -> u", "bottom", "top"},
+	{"diamond to side", "check: {shape: diamond}; save; check -> save: yes", "right", "top"},
+	{"opposite pair", "check: {shape: diamond}; fix; check -> fix; fix -> check", "left", "left"},
+	{"flowchart", "start: {shape: oval}; check: {shape: diamond}; save; fix; end: {shape: oval}; start -> check; check -> save: yes {source-port: right; target-port: top}; check -> fix: no {source-port: bottom; target-port: top}; save -> end; fix -> check", "left", "left"},
 }
 
 func pinEdge(t *testing.T, source, src, dst string) (*d2graph.Graph, *d2graph.Edge) {
@@ -62,15 +65,20 @@ func routeString(e *d2graph.Edge) string {
 
 func TestEdgePortsLayout(t *testing.T) {
 	for _, tc := range edgePortCases {
-		t.Run(tc.name, func(t *testing.T) {
-			g, e := pinEdge(t, tc.source, tc.src, tc.dst)
-			if err := Layout(t.Context(), g, &Options{Seeds: []int64{1}, MaxConcurrency: 1}); err != nil {
-				t.Fatal(err)
-			}
-			if err := e.PortsHonored(); err != nil {
-				t.Errorf("%v\n%s", err, routeString(e))
-			}
-		})
+		for _, seed := range []int64{1, 2, 3} {
+			t.Run(fmt.Sprintf("%s/seed %d", tc.name, seed), func(t *testing.T) {
+				g, _ := pinEdge(t, tc.source, tc.src, tc.dst)
+				if err := Layout(t.Context(), g, &Options{Seeds: []int64{seed}, MaxConcurrency: 1}); err != nil {
+					t.Fatal(err)
+				}
+				// Every pinned edge, including those pinned in the source.
+				for _, e := range g.Edges {
+					if err := e.PortsHonored(); err != nil {
+						t.Errorf("%v\n%s", err, routeString(e))
+					}
+				}
+			})
+		}
 	}
 }
 

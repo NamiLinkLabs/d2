@@ -390,7 +390,16 @@ func (router *ovgEdgeRouter) generateRoutes(ctx context.Context, straightLineFal
 				return resp
 			}
 			if err != nil {
-				if straightLineFallback {
+				if straightLineFallback && edge.HasPinnedSide() {
+					// A straight line would ignore the pinned sides.
+					if pinned, pinnedDistance, pinnedErr := router.pinnedFallbackRoute(edge); pinnedErr == nil {
+						ovgNodes, distance, err = pinned, pinnedDistance, nil
+					} else if isContextTermination(pinnedErr) {
+						resp.Err = pinnedErr
+						return resp
+					}
+				}
+				if err != nil && straightLineFallback {
 					ovgNodes, distance, err = router.routeLine(ctx, edge)
 				}
 				if err != nil {

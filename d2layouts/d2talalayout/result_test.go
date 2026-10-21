@@ -617,3 +617,33 @@ func TestRunSeedLeavesInputUnchanged(t *testing.T) {
 		})
 	}
 }
+
+func TestLayoutScorePrefersHonouredPins(t *testing.T) {
+	honoured := layoutScore{pinViolations: 0, penalty: 100, area: 100}
+	broken := layoutScore{pinViolations: 1, penalty: 1, area: 1}
+	if honoured.compare(broken) != -1 || broken.compare(honoured) != 1 {
+		t.Fatal("a layout that breaks a pin must rank after one that honours all pins")
+	}
+	if (layoutScore{penalty: 1}).compare(layoutScore{penalty: 2}) != -1 {
+		t.Fatal("without pins, the penalty still decides")
+	}
+
+	g := layoutgraph.NewGraph()
+	a := g.AddNode(layoutgraph.NewNode(1, 100, 100))
+	a.TopLeft = geo.NewPoint(0, 0)
+	b := g.AddNode(layoutgraph.NewNode(2, 100, 100))
+	b.TopLeft = geo.NewPoint(200, 0)
+	e := g.Connect(a, b)
+	e.Points = []*geo.Point{geo.NewPoint(100, 50), geo.NewPoint(200, 50)}
+	if got := pinnedSideViolations(g); got != 0 {
+		t.Fatalf("unpinned violations = %d", got)
+	}
+	e.FromSide, e.ToSide = new(geo.Right), new(geo.Top)
+	if got := pinnedSideViolations(g); got != 1 {
+		t.Fatalf("violations = %d, want 1 (the target enters from the left)", got)
+	}
+	e.Points = []*geo.Point{geo.NewPoint(100, 50), geo.NewPoint(150, 50), geo.NewPoint(150, -20), geo.NewPoint(250, -20), geo.NewPoint(250, 0)}
+	if got := pinnedSideViolations(g); got != 0 {
+		t.Fatalf("violations = %d, want 0", got)
+	}
+}
