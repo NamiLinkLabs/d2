@@ -288,6 +288,10 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 	adjustCrossRankSpacing(g, float64(rootAttrs.ranksep), !isHorizontal)
 	fitContainerPadding(g, float64(rootAttrs.ranksep), isHorizontal)
 
+	// Dagre has no ports: source-port / target-port are applied to the
+	// finished route (best effort), once every object has its final position.
+	portAnchors := d2graph.PortAnchors(g.Edges)
+
 	for _, edge := range g.Edges {
 		points := edge.Route
 		startIndex, endIndex := 0, len(points)-1
@@ -357,6 +361,8 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 
 		startIndex, endIndex = edge.TraceToShape(points, startIndex, endIndex)
 		points = points[startIndex : endIndex+1]
+		srcAnchor := portAnchors[d2graph.PortEnd{Edge: edge, Src: true}]
+		dstAnchor := portAnchors[d2graph.PortEnd{Edge: edge, Src: false}]
 
 		// build a curved path from the dagre route
 		vectors := make([]geo.Vector, 0, len(points)-1)
@@ -366,19 +372,24 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 
 		path := make([]*geo.Point, 0)
 		path = append(path, points[0])
-		if len(vectors) > 1 {
-			path = append(path, points[0].AddVector(vectors[0].Multiply(.8)))
-			for i := 1; i < len(vectors)-2; i++ {
-				p := points[i]
-				v := vectors[i]
-				path = append(path, p.AddVector(v.Multiply(.2)))
-				path = append(path, p.AddVector(v.Multiply(.5)))
-				path = append(path, p.AddVector(v.Multiply(.8)))
-			}
-			path = append(path, points[len(points)-2].AddVector(vectors[len(vectors)-1].Multiply(.2)))
+		if srcAnchor != nil || dstAnchor != nil {
+			path = pinnedCurve(edge, edge.PinRoute(points, srcAnchor, dstAnchor))
 			edge.IsCurve = true
+		} else {
+			if len(vectors) > 1 {
+				path = append(path, points[0].AddVector(vectors[0].Multiply(.8)))
+				for i := 1; i < len(vectors)-2; i++ {
+					p := points[i]
+					v := vectors[i]
+					path = append(path, p.AddVector(v.Multiply(.2)))
+					path = append(path, p.AddVector(v.Multiply(.5)))
+					path = append(path, p.AddVector(v.Multiply(.8)))
+				}
+				path = append(path, points[len(points)-2].AddVector(vectors[len(vectors)-1].Multiply(.2)))
+				edge.IsCurve = true
+			}
+			path = append(path, points[len(points)-1])
 		}
-		path = append(path, points[len(points)-1])
 
 		edge.Route = path
 		// compile needs to assign edge label positions
