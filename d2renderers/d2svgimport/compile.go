@@ -27,6 +27,8 @@ var elementAttributes = map[string]map[string]struct{}{
 	"cc:Work":   {},
 	"dc:format": {},
 	"dc:type":   {},
+	// Every unnamespaced attribute of embedded D2 source is inert metadata.
+	d2SourceElement: {},
 	"sodipodi:namedview": {
 		"id": {}, "pagecolor": {}, "bordercolor": {}, "borderopacity": {},
 		"objecttolerance": {}, "gridtolerance": {}, "guidetolerance": {},
@@ -246,6 +248,10 @@ func (i *svgImporter) compileElement(element *svgElement) error {
 	}
 	if isGradientResourceElement(element.name) {
 		return i.compileGradientElement(element)
+	}
+	if element.name == d2SourceElement {
+		element.transform = d2scene.Identity()
+		return nil
 	}
 	for _, name := range element.attrOrder {
 		if err := i.ctx.Err(); err != nil {

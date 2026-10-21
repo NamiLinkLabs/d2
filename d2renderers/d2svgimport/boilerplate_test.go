@@ -85,6 +85,23 @@ func TestImportNodeAcceptsCorpusEditorAndRDFMetadata(t *testing.T) {
 	}
 }
 
+func TestImportNodeAcceptsEmbeddedD2Source(t *testing.T) {
+	sources := map[string]string{
+		"d2": `<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><metadata><d2-source xmlns="https://d2lang.com/ns/source" format="1" path="main.d2" d2-version="v0.7.0" layout="elk" theme-id="200" sketch="true" target="layers.x" future-setting="x">a -&gt; b: "x &lt; y &amp; z" ]]&gt;&#13;
+</d2-source><d2-source xmlns="https://d2lang.com/ns/source" path="lib/x.d2" encoding="base64">YQE=</d2-source></metadata><rect id="paint" width="10" height="10"/></svg>`,
+		"boxwire":              `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><metadata><bw:d2-source xmlns:bw="https://github.com/NamiLinkLabs/boxwire" layout="dagre" theme-id="0" sketch="false">a -&gt; b</bw:d2-source></metadata><rect id="paint" width="10" height="10"/></svg>`,
+		"with editor metadata": `<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:src="https://d2lang.com/ns/source" width="10" height="10"><metadata><rdf:RDF><cc:Work rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/></cc:Work></rdf:RDF><src:d2-source path="main.d2">a</src:d2-source></metadata><rect id="paint" width="10" height="10"/></svg>`,
+	}
+	for name, source := range sources {
+		t.Run(name, func(t *testing.T) {
+			result := mustImport(t, source)
+			if len(result.Root.Children) != 1 || result.Root.Children[0].ID != "paint" {
+				t.Fatalf("embedded source leaked into scene: %+v", result.Root.Children)
+			}
+		})
+	}
+}
+
 func TestImportNodeRejectsRenderingOrUnrecognizedBoilerplate(t *testing.T) {
 	tests := []struct {
 		name, source, want string
@@ -125,6 +142,12 @@ func TestImportNodeRejectsRenderingOrUnrecognizedBoilerplate(t *testing.T) {
 		{"metadata-script", `<svg width="1" height="1"><metadata><script/></metadata></svg>`, "forbidden element"},
 		{"title-script", `<svg width="1" height="1"><title><script/></title></svg>`, "forbidden element"},
 		{"xml-base", `<svg width="1" height="1" xml:base="https://example.invalid/"/>`, "unsupported xml attribute"},
+		{"d2-source-outside-metadata", `<svg width="1" height="1"><d2-source xmlns="https://d2lang.com/ns/source">a</d2-source></svg>`, "only supported inside <metadata>"},
+		{"d2-source-in-group", `<svg width="1" height="1"><g><metadata><d2-source xmlns="https://d2lang.com/ns/source">a</d2-source></metadata></g></svg>`, "direct child"},
+		{"d2-source-child", `<svg width="1" height="1"><metadata><d2-source xmlns="https://d2lang.com/ns/source"><rect xmlns=""/></d2-source></metadata></svg>`, "cannot contain child"},
+		{"d2-source-foreign-namespace", `<svg xmlns:e="urn:evil" width="1" height="1"><metadata><e:d2-source>a</e:d2-source></metadata></svg>`, "unsupported namespace"},
+		{"d2-source-namespaced-attribute", `<svg xmlns:e="urn:evil" width="1" height="1"><metadata><d2-source xmlns="https://d2lang.com/ns/source" e:x="1">a</d2-source></metadata></svg>`, "unsupported namespace"},
+		{"metadata-two-rdf", `<svg xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" width="1" height="1"><metadata><rdf:RDF/><rdf:RDF/><d2-source xmlns="https://d2lang.com/ns/source">a</d2-source></metadata></svg>`, "exactly one <rdf:RDF>"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -169,6 +192,8 @@ func TestNonRenderingBoilerplateConsumesExistingLimits(t *testing.T) {
 	}{
 		{"elements", `<svg width="1" height="1"><title>title</title></svg>`, "element count", withLimit(base, func(limits *Limits) { limits.MaxElements = 1 })},
 		{"depth", `<svg width="1" height="1"><metadata/></svg>`, "depth exceeds", withLimit(base, func(limits *Limits) { limits.MaxDepth = 1 })},
+		{"d2-source-elements", `<svg width="1" height="1"><metadata><d2-source xmlns="https://d2lang.com/ns/source">a</d2-source><d2-source xmlns="https://d2lang.com/ns/source">b</d2-source></metadata></svg>`, "element count", withLimit(base, func(limits *Limits) { limits.MaxElements = 3 })},
+		{"d2-source-bytes", `<svg width="1" height="1"><metadata><d2-source xmlns="https://d2lang.com/ns/source">` + strings.Repeat("a", 4096) + `</d2-source></metadata></svg>`, "exceeding limit", withLimit(base, func(limits *Limits) { limits.MaxBytes = 4096 })},
 		{"attributes", `<svg width="1" height="1" data-name="icon"/>`, "attribute count", withLimit(base, func(limits *Limits) { limits.MaxAttributes = 2 })},
 		{"attribute-bytes", `<svg width="1" height="1" data-name="icon"/>`, "attribute bytes", withLimit(base, func(limits *Limits) { limits.MaxAttributeBytes = 20 })},
 		{"ids", `<svg width="1" height="1"><title id="a">a</title><title id="b">b</title></svg>`, "ID resource count", withLimit(base, func(limits *Limits) { limits.MaxResources = 1 })},
