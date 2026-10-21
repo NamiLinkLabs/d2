@@ -128,6 +128,22 @@ func TestEmbedSVGPrologVariants(t *testing.T) {
 	}
 }
 
+func TestEmbedSVGToleratesUnreadableContent(t *testing.T) {
+	// Content the lenient decoder rejects, after a label mentioning d2-source.
+	svg := `<svg xmlns="http://www.w3.org/2000/svg"><text>d2-source</text><g><<</g></svg>`
+	out, err := sourcemeta.EmbedSVG([]byte(svg), &sourcemeta.Bundle{Entry: sourcemeta.File{Path: "a.d2", Content: "a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := sourcemeta.ExtractSVG(out)
+	if err != nil || got == nil || got.Entry.Content != "a" {
+		t.Fatalf("extract = %#v, %v", got, err)
+	}
+	if _, err := sourcemeta.ExtractSVG([]byte(svg)); err == nil {
+		t.Fatal("unreadable SVG without a source extracted without error")
+	}
+}
+
 func TestEmbedSVGReplaces(t *testing.T) {
 	first, err := sourcemeta.EmbedSVG([]byte(plainSVG), sample())
 	if err != nil {

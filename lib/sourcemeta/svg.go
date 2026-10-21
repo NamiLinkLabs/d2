@@ -20,9 +20,11 @@ func EmbedSVG(svg []byte, b *Bundle) ([]byte, error) {
 		return nil, err
 	}
 	scan, err := scanSVG(svg, bytes.Contains(svg, []byte("d2-source")))
-	if err != nil {
+	if err != nil && (scan == nil || scan.rootEnd == 0) {
 		return nil, err
 	}
+	// Markup that the lenient decoder still cannot read after the root start
+	// tag only ends the search for an earlier embedded source.
 	meta := b.svgMetadata()
 	out := make([]byte, 0, len(svg)+len(meta))
 	out = append(out, svg[:scan.rootEnd]...)
@@ -67,7 +69,9 @@ func newSVGDecoder(svg []byte) *xml.Decoder {
 }
 
 // scanSVG finds the root start tag and, when full is set, every root-level
-// <metadata> with d2-source children.
+// <metadata> with d2-source children. Once the root start tag is read, an
+// error comes with the partial scan, so EmbedSVG can still insert into an SVG
+// whose content the lenient decoder cannot read.
 func scanSVG(svg []byte, full bool) (*svgScan, error) {
 	d := newSVGDecoder(svg)
 	scan := &svgScan{}
@@ -103,7 +107,7 @@ func scanSVG(svg []byte, full bool) (*svgScan, error) {
 			if scan.bundle != nil {
 				return scan, nil
 			}
-			return nil, fmt.Errorf("sourcemeta: invalid SVG: %w", err)
+			return scan, fmt.Errorf("sourcemeta: invalid SVG: %w", err)
 		}
 		switch t := tok.(type) {
 		case xml.EndElement:
@@ -115,13 +119,13 @@ func scanSVG(svg []byte, full bool) (*svgScan, error) {
 					if scan.bundle != nil {
 						return scan, nil
 					}
-					return nil, fmt.Errorf("sourcemeta: invalid SVG: %w", err)
+					return scan, fmt.Errorf("sourcemeta: invalid SVG: %w", err)
 				}
 				continue
 			}
 			files, err := readMetadata(d)
 			if err != nil {
-				return nil, err
+				return scan, err
 			}
 			if len(files) == 0 {
 				continue
@@ -130,7 +134,7 @@ func scanSVG(svg []byte, full bool) (*svgScan, error) {
 			if scan.bundle == nil {
 				scan.bundle, err = bundleFromElements(files)
 				if err != nil {
-					return nil, err
+					return scan, err
 				}
 			}
 		}
