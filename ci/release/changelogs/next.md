@@ -2,6 +2,7 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- icons: set an explicit icon size with `icon.width` and `icon.height`, on shapes, containers and connections. Setting one of them gives a square icon. Layouts reserve the explicit size and leaf shapes grow to fit an inside icon. [#1331](https://github.com/d2lang/d2/issues/1331)
 
 #### Improvements 🧹
 
@@ -74,6 +75,10 @@
   - Reject external SVG paint URLs and unsafe fill-pattern or theme values in raw
     render targets. [#2916](https://github.com/d2lang/d2/pull/2916)
   - Apply the dangerous-link policy to legend shapes. [#2917](https://github.com/d2lang/d2/pull/2917)
+- icons:
+  - Place `border-*` icons on the shape's outer box like border labels, so corner and edge icons on circles, cylinders and other non-rectangular shapes sit on the shape's edge. [#1653](https://github.com/d2lang/d2/issues/1653)
+  - Include every drawn icon in the diagram bounds: border icons and the 5 px overhang of `outside-top-left` icons are no longer cut off with `--pad 0`, and `shape: image` objects no longer reserve space for an outside icon that is never drawn.
+  - d2oracle: setting `icon.near`, `icon.width`, `icon.height` or `icon.style.border-radius` edits the existing key, and deleting a nested `icon.*` or `label.near` field no longer deletes the object's own `near` or `width`.
 - d2svg:
   - Escape custom shape and connection classes. [#2895](https://github.com/d2lang/d2/pull/2895)
   - Sanitize bundled-image media types and escape serialized image URLs. [#2898](https://github.com/d2lang/d2/pull/2898)
