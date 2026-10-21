@@ -201,7 +201,7 @@
       "strokeWidth": 2,
       "borderRadius": 0,
       "fill": "B2",
-      "stroke": "B1",
+      "stroke": "N5",
       "animated": false,
       "shadow": false,
       "3d": false,
@@ -229,6 +229,7 @@
       "zIndex": 0,
       "level": 1,
       "explicitThemeFill": true,
+      "explicitThemeStroke": true,
       "explicitThemeFontColor": true
     },
     {

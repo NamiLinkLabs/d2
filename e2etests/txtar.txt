@@ -1822,6 +1822,7 @@ user: {
 ring: Double {
   style: {
     fill: B2
+    stroke: N5
     font-color: N7
     double-border: true
   }
