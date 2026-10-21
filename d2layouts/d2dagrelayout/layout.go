@@ -359,26 +359,11 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 		points = points[startIndex : endIndex+1]
 
 		// build a curved path from the dagre route
-		vectors := make([]geo.Vector, 0, len(points)-1)
-		for i := 1; i < len(points); i++ {
-			vectors = append(vectors, points[i-1].VectorTo(points[i]))
-		}
-
-		path := make([]*geo.Point, 0)
-		path = append(path, points[0])
-		if len(vectors) > 1 {
-			path = append(path, points[0].AddVector(vectors[0].Multiply(.8)))
-			for i := 1; i < len(vectors)-2; i++ {
-				p := points[i]
-				v := vectors[i]
-				path = append(path, p.AddVector(v.Multiply(.2)))
-				path = append(path, p.AddVector(v.Multiply(.5)))
-				path = append(path, p.AddVector(v.Multiply(.8)))
-			}
-			path = append(path, points[len(points)-2].AddVector(vectors[len(vectors)-1].Multiply(.2)))
+		path := []*geo.Point{points[0], points[len(points)-1]}
+		if len(points) > 2 {
+			path = geo.Route(points).Curve()
 			edge.IsCurve = true
 		}
-		path = append(path, points[len(points)-1])
 
 		edge.Route = path
 		// compile needs to assign edge label positions

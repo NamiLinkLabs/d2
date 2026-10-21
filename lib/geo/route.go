@@ -61,3 +61,33 @@ func (route Route) GetBoundingBox() (tl, br *Point) {
 	}
 	return NewPoint(minX, minY), NewPoint(maxX, maxY)
 }
+
+// Curve returns a smooth path through the corners of route, as cubic Bézier
+// curves: after the first point, every three points are the two control
+// points and the end point of one curve. The path starts and ends where route
+// does, and its control points lie on route's segments, so it bends inside
+// each corner. This is the curve the dagre layout draws through its routes.
+// A route of fewer than three points has no corner and is returned as it is.
+func (route Route) Curve() Route {
+	if len(route) < 3 {
+		return route
+	}
+	vectors := make([]Vector, 0, len(route)-1)
+	for i := 1; i < len(route); i++ {
+		vectors = append(vectors, route[i-1].VectorTo(route[i]))
+	}
+
+	path := make(Route, 0, 3*len(route))
+	path = append(path, route[0])
+	path = append(path, route[0].AddVector(vectors[0].Multiply(.8)))
+	for i := 1; i < len(vectors)-2; i++ {
+		p := route[i]
+		v := vectors[i]
+		path = append(path, p.AddVector(v.Multiply(.2)))
+		path = append(path, p.AddVector(v.Multiply(.5)))
+		path = append(path, p.AddVector(v.Multiply(.8)))
+	}
+	path = append(path, route[len(route)-2].AddVector(vectors[len(vectors)-1].Multiply(.2)))
+	path = append(path, route[len(route)-1])
+	return path
+}
