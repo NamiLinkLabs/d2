@@ -32,6 +32,14 @@ The adapter exposes local, in-process entry points:
   `tala-seeds`. Precedence for both settings is diagram data, then `Options`,
   then the package defaults; seeds are resolved and validated first, then the
   level keeps the ones it runs. See `bench/QUALITY.md` for measurements.
+- `Options.SeparateEdges` gives every connection its own route. By default
+  TALA bundles connections that share an endpoint: they may share segments and
+  a port, tree edges form an S-shaped bus and cluster fans merge into one
+  trunk. With the option, sharing a segment costs as much as any forbidden
+  overlap, tree edges are routed like other edges and cluster fans are not
+  merged; a crowded side can still force an overlap. Diagram data under
+  `tala-separate-edges` (`true` or `false`) takes precedence, and
+  `RouteEdgesWithOptions` honours both. See `bench/SEPARATE-EDGES.md`.
 - Layout and routing honor the caller's context; timeout policy belongs to the
   embedding application.
 - D2 `top`/`left` pins are absolute diagram coordinates at every nesting
