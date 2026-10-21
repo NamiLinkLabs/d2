@@ -69,6 +69,14 @@ export interface CompileOptions extends RenderOptions {
   dagre?: DagreOptions;
   /** TALA tuning, used when layout is 'tala'. Unset fields keep TALA's defaults. */
   tala?: TALAOptions;
+  /**
+   * How to draw the connections that cross into or out of a grid, a `near`
+   * shape or a sequence diagram, and those between grid cells, which the layout
+   * engine does not route: 'around-shapes' routes them around the other shapes
+   * with TALA's edge router, 'straight' draws straight lines, which is faster on
+   * very large diagrams [default: 'around-shapes']
+   */
+  nestedEdgeRouting?: "around-shapes" | "straight";
   /** A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used. */
   fontRegular?: Uint8Array;
   /** A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used. */

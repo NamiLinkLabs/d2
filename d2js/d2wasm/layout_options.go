@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts"
 	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
@@ -95,6 +96,23 @@ func (o *TALAOptions) resolve() *d2talalayout.Options {
 		opts.Seeds = append([]int64(nil), o.Seeds...)
 	}
 	return &opts
+}
+
+// routerResolver picks the router for the connections a layout engine does
+// not route itself.
+func routerResolver(opts *CompileOptions) (func(string) (d2graph.RouteEdges, error), error) {
+	routing := "around-shapes"
+	if opts != nil && opts.NestedEdgeRouting != nil {
+		routing = *opts.NestedEdgeRouting
+	}
+	switch routing {
+	case "around-shapes":
+		return func(engine string) (d2graph.RouteEdges, error) { return d2layouts.RouterFor(engine), nil }, nil
+	case "straight":
+		return func(string) (d2graph.RouteEdges, error) { return d2layouts.StraightRouter, nil }, nil
+	default:
+		return nil, &WASMError{Message: fmt.Sprintf(`nestedEdgeRouting must be "around-shapes" or "straight", not %q`, routing), Code: 400}
+	}
 }
 
 // layoutResolver picks the layout engine and applies the caller's tuning.

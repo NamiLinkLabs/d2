@@ -173,6 +173,7 @@ resources are released. Calling `dispose()` more than once is safe.
 All [RenderOptions](#renderoptions) properties in addition to:
 
 - `layout`: Layout engine to use (`'dagre' | 'elk' | 'tala'`) [default: `'dagre'`]
+- `nestedEdgeRouting`: How to draw the connections that cross into or out of a grid, a `near` shape or a sequence diagram, and those between grid cells, which the layout engine does not route (`'around-shapes' | 'straight'`) [default: `'around-shapes'`]. `'around-shapes'` routes them around the other shapes with TALA's edge router; `'straight'` draws straight lines, which is faster on very large diagrams.
 - `fontRegular` A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used.
 - `fontItalic` A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used.
 - `fontBold` A byte array containing .ttf file to use for the bold font. If none provided, Source Sans Pro Bold is used.

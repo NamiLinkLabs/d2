@@ -249,9 +249,18 @@ func assertSingleWASMWarning(t *testing.T, warnings []string, want string) {
 
 func compileForTest(t *testing.T, options string) (CompileResponse, *WASMError) {
 	t.Helper()
+	return compileSourceForTest(t, "a -> b\nb -> c\na -> c\n", options)
+}
+
+func compileSourceForTest(t *testing.T, source, options string) (CompileResponse, *WASMError) {
+	t.Helper()
+	fs, err := json.Marshal(map[string]string{"index": source})
+	if err != nil {
+		t.Fatal(err)
+	}
 	call := wrapWASMCall(Compile)
 	defer call.Release()
-	got := call.Invoke(`{"fs":{"index":"a -> b\nb -> c\na -> c\n"},"options":` + options + `}`).String()
+	got := call.Invoke(`{"fs":` + string(fs) + `,"options":` + options + `}`).String()
 	var response struct {
 		Data  *CompileResponse `json:"data"`
 		Error *WASMError       `json:"error"`
@@ -308,5 +317,43 @@ func TestCompileLayoutOptions(t *testing.T) {
 	}
 	if _, werr := compileForTest(t, `{"layout":"tala","tala":{"seeds":[7]}}`); werr != nil {
 		t.Fatalf("tala seeds: %v", werr.Message)
+	}
+}
+
+func TestCompileNestedEdgeRouting(t *testing.T) {
+	// From d2lang/d2#1994: the connection from the near shape used to be a
+	// straight line through the shapes between.
+	const source = `a; b
+legend: {near: top-right}
+target
+* -> target
+`
+	route := func(r CompileResponse) int {
+		for _, c := range r.Diagram.Connections {
+			if c.Src == "legend" {
+				return len(c.Route)
+			}
+		}
+		t.Fatalf("no connection from legend in %v", r.Diagram.Connections)
+		return 0
+	}
+	for _, layout := range []string{"dagre", "elk", "tala"} {
+		routed, werr := compileSourceForTest(t, source, `{"layout":"`+layout+`"}`)
+		if werr != nil {
+			t.Fatalf("%s: %v", layout, werr.Message)
+		}
+		if n := route(routed); n <= 2 {
+			t.Errorf("%s: route from the near shape has %d points, want it routed around the shapes", layout, n)
+		}
+		straight, werr := compileSourceForTest(t, source, `{"layout":"`+layout+`","nestedEdgeRouting":"straight"}`)
+		if werr != nil {
+			t.Fatalf("%s straight: %v", layout, werr.Message)
+		}
+		if n := route(straight); n != 2 {
+			t.Errorf("%s straight: route from the near shape has %d points, want 2", layout, n)
+		}
+	}
+	if _, werr := compileSourceForTest(t, source, `{"nestedEdgeRouting":"curved"}`); werr == nil || werr.Code != 400 {
+		t.Fatalf("an unknown nestedEdgeRouting should be rejected, got %v", werr)
 	}
 }

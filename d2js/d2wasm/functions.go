@@ -13,9 +13,7 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2compiler"
 	"github.com/d2lang/d2/d2format"
-	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
-	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/d2/d2lib"
 	"github.com/d2lang/d2/d2lsp"
 	"github.com/d2lang/d2/d2oracle"
@@ -227,11 +225,9 @@ func Compile(args []js.Value) (interface{}, error) {
 		return nil, err
 	}
 	compileOpts.LayoutResolver = resolver
-	compileOpts.RouterResolver = func(engine string) (d2graph.RouteEdges, error) {
-		if engine == "tala" {
-			return d2talalayout.RouteEdges, nil
-		}
-		return nil, nil
+	compileOpts.RouterResolver, err = routerResolver(input.Opts)
+	if err != nil {
+		return nil, err
 	}
 
 	compileOpts.FS, err = memfs.New(input.FS)

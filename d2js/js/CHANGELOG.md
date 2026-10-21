@@ -6,6 +6,7 @@ include changes to the main d2 project.**
 ## Next
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
+- Route connections that cross into or out of grids, `near` shapes and sequence diagrams, and connections between grid cells, around the other shapes with every layout engine. Add the `nestedEdgeRouting` compile option to draw them as straight lines instead.
 
 ## [0.1.34]
 ### September 7, 2026
