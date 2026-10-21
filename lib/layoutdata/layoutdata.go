@@ -277,7 +277,11 @@ func (p Sides) String() string {
 // Brackets are optional and whitespace is ignored.
 func ParsePadding(s string) (Sides, error) {
 	s = strings.TrimSpace(s)
-	if n, err := parsePixels(s); err == nil {
+	if _, err := strconv.ParseInt(s, 10, 64); err == nil {
+		n, err := parsePixels(s)
+		if err != nil {
+			return Sides{}, err
+		}
 		return Sides{n, n, n, n}, nil
 	}
 	inner := s
