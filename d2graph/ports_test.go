@@ -134,3 +134,28 @@ func TestPortsHonored(t *testing.T) {
 		t.Fatalf("unpinned edge: %v", err)
 	}
 }
+
+func TestPinRouteJoinsStubsSquare(t *testing.T) {
+	g := portGraph(t, "a -> b: {source-port: right; target-port: left}\nc")
+	a, b, c := g.Objects[0], g.Objects[1], g.Objects[2]
+	b.TopLeft = geo.NewPoint(300, 200)
+	// c sits where the horizontal-first L would run.
+	c.TopLeft = geo.NewPoint(150, 0)
+	c.Width, c.Height = 40, 60
+	e := g.Edges[0]
+	anchors := d2graph.PortAnchors(g.Edges)
+	e.Route = e.PinRoute([]*geo.Point{a.Center(), b.Center()}, anchors[d2graph.PortEnd{Edge: e, Src: true}], anchors[d2graph.PortEnd{Edge: e, Src: false}])
+	if err := e.PortsHonored(); err != nil {
+		t.Fatalf("%v: %v", err, e.Route)
+	}
+	for i := 1; i < len(e.Route); i++ {
+		p, q := e.Route[i-1], e.Route[i]
+		if p.X != q.X && p.Y != q.Y {
+			t.Errorf("segment %v -> %v is diagonal: %v", p, q, e.Route)
+		}
+		inner := geo.NewBox(geo.NewPoint(c.TopLeft.X+1, c.TopLeft.Y+1), c.Width-2, c.Height-2)
+		if len(inner.Intersections(*geo.NewSegment(p, q))) > 0 {
+			t.Errorf("segment %v -> %v crosses c: %v", p, q, e.Route)
+		}
+	}
+}
