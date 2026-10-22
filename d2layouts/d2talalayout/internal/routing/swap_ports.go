@@ -11,7 +11,7 @@ import (
 // SwapAllEdgePorts applies port swapping to every node under one atomic
 // route-stage budget and rollback boundary.
 func SwapAllEdgePorts(ctx context.Context, graph *layoutgraph.Graph) error {
-	return swapAllEdgePortsWithWorkLimit(ctx, graph, maxRouteStageWorkUnits)
+	return optionalStageResult(swapAllEdgePortsWithWorkLimit(ctx, graph, maxRouteStageWorkUnits))
 }
 
 // swapAllEdgePortsWithWorkLimit is SwapAllEdgePorts with an explicit budget

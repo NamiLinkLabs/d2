@@ -237,6 +237,9 @@ func NormalizeGaps(ctx context.Context, graph *layoutgraph.Graph) (bool, error) 
 	for _, container := range containers {
 		nodes := layoutgraph.Nodes(graph.AllDescendantNodes(container, false))
 		for _, axis := range []layoutAxis{horizontalAxis, verticalAxis} {
+			if layoutgraph.RefinementExhausted(ctx) {
+				break
+			}
 			current, err := bidirectional(nodes, axis)
 			if err != nil {
 				return false, err
@@ -245,6 +248,9 @@ func NormalizeGaps(ctx context.Context, graph *layoutgraph.Graph) (bool, error) 
 		}
 	}
 	for _, axis := range []layoutAxis{horizontalAxis, verticalAxis} {
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		current, err := bidirectional(layoutgraph.Nodes(graph.Nodes), axis)
 		if err != nil {
 			return false, err
@@ -274,6 +280,9 @@ func Align(ctx context.Context, graph *layoutgraph.Graph) error {
 		return err
 	}
 	for range 100 {
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		changed, err := alignAxes(ctx, graph, txn)
 		if err != nil {
 			return err
@@ -292,6 +301,9 @@ func Swap(ctx context.Context, graph *layoutgraph.Graph) error {
 	}
 	graph.ComputeCellSize()
 	for range 4 {
+		if layoutgraph.RefinementExhausted(ctx) {
+			return nil
+		}
 		changed, err := swapOptimize(ctx, layoutgraph.Nodes(graph.Nodes), graph)
 		if err != nil {
 			return err
@@ -299,6 +311,9 @@ func Swap(ctx context.Context, graph *layoutgraph.Graph) error {
 		if !changed {
 			break
 		}
+	}
+	if layoutgraph.RefinementExhausted(ctx) {
+		return nil
 	}
 	return direct(ctx, graph, graph.Nodes, nil, directOptions{checkEdgeLength: true})
 }
@@ -310,6 +325,9 @@ func TransposeAll(ctx context.Context, graph *layoutgraph.Graph) error {
 	}
 	graph.ComputeCellSize()
 	for _, node := range graph.Nodes {
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		if _, err := transpose(ctx, graph, node, nil); err != nil {
 			return err
 		}

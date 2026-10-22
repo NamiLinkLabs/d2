@@ -12,6 +12,13 @@ func EnsureTransactionWorkGuard(ctx context.Context, location string) (context.C
 	return ensureTransactionWorkGuard(ctx, location)
 }
 
+// EnsureTransactionWorkGuardWithLimit is EnsureTransactionWorkGuard with an
+// explicit limit for a newly created guard. An existing request guard is
+// reused unchanged.
+func EnsureTransactionWorkGuardWithLimit(ctx context.Context, location string, limit int64) (context.Context, *limits.WorkGuard, error) {
+	return ensureTransactionWorkGuardWithLimit(ctx, location, limit)
+}
+
 // ExistingTransactionWorkGuard checks and returns the request's aggregate
 // transaction guard without allocating a derived context or standalone budget.
 func ExistingTransactionWorkGuard(ctx context.Context, location string) (*limits.WorkGuard, bool, error) {

@@ -180,53 +180,44 @@ func TestRouteFinalizationRejectsMalformedSelectedSetAtomically(t *testing.T) {
 	}
 }
 
-func TestRouteSearchLimitPreservesGraphRoutes(t *testing.T) {
-	graph, edge := newRoutingTestGraph(600, 420)
-	// Force substantial real search work without coupling this atomicity test to
-	// a serialized intermediate pipeline state.
-	for row := 0; row < 5; row++ {
-		for column := 0; column < 5; column++ {
-			obstacle := layoutgraph.NewNode(layoutgraph.EntityID(3+row*5+column), 50, 50)
-			obstacle.TopLeft = geo.NewPoint(float64(100+column*90), float64(60+row*70))
-			graph.AddNode(obstacle)
+// A flavor that uses up its search budget keeps every route it found and
+// finishes with fallback routes instead of failing the routing stage.
+func TestRouteSearchLimitDegradesToFallbackRoutes(t *testing.T) {
+	newGraph := func() (*layoutgraph.Graph, *layoutgraph.Edge) {
+		graph, edge := newRoutingTestGraph(600, 420)
+		// Force substantial real search work.
+		for row := 0; row < 5; row++ {
+			for column := 0; column < 5; column++ {
+				obstacle := layoutgraph.NewNode(layoutgraph.EntityID(3+row*5+column), 50, 50)
+				obstacle.TopLeft = geo.NewPoint(float64(100+column*90), float64(60+row*70))
+				graph.AddNode(obstacle)
+			}
 		}
+		return graph, edge
 	}
-	edge.Points = []*geo.Point{
-		geo.NewPoint(40, 20),
-		geo.NewPoint(70, 20),
-		geo.NewPoint(70, -40),
-		geo.NewPoint(620, -40),
-		geo.NewPoint(620, 420),
-	}
-	before := make(map[*layoutgraph.Edge][]*geoPointSnapshot, len(graph.Edges))
-	for _, edge := range graph.Edges {
-		points := make([]*geoPointSnapshot, len(edge.Points))
-		for index, point := range edge.Points {
-			points[index] = newGeoPointSnapshot(point)
-		}
-		before[edge] = points
-	}
+	graph, edge := newGraph()
 
 	telemetry := &routeSearchTelemetry{}
 	ctx := withRouteSearchTelemetry(withTestLogger(context.Background(), t), telemetry)
-	_, err := routeEdgesWithSearchWorkLimit(ctx, graph, nil, 5_000)
-	requireRouteSearchLimit(t, err)
+	if _, err := routeEdgesWithSearchWorkLimit(ctx, graph, nil, 5_000); err != nil {
+		t.Fatalf("route with an exhausted search budget: %v", err)
+	}
 	samples := telemetry.snapshot()
 	if len(samples) == 0 {
-		t.Fatal("route-search failure produced no telemetry")
+		t.Fatal("route search produced no telemetry")
 	}
-	var observedWork bool
 	for _, sample := range samples {
-		observedWork = observedWork || sample > 0
-	}
-	if !observedWork {
-		t.Fatal("route-search failure occurred without executing real guarded work")
-	}
-	for _, edge := range graph.Edges {
-		if !equalGeoPointSnapshots(before[edge], edge.Points) {
-			t.Fatalf("edge %s changed after route-search limit", edge.DebugID())
+		if sample <= 5_000 {
+			t.Fatalf("flavor work %d did not exhaust the 5000-unit search budget", sample)
 		}
 	}
+	requireOrthogonalFallbackRoute(t, edge)
+
+	again, againEdge := newGraph()
+	if _, err := routeEdgesWithSearchWorkLimit(context.Background(), again, nil, 5_000); err != nil {
+		t.Fatal(err)
+	}
+	requireSameRoute(t, edge, againEdge)
 }
 
 type geoPointSnapshot struct {

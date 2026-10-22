@@ -327,7 +327,33 @@ func TestCheckedOVGEdgeCapacityIs386Safe(t *testing.T) {
 	requireOVGResourceError(t, err, "edge capacity")
 }
 
-func TestRouteEdgesResourceFailurePreservesSelectedRoute(t *testing.T) {
+// A visibility graph over its size limit no longer fails the routing: the
+// edge is routed on the port-only graph instead.
+func TestRouteEdgesOVGLimitFallsBackToPortGraph(t *testing.T) {
+	graph, edge := newRoutingTestGraph(200, 100)
+	edge.Points = []*geo.Point{
+		geo.NewPoint(40, 20),
+		geo.NewPoint(80, 20),
+		geo.NewPoint(80, 100),
+		geo.NewPoint(200, 100),
+	}
+
+	limits := defaultOVGBuildLimits()
+	limits.intersectionCandidates = 1
+	if err := routeEdgesWithLimits(context.Background(), graph, []*layoutgraph.Edge{edge}, limits); err != nil {
+		t.Fatalf("route with an exhausted visibility graph: %v", err)
+	}
+	requireOrthogonalFallbackRoute(t, edge)
+
+	again, againEdge := newRoutingTestGraph(200, 100)
+	if err := routeEdgesWithLimits(context.Background(), again, []*layoutgraph.Edge{againEdge}, limits); err != nil {
+		t.Fatal(err)
+	}
+	requireSameRoute(t, edge, againEdge)
+}
+
+// Cancellation remains an error and leaves the selected route untouched.
+func TestRouteEdgesCancellationPreservesSelectedRoute(t *testing.T) {
 	graph, edge := newRoutingTestGraph(200, 100)
 	edge.Points = []*geo.Point{
 		geo.NewPoint(40, 20),
@@ -344,23 +370,27 @@ func TestRouteEdgesResourceFailurePreservesSelectedRoute(t *testing.T) {
 		beforeValues[i] = *point
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 	limits := defaultOVGBuildLimits()
 	limits.intersectionCandidates = 1
-	err := routeEdgesWithLimits(context.Background(), graph, []*layoutgraph.Edge{edge}, limits)
-	requireOVGResourceError(t, err, "intersection candidate count")
+	err := routeEdgesWithLimits(ctx, graph, []*layoutgraph.Edge{edge}, limits)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
 
 	if len(edge.Points) != len(beforeSlice) || &edge.Points[0] != &beforeSlice[0] {
-		t.Fatalf("route slice identity changed after resource failure")
+		t.Fatalf("route slice identity changed after cancellation")
 	}
 	for i, point := range edge.Points {
 		if point != beforePointers[i] || *point != beforeValues[i] {
-			t.Fatalf("route point %d changed after resource failure: got %p %v, want %p %v", i, point, point, beforePointers[i], beforeValues[i])
+			t.Fatalf("route point %d changed after cancellation: got %p %v, want %p %v", i, point, point, beforePointers[i], beforeValues[i])
 		}
 	}
 	if edge.LabelPercentage != 0.375 {
-		t.Fatalf("edge metadata changed after resource failure: labelPercentage=%v", edge.LabelPercentage)
+		t.Fatalf("edge metadata changed after cancellation: labelPercentage=%v", edge.LabelPercentage)
 	}
 	if graph.CellSize != 123 {
-		t.Fatalf("cell size changed after resource failure: got %v, want 123", graph.CellSize)
+		t.Fatalf("cell size changed after cancellation: got %v, want 123", graph.CellSize)
 	}
 }

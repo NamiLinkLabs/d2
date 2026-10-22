@@ -28,6 +28,9 @@ func BalanceSymmetry(ctx context.Context, g *layoutgraph.Graph) error {
 	// So the only case we care about is when all the adjacents are aligned on one end
 	// And we just nudge to be in the middle of the alignment
 	for _, n := range g.Nodes {
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		if !isSimple(g, n) {
 			continue
 		}

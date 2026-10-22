@@ -106,6 +106,7 @@ func reroutePlaced(ctx context.Context, g *layoutgraph.Graph, effort Effort) err
 	p := newPipeline(g, 0, false)
 	// Only routing effort applies: these stages never place nodes.
 	p.effort = Effort{SingleRouteFlavor: effort.SingleRouteFlavor}
+	p.limits = workLimitsFromContext(ctx)
 	p.resetFullLayoutRouteState()
 	// Reuse routing and label cleanup on placed nodes without regrouping,
 	// rescaling, or invoking another full seed attempt.

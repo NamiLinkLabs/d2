@@ -40,6 +40,9 @@ func Equidistance(ctx context.Context, g *layoutgraph.Graph) (bool, error) {
 	movedHorizontally := false
 	movedVertically := false
 	for _, n := range g.Nodes {
+		if layoutgraph.RefinementExhausted(ctx) {
+			break
+		}
 		movedHorizontally2, err := equidistanceNodeGuarded(ctx, n, g, true, reachabilityGuard)
 		if err != nil {
 			return false, err
@@ -58,8 +61,11 @@ func Equidistance(ctx context.Context, g *layoutgraph.Graph) (bool, error) {
 	// Try multiple times, because moving one may result in different symmetries for others
 	if movedHorizontally {
 		movedAgain := false
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 5 && !layoutgraph.RefinementExhausted(ctx); i++ {
 			for _, n := range g.Nodes {
+				if layoutgraph.RefinementExhausted(ctx) {
+					break
+				}
 				m, err := equidistanceNodeGuarded(ctx, n, g, true, reachabilityGuard)
 				if err != nil {
 					return false, err
@@ -76,8 +82,11 @@ func Equidistance(ctx context.Context, g *layoutgraph.Graph) (bool, error) {
 	}
 	if movedVertically {
 		movedAgain := false
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 5 && !layoutgraph.RefinementExhausted(ctx); i++ {
 			for _, n := range g.Nodes {
+				if layoutgraph.RefinementExhausted(ctx) {
+					break
+				}
 				m, err := equidistanceNodeGuarded(ctx, n, g, false, reachabilityGuard)
 				if err != nil {
 					return false, err

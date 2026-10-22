@@ -10,7 +10,7 @@ import (
 // simplifyEdgeRoutes post-processes edge routes to remove unnecessary bending caused by the constraint that routes have to go through OVG nodes
 // It identifies unnecessary bends in routes and eliminates them when possible.
 func SimplifyEdgeRoutes(ctx context.Context, g *layoutgraph.Graph) error {
-	return simplifyEdgeRoutesWithLimit(ctx, g, maxRouteStageWorkUnits)
+	return optionalStageResult(simplifyEdgeRoutesWithLimit(ctx, g, maxRouteStageWorkUnits))
 }
 
 func simplifyEdgeRoutesWithLimit(ctx context.Context, g *layoutgraph.Graph, workLimit uint64) error {

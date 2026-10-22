@@ -24,9 +24,13 @@ const (
 	// EdgeRoutingStage owns OVG construction, up to three concurrent route
 	// flavors, and its stage-level discovery/rollback work. This aggregate cap
 	// is the sum of those independently calibrated envelopes; unlike the nested
-	// caps, it is shared across every disconnected subgraph.
+	// caps, it is shared across every disconnected subgraph. A flavor that
+	// degrades may spend one fallback allowance on bookkeeping that overruns
+	// its search budget and another on its fallback routes; the selected
+	// flavor may spend one more on materializing its routes.
 	maxEdgeRoutingStageWorkUnits uint64 = maxOVGWorkUnits +
-		maxRouteSearchFlavors*maxRouteSearchWorkUnits + maxRouteStageWorkUnits
+		maxRouteSearchFlavors*(maxRouteSearchWorkUnits+2*maxRouteFallbackWorkUnits) +
+		maxRouteFallbackWorkUnits + maxRouteStageWorkUnits
 )
 
 var errRouteStageWorkLimit = errors.New("TALA route-stage work limit exceeded")

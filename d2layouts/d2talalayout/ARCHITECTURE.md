@@ -139,6 +139,57 @@ values rather than graph records.
 - The engine does not log diagram data or include stack traces in ordinary
   returned errors.
 
+## Work limits and degradation
+
+Every expensive operation charges a work guard from `internal/limits`. Most
+guards are hard ceilings against runaway input and fail the attempt with an
+error. Three kinds of work are optional, and using up their budget degrades
+the layout instead of failing it:
+
+- Placement refinement (`SwapStuff`, `Transpose`, `AlignAxes`,
+  `GapNormalization`, `OptimizeClusters`, `BalanceSymmetry`, `Equidistance`) is
+  metered by `layoutgraph.RefinementBudget`, per stage and in total. A stage
+  stops at its next candidate boundary once its budget is used up, where every
+  accepted move is committed and the placement is valid; once the total is
+  used up the remaining refinement stages are skipped.
+- Each route flavor has a search budget. A flavor that uses it up keeps the
+  routes it has found and gives its remaining edges fallback routes:
+  orthogonal straight, L, Z or U routes between free ports, chosen by crossed
+  shapes, then bends, then length (`routing/fallback_route.go`). A flavor that
+  searched every edge is always preferred; among degraded flavors the one with
+  the fewest fallback routes wins. When the visibility graph itself exceeds
+  its size or work limits, routing uses a graph of ports and centers only and
+  every edge gets a fallback route. A fallback route for an edge with a pinned
+  side (`source-port` / `target-port`) is the pinned fallback the search uses
+  when it finds no path, so pins hold; the pinned-route guard still undoes any
+  later stage that breaks one. Degradation composes with the quality levels:
+  `Effort.SingleRouteFlavor` only shrinks the set of flavors that may degrade,
+  and the refinement budget meters whichever refinement stages the effort
+  keeps.
+- The optional, atomic route post-processing stages (`Crosshatch`,
+  `SimplifyEdgeRoutes`, `SwapEdgePorts`, `BalanceEdgeSegments`,
+  `FixClusterEdgeBranching`, `NudgeEdgeChannels`, `ShortcutEdgeRoutes`) restore
+  every route they changed when they reach their work limit and count as
+  having changed nothing.
+
+Standalone routing degrades the same way only through `routing.RouteEdges`.
+`RouteEdgesWithSearchLimit` and `RouteEdgesWithinBudget`, which the adapter's
+`RouteEdges`, `RouteEdgesBestEffort` and the WASM router use, still fail at
+their limits: their callers route the edges another way then (one pair of
+shapes at a time, one edge at a time, or straight), and their output stays as
+it was.
+
+A degradation decision is taken only on a deterministic count. Refinement is
+metered in commit units fixed by the deterministic sequence of transaction
+commits (operations, validated nodes and overlap-candidate references), and
+route-search work is charged in slice order. Aggregate transaction-guard
+counts never decide anything: some of their scans iterate maps and exit
+early, so the same layout can charge slightly different totals. That guard
+remains a backstop. Cancellation is always an error, and the remaining hard
+limits still fail the attempt. Inputs that never use up a budget lay out
+exactly as without the budgets; `engine.ContextWithWorkLimits` lets TALA's
+tests force every degradation path with small budgets.
+
 ## Determinism
 
 A graph, options, and seed define a layout attempt. The engine options include

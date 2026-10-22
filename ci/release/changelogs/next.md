@@ -91,6 +91,7 @@
 - tala: Route many connections that cross into or out of grids, nears and
   sequence diagrams one pair of shapes at a time instead of failing with
   "TALA route-search work limit exceeded".
+- tala: Lay out large diagrams, such as one of 200 shapes and 245 connections, instead of failing with "TALA route-search work limit exceeded" or a transaction work limit. Past its work budgets TALA now stops optional placement refinement early and gives the connections it cannot search in time simple orthogonal routes (out of their pinned sides, for `source-port`/`target-port`). The budgets count work, not time, so the same diagram always lays out the same, and diagrams that stayed within them lay out exactly as before.
 - elk: an `--elk-padding` value without a `right=` side no longer panics; missing sides are 0, as in ELK.
 - compiler:
   - Limit combined map/array nesting to 128. [#2894](https://github.com/d2lang/d2/pull/2894)
