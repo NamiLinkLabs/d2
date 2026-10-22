@@ -18,7 +18,9 @@
   - Not supported yet: pins on sql_table column connections and in sequence
     diagrams (rejected), and on self-loops with dagre and TALA (ignored).
     Layouts do not yet place shapes with pins in mind, so a pinned connection
-    can detour around its own shape.
+    can detour around its own shape, and a pinned connection between grid
+    cells that are not neighbours can cross the cells in between, as an
+    unpinned one does.
   - `source-port` and `target-port` are now reserved keywords.
 - connections: set the space kept free around a connection's label with
   `label.padding`, e.g. `a -> b: hi {label.padding: 8}`, or
