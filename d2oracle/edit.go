@@ -1324,6 +1324,9 @@ func deleteReserved(g *d2graph.Graph, boardPath []string, baseAST *d2ast.Map, mk
 		targetKey = mk.EdgeKey
 	}
 	_, ok := d2ast.ReservedKeywords[targetKey.Path[len(targetKey.Path)-1].Unbox().ScalarString()]
+	if !ok && len(mk.Edges) == 1 && isEdgeLabelPaddingKey(targetKey) {
+		ok = true
+	}
 	if !ok {
 		return g, nil
 	}
@@ -1417,6 +1420,16 @@ func deleteReserved(g *d2graph.Graph, boardPath []string, baseAST *d2ast.Map, mk
 	}
 
 	return recompile(g)
+}
+
+// isEdgeLabelPaddingKey reports whether k ends in label.padding, the one
+// connection field whose last element is not a reserved keyword.
+func isEdgeLabelPaddingKey(k *d2ast.KeyPath) bool {
+	if len(k.Path) < 2 {
+		return false
+	}
+	return k.Path[len(k.Path)-1].Unbox().ScalarString() == "padding" &&
+		k.Path[len(k.Path)-2].Unbox().ScalarString() == "label"
 }
 
 func deleteMapField(m *d2ast.Map, field string) (deleted bool) {
