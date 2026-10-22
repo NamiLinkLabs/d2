@@ -15,6 +15,11 @@ const (
 	inkscapeNamespace       = "http://www.inkscape.org/namespaces/inkscape"
 	stillImageResource      = "http://purl.org/dc/dcmitype/StillImage"
 	metadataFormatMediaType = "image/svg+xml"
+	// boxwireNamespace is the namespace of the d2-source element in SVGs
+	// Boxwire exported before D2 embedded sources itself.
+	boxwireNamespace = "https://github.com/NamiLinkLabs/boxwire"
+	// d2SourceElement holds embedded D2 source text (lib/sourcemeta).
+	d2SourceElement = "d2-source"
 )
 
 var inkscapeMetadataAttributes = map[string]map[string]struct{}{
@@ -41,7 +46,7 @@ var sodipodiMetadataAttributes = map[string]map[string]struct{}{
 
 func isNonRenderingElement(name string) bool {
 	switch name {
-	case "title", "metadata", "rdf:RDF", "cc:Work", "dc:format", "dc:type", "sodipodi:namedview":
+	case "title", "metadata", "rdf:RDF", "cc:Work", "dc:format", "dc:type", "sodipodi:namedview", d2SourceElement:
 		return true
 	default:
 		return false
@@ -78,7 +83,7 @@ func (i *svgImporter) validateNonRenderingTree(root *svgElement) error {
 		if parent != nil {
 			switch parent.name {
 			case "metadata":
-				if element.name != "rdf:RDF" {
+				if element.name != "rdf:RDF" && element.name != d2SourceElement {
 					return i.errorf("element <metadata> has unsupported child <%s>", displayXMLName(element.name))
 				}
 			case "rdf:RDF":
@@ -89,7 +94,7 @@ func (i *svgImporter) validateNonRenderingTree(root *svgElement) error {
 				if element.name != "dc:format" && element.name != "dc:type" {
 					return i.errorf("element <cc:Work> has unsupported child <%s>", displayXMLName(element.name))
 				}
-			case "title", "dc:format", "dc:type", "sodipodi:namedview":
+			case "title", "dc:format", "dc:type", "sodipodi:namedview", d2SourceElement:
 				return i.errorf("non-rendering element <%s> cannot contain child elements", parent.name)
 			}
 		}
@@ -99,9 +104,9 @@ func (i *svgImporter) validateNonRenderingTree(root *svgElement) error {
 			if parent != root {
 				return i.errorf("non-rendering element <%s> must be a direct child of the root <svg>", element.name)
 			}
-		case "rdf:RDF":
+		case "rdf:RDF", d2SourceElement:
 			if parent == nil || parent.name != "metadata" {
-				return i.errorf("element <rdf:RDF> is only supported inside <metadata>")
+				return i.errorf("element <%s> is only supported inside <metadata>", element.name)
 			}
 		case "cc:Work":
 			if parent == nil || parent.name != "rdf:RDF" {
@@ -143,8 +148,19 @@ func (i *svgImporter) validateNonRenderingTree(root *svgElement) error {
 func (i *svgImporter) validateMetadataCardinality(element *svgElement) error {
 	switch element.name {
 	case "metadata":
-		if len(element.children) != 1 || element.children[0].name != "rdf:RDF" {
-			return i.errorf("element <metadata> must contain exactly one <rdf:RDF>")
+		// Editor metadata is one <rdf:RDF>. Embedded D2 source adds one or more
+		// <d2-source> text elements, which an editor can keep next to it.
+		rdf, sources := 0, 0
+		for _, child := range element.children {
+			switch child.name {
+			case "rdf:RDF":
+				rdf++
+			case d2SourceElement:
+				sources++
+			}
+		}
+		if rdf > 1 || rdf+sources == 0 || rdf+sources != len(element.children) {
+			return i.errorf("element <metadata> must contain exactly one <rdf:RDF> or embedded D2 source")
 		}
 	case "rdf:RDF":
 		if len(element.children) != 1 || element.children[0].name != "cc:Work" {

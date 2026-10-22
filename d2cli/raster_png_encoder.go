@@ -318,6 +318,24 @@ func (e *rasterPNGBandEncoder) start(ctx context.Context, output io.Writer, widt
 	return e.err
 }
 
+// writeChunks writes complete ancillary chunks between the header and the
+// first image row.
+func (e *rasterPNGBandEncoder) writeChunks(chunks []byte) error {
+	if e.err != nil || len(chunks) == 0 {
+		return e.err
+	}
+	if !e.active || e.nextY != 0 {
+		e.err = fmt.Errorf("d2raster: PNG chunks must precede the image data")
+		return e.err
+	}
+	n, err := e.writer.Write(chunks)
+	if err == nil && n != len(chunks) {
+		err = io.ErrShortWrite
+	}
+	e.err = err
+	return e.err
+}
+
 func (e *rasterPNGBandEncoder) append(band *image.NRGBA) error {
 	if e.err != nil {
 		return e.err

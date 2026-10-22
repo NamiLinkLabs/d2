@@ -7,6 +7,7 @@
   `(** -> **)[*].label.padding: 8` for every connection. Dagre, ELK, TALA and
   sequence diagrams reserve the padded box, the line stops at it and
   `style.fill` covers it. [#2097](https://github.com/d2lang/d2/issues/2097)
+- exports: `--embed-source` stores the D2 source, the files it imports and the render flags in SVG and PNG exports. Such an image is valid input, so `d2 diagram.svg diagram.pdf` renders it again and `d2 extract diagram.png` writes its source back out. D2.js gets the `embedSource` option and `extractSource`/`embedSource` functions. It is off by default because the embedded text includes comments and boards the image does not show. [#680](https://github.com/d2lang/d2/issues/680)
 - icons: set an explicit icon size with `icon.width` and `icon.height`, on shapes, containers and connections. Setting one of them gives a square icon. Layouts reserve the explicit size and leaf shapes grow to fit an inside icon. [#1331](https://github.com/d2lang/d2/issues/1331)
 
 #### Improvements 🧹
@@ -28,6 +29,7 @@
     policy for local imports and image assets. CLI and watch retain trusted
     local-file access. [#2901](https://github.com/d2lang/d2/pull/2901)
 - Remove the legacy `d2plugin` system; Dagre, ELK, and TALA remain built in. [#2920](https://github.com/d2lang/d2/pull/2920)
+- PNG, PDF and PPTX exports accept SVG icons that carry an embedded D2 source.
 - watch: authenticate HTTP and WebSocket access with a fresh per-process
   capability, exchanged for a token-free browser session. [#2910](https://github.com/d2lang/d2/pull/2910)
 - exports:
