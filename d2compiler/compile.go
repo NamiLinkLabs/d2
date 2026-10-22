@@ -854,6 +854,8 @@ func (c *compiler) compilePosition(attrs *d2graph.Attributes, f *d2ir.Field) {
 				}
 			} else if name.ScalarString() == "label" && f.Name.ScalarString() == "padding" && f.Name.IsUnquoted() {
 				c.compileLabelPadding(attrs, f)
+			} else if name.ScalarString() == "icon" && f.Name.IsUnquoted() && (f.Name.ScalarString() == "width" || f.Name.ScalarString() == "height") {
+				c.compileIconDimension(attrs, f)
 			} else {
 				if f.LastPrimaryKey() != nil {
 					c.errorf(f.LastPrimaryKey(), `unexpected field %s`, f.Name.ScalarString())
@@ -885,6 +887,35 @@ func (c *compiler) compileLabelPadding(attrs *d2graph.Attributes, f *d2ir.Field)
 	}
 	attrs.LabelPadding = &d2graph.Scalar{
 		Value:  strconv.Itoa(v),
+		MapKey: f.LastPrimaryKey(),
+	}
+}
+
+// compileIconDimension compiles icon.width and icon.height.
+func (c *compiler) compileIconDimension(attrs *d2graph.Attributes, f *d2ir.Field) {
+	dimension := f.Name.ScalarString()
+	target := &attrs.IconWidth
+	if dimension == "height" {
+		target = &attrs.IconHeight
+	}
+	if f.Primary() == nil {
+		if f.Composite != nil {
+			c.errorf(f.LastPrimaryKey(), "icon.%s must be a positive integer", dimension)
+		}
+		return
+	}
+	scalar := f.Primary().Value
+	if _, ok := scalar.(*d2ast.Null); ok {
+		*target = nil
+		return
+	}
+	v, err := strconv.Atoi(scalar.ScalarString())
+	if err != nil || v <= 0 {
+		c.errorf(scalar, "icon.%s must be a positive integer: %#v", dimension, scalar.ScalarString())
+		return
+	}
+	*target = &d2graph.Scalar{
+		Value:  scalar.ScalarString(),
 		MapKey: f.LastPrimaryKey(),
 	}
 }

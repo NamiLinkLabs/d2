@@ -1,6 +1,7 @@
 package d2target
 
 import (
+	"math"
 	"net/url"
 	"strings"
 	"testing"
@@ -114,6 +115,35 @@ func TestConnectionLabelPadding(t *testing.T) {
 		unpadded := c.GetIconPosition()
 		c.LabelPadding = 10
 		assertPoint(t, "icon", c.GetIconPosition(), unpadded.X-10, unpadded.Y)
+	})
+
+	t.Run("explicit icon size with padding", func(t *testing.T) {
+		t.Parallel()
+		icon, _ := url.Parse("https://icons.terrastruct.com/essentials/004-picture.svg")
+		c := paddedTestConnection(label.InsideMiddleCenter, 10)
+		c.Icon = icon
+		c.IconWidth, c.IconHeight = 48, 24
+		text := c.GetLabelTopLeft()
+		// The icon keeps its gap to the padded box and is centered on the text.
+		assertPoint(t, "icon", c.GetIconPosition(),
+			text.X-10-CONNECTION_ICON_LABEL_GAP-48, text.Y+float64(c.LabelHeight)/2-12)
+		tl := geo.NewPoint(80, -10)
+		iconSpace := float64(CONNECTION_ICON_LABEL_GAP + 48 + 10)
+		assertBox(t, "mask", c.LabelMaskBox(tl), 70-iconSpace, -20, 60+iconSpace, 40)
+
+		// On a short route the icon sticks out past the route's start.
+		c.Route = []*geo.Point{geo.NewPoint(60, 0), geo.NewPoint(140, 0)}
+		d := NewDiagram()
+		a := BaseShape()
+		a.ID = "a"
+		a.Pos = Point{X: 100, Y: 50}
+		a.Width, a.Height = 50, 40
+		d.Shapes = []Shape{*a}
+		d.Connections = []Connection{*c}
+		bbTL, _ := d.BoundingBox()
+		if want := int(math.Floor(c.GetIconPosition().X)); bbTL.X != want {
+			t.Fatalf("bounding box left = %d, want the icon's left %d", bbTL.X, want)
+		}
 	})
 
 	t.Run("bounding box covers the padded box", func(t *testing.T) {

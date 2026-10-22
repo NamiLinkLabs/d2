@@ -7,6 +7,7 @@
   `(** -> **)[*].label.padding: 8` for every connection. Dagre, ELK, TALA and
   sequence diagrams reserve the padded box, the line stops at it and
   `style.fill` covers it. [#2097](https://github.com/d2lang/d2/issues/2097)
+- icons: set an explicit icon size with `icon.width` and `icon.height`, on shapes, containers and connections. Setting one of them gives a square icon. Layouts reserve the explicit size and leaf shapes grow to fit an inside icon. [#1331](https://github.com/d2lang/d2/issues/1331)
 
 #### Improvements 🧹
 
@@ -79,6 +80,10 @@
   - Reject external SVG paint URLs and unsafe fill-pattern or theme values in raw
     render targets. [#2916](https://github.com/d2lang/d2/pull/2916)
   - Apply the dangerous-link policy to legend shapes. [#2917](https://github.com/d2lang/d2/pull/2917)
+- icons:
+  - Place `border-*` icons on the shape's outer box like border labels, so corner and edge icons on circles, cylinders and other non-rectangular shapes sit on the shape's edge, and reserve the half that sticks out in dagre, ELK, grid and TALA layouts so neighbours don't overlap it. [#1653](https://github.com/d2lang/d2/issues/1653)
+  - Include every drawn icon in the diagram bounds: border icons, connection icons and the 5 px overhang of `outside-top-left` icons are no longer cut off with `--pad 0`, and `shape: image` objects no longer reserve space for an outside icon that is never drawn.
+  - d2oracle: setting `icon.near`, `icon.width`, `icon.height` or `icon.style.border-radius` edits the existing key, and deleting a nested `icon.*` or `label.near` field no longer deletes the object's own `near` or `width`.
 - d2svg:
   - Escape custom shape and connection classes. [#2895](https://github.com/d2lang/d2/pull/2895)
   - Sanitize bundled-image media types and escape serialized image URLs. [#2898](https://github.com/d2lang/d2/pull/2898)

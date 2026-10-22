@@ -59,12 +59,7 @@ func scoreExistingLabelPlacements(g *layoutgraph.Graph, guard *limits.WorkGuard)
 		}
 
 		if node.Icon != nil && !node.IsImage() {
-			iconSize := node.IconSize(node.Icon.Position)
-			iconBox := geo.Box{
-				TopLeft: node.LabelTopLeft(node.Icon.Position, iconSize, iconSize),
-				Width:   iconSize,
-				Height:  iconSize,
-			}
+			iconBox := node.IconBox(node.Icon.Position)
 			placedBoxes = append(placedBoxes, iconBox)
 
 			nodeOverlaps, err := nodeOverlapCount(iconBox, g.Nodes, 0, guard)

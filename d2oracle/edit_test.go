@@ -1617,6 +1617,77 @@ z: {
 			},
 		},
 		{
+			name: "icon-width/new",
+			text: `x: {width: 200; icon: https://a.com/a.svg}
+`,
+			key:   `x.icon.width`,
+			value: go2.Pointer(`48`),
+
+			exp: `x: {
+  width: 200
+  icon: https://a.com/a.svg
+  icon.width: 48
+}
+`,
+		},
+		{
+			name: "icon-width/replace",
+			text: `x: {width: 200; icon: https://a.com/a.svg; icon.width: 32}
+`,
+			key:   `x.icon.width`,
+			value: go2.Pointer(`48`),
+
+			exp: `x: {width: 200; icon: https://a.com/a.svg; icon.width: 48}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				if g.Objects[0].WidthAttr.Value != "200" || g.Objects[0].IconWidth.Value != "48" {
+					t.Fatalf("width %q, icon.width %q", g.Objects[0].WidthAttr.Value, g.Objects[0].IconWidth.Value)
+				}
+			},
+		},
+		{
+			name: "icon-width/replace-nested",
+			text: `x: {icon: https://a.com/a.svg {width: 32; height: 16}}
+`,
+			key:   `x.icon.height`,
+			value: go2.Pointer(`24`),
+
+			exp: `x: {icon: https://a.com/a.svg {width: 32; height: 24}}
+`,
+		},
+		{
+			name: "icon-near/replace",
+			text: `x: {near: top-left; icon: https://a.com/a.svg; icon.near: bottom-left}
+`,
+			key:   `x.icon.near`,
+			value: go2.Pointer(`border-top-right`),
+
+			exp: `x: {near: top-left; icon: https://a.com/a.svg; icon.near: border-top-right}
+`,
+		},
+		{
+			name: "icon-border-radius/replace",
+			text: `x: {icon: https://a.com/a.svg; icon.style.border-radius: 4}
+`,
+			key:   `x.icon.style.border-radius`,
+			value: go2.Pointer(`8`),
+
+			exp: `x: {icon: https://a.com/a.svg; icon.style.border-radius: 8}
+`,
+		},
+		{
+			name: "icon-width/edge-replace",
+			text: `a -> b
+(a -> b)[0].icon: https://a.com/a.svg {width: 24}
+`,
+			key:   `(a -> b)[0].icon.width`,
+			value: go2.Pointer(`32`),
+
+			exp: `a -> b
+(a -> b)[0].icon: https://a.com/a.svg {width: 32}
+`,
+		},
+		{
 			name: "edge_chain",
 			text: `oreo: {
   q -> z -> p: wsup
@@ -8109,6 +8180,107 @@ a.label.near: center-center
 			},
 			key: `(a -> b)[0].label.padding`,
 			exp: `...@meow
+`,
+		},
+		{
+			name: "label-near/keeps-near",
+
+			text: `yes: {near: top-left; label.near: center-center}
+`,
+			key: `yes.label.near`,
+			exp: `yes: {near: top-left}
+`,
+		},
+		{
+			name: "icon-width/flat",
+
+			text: `x: {width: 200; icon: https://a.com/a.svg; icon.width: 32}
+`,
+			key: `x.icon.width`,
+			exp: `x: {width: 200; icon: https://a.com/a.svg}
+`,
+		},
+		{
+			name: "icon-width/nested",
+
+			text: `x: {width: 200; icon: https://a.com/a.svg {width: 32}}
+`,
+			key: `x.icon.width`,
+			exp: `x: {width: 200; icon: https://a.com/a.svg}
+`,
+		},
+		{
+			name: "icon-width/nested-keeps-near",
+
+			text: `x.icon: https://a.com/a.svg {near: top-left; width: 32}
+`,
+			key: `x.icon.width`,
+			exp: `x.icon: https://a.com/a.svg {near: top-left}
+`,
+		},
+		{
+			name: "icon-width/only",
+
+			text: `x.icon.width: 32
+`,
+			key: `x.icon.width`,
+			exp: `x
+`,
+		},
+		{
+			name: "icon-width/keeps-icon-width",
+
+			text: `x: {width: 200; icon: https://a.com/a.svg; icon.width: 32}
+`,
+			key: `x.width`,
+			exp: `x: {icon: https://a.com/a.svg; icon.width: 32}
+`,
+		},
+		{
+			name: "icon-near/keeps-near",
+
+			text: `x: {near: top-left; icon: https://a.com/a.svg; icon.near: bottom-left}
+`,
+			key: `x.icon.near`,
+			exp: `x: {near: top-left; icon: https://a.com/a.svg}
+`,
+		},
+		{
+			name: "near/keeps-label-and-icon-near",
+
+			text: `x: {near: top-left; label.near: top-right; icon: https://a.com/a.svg; icon.near: bottom-left}
+`,
+			key: `x.near`,
+			exp: `x: {label.near: top-right; icon: https://a.com/a.svg; icon.near: bottom-left}
+`,
+		},
+		{
+			name: "icon-border-radius",
+
+			text: `x: {icon: https://a.com/a.svg; icon.style.border-radius: 4}
+`,
+			key: `x.icon.style.border-radius`,
+			exp: `x: {icon: https://a.com/a.svg}
+`,
+		},
+		{
+			name: "icon-near/edge-keeps-label-near",
+
+			text: `a -> b: {icon: https://a.com/a.svg; icon.width: 24; label.near: top-left; icon.near: top-left}
+`,
+			key: `(a -> b)[0].icon.near`,
+			exp: `a -> b: {icon: https://a.com/a.svg; icon.width: 24; label.near: top-left}
+`,
+		},
+		{
+			name: "icon-width/edge-nested",
+
+			text: `a -> b
+(a -> b)[0].icon: https://a.com/a.svg {width: 24}
+`,
+			key: `(a -> b)[0].icon.width`,
+			exp: `a -> b
+(a -> b)[0].icon: https://a.com/a.svg
 `,
 		},
 		{

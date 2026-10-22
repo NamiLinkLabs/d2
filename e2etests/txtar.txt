@@ -1814,3 +1814,79 @@ bob -> alice: padding 12 {label.padding: 12; style.fill: "#dbe8ff"}
 alice -> alice: self, padding 8 {label.padding: 8}
 alice -> carol: padding 8 {label.padding: 8}
 carol -> bob: no padding
+
+-- icon-size --
+vars: {
+  sq: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwRDMyQjIiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxNiIgZmlsbD0iI0ZGRkZGRiIvPjwvc3ZnPg=="
+  wide: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggNjQiPjxyZWN0IHdpZHRoPSIxMjgiIGhlaWdodD0iNjQiIHJ4PSIxMiIgZmlsbD0iI0UwN0E1RiIvPjxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjE2IiBmaWxsPSIjRkZGRkZGIi8+PGNpcmNsZSBjeD0iOTYiIGN5PSIzMiIgcj0iMTYiIGZpbGw9IiNGRkZGRkYiLz48L3N2Zz4="
+}
+
+small: {icon: ${sq}; icon.width: 16}
+automatic: {icon: ${sq}}
+big: {icon: ${sq}; icon.width: 96}
+wide: wide icon {icon: ${wide}; icon.width: 96; icon.height: 48}
+fixed: fixed size {width: 140; height: 110; icon: ${sq}; icon.width: 48}
+group: {
+  icon: ${sq}
+  icon.width: 80
+  a -> b
+  a -> c
+}
+outside: {icon: ${sq} {near: outside-top-left; width: 80}}
+table: {
+  shape: sql_table
+  id: int
+  name: string
+  icon: ${sq}
+  icon.width: 40
+}
+cls: {
+  shape: class
+  field: int
+  method(): void
+  icon: ${sq}
+  icon.width: 40
+}
+img: {shape: image; icon: ${sq}; icon.width: 200; width: 64; height: 64}
+
+small -> automatic -> big -> wide -> fixed
+group -> outside -> table -> cls -> img
+small -> outside: {icon: ${sq}; icon.width: 48}
+big -> table: labelled {icon: ${wide}; icon.width: 48; icon.height: 24}
+
+-- icon-border-positions --
+vars: {
+  sq: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwRDMyQjIiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxNiIgZmlsbD0iI0ZGRkZGRiIvPjwvc3ZnPg=="
+}
+
+# a 32 px badge on each border position of a rectangle
+*.icon.width: 32
+tl: {icon: ${sq}; icon.near: border-top-left}
+tc: {icon: ${sq}; icon.near: border-top-center}
+tr: {icon: ${sq}; icon.near: border-top-right}
+lt: {icon: ${sq}; icon.near: border-left-top}
+lc: {icon: ${sq}; icon.near: border-left-center}
+lb: {icon: ${sq}; icon.near: border-left-bottom}
+rt: {icon: ${sq}; icon.near: border-right-top}
+rc: {icon: ${sq}; icon.near: border-right-center}
+rb: {icon: ${sq}; icon.near: border-right-bottom}
+bl: {icon: ${sq}; icon.near: border-bottom-left}
+bc: {icon: ${sq}; icon.near: border-bottom-center}
+br: {icon: ${sq}; icon.near: border-bottom-right}
+# automatic sizes on the outer box of other shapes
+circle: {shape: circle; icon: ${sq} {near: border-top-left; width: null}}
+cylinder: {shape: cylinder; icon: ${sq} {near: border-top-center; width: null}}
+hexagon: {shape: hexagon; icon: ${sq} {near: border-left-center; width: null}}
+badge: {icon: ${sq} {near: border-top-right; width: 24}}
+group: {
+  icon: ${sq} {near: border-top-left; width: 48}
+  a -> b
+  a -> c
+}
+
+tl -> tc -> tr
+lt -> lc -> lb
+rt -> rc -> rb
+bl -> bc -> br
+circle -> cylinder -> hexagon -> badge
+group.b -> badge

@@ -86,6 +86,29 @@ y: {shape: square}
 			},
 		},
 		{
+			name: "icon_size",
+
+			dsl: `a: {icon: https://icons.terrastruct.com/essentials/004-picture.svg; icon.width: 48}
+b: {icon: https://icons.terrastruct.com/essentials/004-picture.svg {near: border-top-left; width: 40; height: 24}}
+c: {icon: https://icons.terrastruct.com/essentials/004-picture.svg}
+img: {shape: image; icon: https://icons.terrastruct.com/essentials/004-picture.svg; icon.width: 48}
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				byID := map[string]d2target.Shape{}
+				for _, s := range d.Shapes {
+					byID[s.ID] = s
+				}
+				tassert.Equal(t, 48, byID["a"].IconWidth)
+				tassert.Equal(t, 48, byID["a"].IconHeight)
+				tassert.Equal(t, 40, byID["b"].IconWidth)
+				tassert.Equal(t, 24, byID["b"].IconHeight)
+				tassert.Equal(t, "BORDER_TOP_LEFT", byID["b"].IconPosition)
+				tassert.Equal(t, 0, byID["c"].IconWidth)
+				// the icon of an image is the shape itself
+				tassert.Equal(t, 0, byID["img"].IconWidth)
+			},
+		},
+		{
 			name: "sequence_group_position",
 
 			dsl: `hey {
@@ -113,6 +136,18 @@ func testConnection(t *testing.T) {
 			name: "basic",
 			dsl: `x -> y
 `,
+		},
+		{
+			name: "icon_size",
+			dsl: `x -> y: {icon: https://icons.terrastruct.com/essentials/004-picture.svg; icon.width: 48; icon.height: 24}
+x -> y: {icon: https://icons.terrastruct.com/essentials/004-picture.svg}
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				tassert.Equal(t, 48, d.Connections[0].IconWidth)
+				tassert.Equal(t, 24, d.Connections[0].IconHeight)
+				tassert.Equal(t, 0, d.Connections[1].IconWidth)
+				tassert.Equal(t, 0, d.Connections[1].IconHeight)
+			},
 		},
 		{
 			name: "stroke-dash",

@@ -86,7 +86,7 @@ func getCompletionItems(text string, line, column int, utf16Pos bool) ([]Complet
 	case "icon", "icon:":
 		return getIconCompletions(), nil
 	case "icon.":
-		return getIconSubCompletions(), nil
+		return getIconFieldCompletions(), nil
 	case "near", "near:":
 		return getNearCompletions(), nil
 	case "tooltip:", "tooltip":
@@ -478,15 +478,6 @@ func isPositionInConnection(m *d2ast.Map, line, column int, inEdge bool) bool {
 	return inEdge
 }
 
-func getIconSubCompletions() []CompletionItem {
-	return []CompletionItem{{
-		Label:      "near",
-		Kind:       StyleCompletion,
-		Detail:     "icon position",
-		InsertText: "near: ",
-	}}
-}
-
 func getNearCompletions() []CompletionItem {
 	items := make([]CompletionItem, 0, len(d2ast.LabelPositionsArray)+1)
 
@@ -527,6 +518,35 @@ func getIconCompletions() []CompletionItem {
 			Kind:       KeywordCompletion,
 			Detail:     "icon URL",
 			InsertText: "https://icons.d2lang.com/essentials%2F073-add.svg",
+		},
+	}
+}
+
+func getIconFieldCompletions() []CompletionItem {
+	return []CompletionItem{
+		{
+			Label:      "near",
+			Kind:       StyleCompletion,
+			Detail:     "icon position",
+			InsertText: "near: ",
+		},
+		{
+			Label:      "width",
+			Kind:       StyleCompletion,
+			Detail:     "icon width in pixels",
+			InsertText: "width: ",
+		},
+		{
+			Label:      "height",
+			Kind:       StyleCompletion,
+			Detail:     "icon height in pixels",
+			InsertText: "height: ",
+		},
+		{
+			Label:      "style",
+			Kind:       StyleCompletion,
+			Detail:     "icon style",
+			InsertText: "style.",
 		},
 	}
 }

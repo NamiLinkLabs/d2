@@ -875,6 +875,30 @@ func _set(g *d2graph.Graph, baseAST *d2ast.Map, key string, tag, value *string) 
 						return nil
 					}
 				}
+			case "icon":
+				// icon.near, icon.width, icon.height, icon.style.border-radius
+				var subPath []string
+				if reservedTargetKey != "" {
+					// the scope is already the icon map
+					subPath = keyPathStrings(mk.Key.Path)
+				} else if len(mk.Key.Path) > reservedIndex+1 {
+					subPath = keyPathStrings(mk.Key.Path[reservedIndex+1:])
+				}
+				var target *d2graph.Scalar
+				switch strings.Join(subPath, ".") {
+				case "near":
+					target = attrs.IconPosition
+				case "width":
+					target = attrs.IconWidth
+				case "height":
+					target = attrs.IconHeight
+				case "style.border-radius":
+					target = attrs.IconStyle.BorderRadius
+				}
+				if inlined(target) {
+					target.MapKey.SetScalar(mk.Value.ScalarBox())
+					return nil
+				}
 			case "label":
 				if len(mk.Key.Path[reservedIndex:]) > 1 {
 					reservedTargetKey = mk.Key.Path[reservedIndex+1].Unbox().ScalarString()
@@ -1354,7 +1378,14 @@ func deleteReserved(g *d2graph.Graph, boardPath []string, baseAST *d2ast.Map, mk
 		}
 		imported := IsImportedEdge(baseAST, e)
 
-		deleted, err := deleteEdgeField(g, baseAST, e, targetKey.Path[len(targetKey.Path)-1].Unbox().ScalarString())
+		var deleted bool
+		var err error
+		if edgePath := keyPathStrings(targetKey.Path); len(edgePath) > 1 && (edgePath[0] == "label" || edgePath[0] == "icon") {
+			// (a -> b)[0].icon.near must not delete (a -> b)[0].label.near
+			deleted = deleteEdgeNestedField(baseAST, e, edgePath)
+		} else {
+			deleted, err = deleteEdgeField(g, baseAST, e, targetKey.Path[len(targetKey.Path)-1].Unbox().ScalarString())
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -1375,11 +1406,17 @@ func deleteReserved(g *d2graph.Graph, boardPath []string, baseAST *d2ast.Map, mk
 				isNestedKey = true
 				continue
 			}
-			if id == "label" || id == "icon" {
-				if i < len(parts)-1 {
-					isNestedKey = true
-					continue
+			if (id == "label" || id == "icon") && !isNestedKey && i < len(parts)-1 {
+				// x.icon.width must not delete x.width, nor x.label.near x.near
+				deleted, err := deleteObjNestedField(g, baseAST, obj, parts[i:])
+				if err != nil {
+					return nil, err
 				}
+				if !deleted && imported {
+					mk.Value = d2ast.MakeValueBox(&d2ast.Null{})
+					appendMapKey(baseAST, mk)
+				}
+				break
 			}
 			if isNestedKey {
 				deleted, err := deleteObjField(g, baseAST, obj, id)
@@ -1433,14 +1470,17 @@ func isEdgeLabelPaddingKey(k *d2ast.KeyPath) bool {
 }
 
 func deleteMapField(m *d2ast.Map, field string) (deleted bool) {
+	// near, width and height of an object are not the label's or icon's
+	// (label.near, icon.near, icon.width, icon.height), so leave those.
+	searchLabelIcon := field != "near" && field != "width" && field != "height"
 	for i := 0; i < len(m.Nodes); i++ {
 		n := m.Nodes[i]
 		if n.MapKey != nil && n.MapKey.Key != nil {
 			if n.MapKey.Key.Path[0].Unbox().ScalarString() == field {
 				deleteFromMap(m, n.MapKey)
 			} else if n.MapKey.Key.Path[0].Unbox().ScalarString() == "style" ||
-				n.MapKey.Key.Path[0].Unbox().ScalarString() == "label" ||
-				n.MapKey.Key.Path[0].Unbox().ScalarString() == "icon" ||
+				(searchLabelIcon && n.MapKey.Key.Path[0].Unbox().ScalarString() == "label") ||
+				(searchLabelIcon && n.MapKey.Key.Path[0].Unbox().ScalarString() == "icon") ||
 				n.MapKey.Key.Path[0].Unbox().ScalarString() == "source-arrowhead" ||
 				n.MapKey.Key.Path[0].Unbox().ScalarString() == "target-arrowhead" {
 				if n.MapKey.Value.Map != nil {
@@ -1460,6 +1500,158 @@ func deleteMapField(m *d2ast.Map, field string) (deleted bool) {
 						deleted = true
 					}
 				}
+			}
+		}
+	}
+	return deleted
+}
+
+func keyPathStrings(path []*d2ast.StringBox) []string {
+	out := make([]string, len(path))
+	for i, p := range path {
+		out[i] = p.Unbox().ScalarString()
+	}
+	return out
+}
+
+func hasKeyPrefix(path, prefix []string) bool {
+	if len(prefix) > len(path) {
+		return false
+	}
+	for i := range prefix {
+		if path[i] != prefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// deleteNestedMapField deletes the field at path, like icon.width, from m. It
+// finds flat keys (icon.width: 24) and nested maps (icon: url {width: 24}),
+// and leaves fields with the same name elsewhere, like the object's own width.
+func deleteNestedMapField(m *d2ast.Map, path []string) (deleted bool) {
+	for i := 0; i < len(m.Nodes); i++ {
+		n := m.Nodes[i]
+		if n.MapKey == nil || n.MapKey.Key == nil || len(n.MapKey.Edges) > 0 {
+			continue
+		}
+		keyPath := keyPathStrings(n.MapKey.Key.Path)
+		if !hasKeyPrefix(path, keyPath) {
+			continue
+		}
+		if len(keyPath) == len(path) {
+			if deleteFromMap(m, n.MapKey) {
+				deleted = true
+				i--
+			}
+			continue
+		}
+		if n.MapKey.Value.Map != nil && deleteNestedMapField(n.MapKey.Value.Map, path[len(keyPath):]) {
+			deleted = true
+			if len(n.MapKey.Value.Map.Nodes) == 0 && dropEmptyMap(m, n.MapKey) {
+				i--
+			}
+		}
+	}
+	return deleted
+}
+
+// dropEmptyMap removes the now empty map of mk: `icon: url {}` becomes
+// `icon: url`, and a key without a primary value is removed from m.
+func dropEmptyMap(m *d2ast.Map, mk *d2ast.Key) (removed bool) {
+	if primary := mk.Primary.Unbox(); primary != nil {
+		mk.Value = d2ast.MakeValueBox(primary)
+		mk.Primary = d2ast.ScalarBox{}
+		return false
+	}
+	return deleteFromMap(m, mk)
+}
+
+// deleteObjNestedField deletes a nested field of obj, like icon.width or
+// label.near, without touching fields of the same name elsewhere.
+func deleteObjNestedField(g *d2graph.Graph, ast *d2ast.Map, obj *d2graph.Object, path []string) (deleted bool, _ error) {
+	objK, err := d2parser.ParseKey(obj.AbsID())
+	if err != nil {
+		return false, err
+	}
+	objGK := d2graph.Key(objK)
+	for _, ref := range obj.References {
+		if ref.InEdge() {
+			continue
+		}
+		if ref.Key.Range.Path != ast.Range.Path {
+			continue
+		}
+		rest := keyPathStrings(ref.Key.Path[ref.KeyPathIndex+1:])
+		if !hasKeyPrefix(path, rest) {
+			continue
+		}
+		if len(rest) < len(path) {
+			// x: {icon.width: 24} or x.icon: url {width: 24}
+			if ref.MapKey.Value.Map == nil || !deleteNestedMapField(ref.MapKey.Value.Map, path[len(rest):]) {
+				continue
+			}
+			deleted = true
+			if len(rest) == 0 || len(ref.MapKey.Value.Map.Nodes) > 0 {
+				continue
+			}
+			if ref.MapKey.Primary.Unbox() != nil {
+				// x.icon: url {} becomes x.icon: url
+				dropEmptyMap(ref.Scope, ref.MapKey)
+				continue
+			}
+			// x.icon: {} is left, remove it below
+		}
+		// x.icon.width: 24, or x.icon: {width: 24} that is now empty
+		tmpNodes := make([]d2ast.MapNodeBox, len(ref.Scope.Nodes))
+		copy(tmpNodes, ref.Scope.Nodes)
+		// If I delete this, will the object still exist?
+		if deleteFromMap(ref.Scope, ref.MapKey) {
+			deleted = true
+		}
+		g2, err := recompile(g)
+		if err != nil {
+			return false, err
+		}
+		if _, ok := g2.Root.HasChild(objGK); !ok {
+			// Nope, so can't delete it, just remove the field then
+			ref.Scope.Nodes = tmpNodes
+			ref.MapKey.Primary = d2ast.ScalarBox{}
+			ref.MapKey.Value = d2ast.ValueBox{}
+			ref.Key.Path = ref.Key.Path[:ref.KeyPathIndex+1]
+		}
+	}
+	return deleted, nil
+}
+
+// deleteEdgeNestedField is deleteObjNestedField for edges.
+func deleteEdgeNestedField(ast *d2ast.Map, e *d2graph.Edge, path []string) (deleted bool) {
+	for _, ref := range e.References {
+		// Edge chains can't have fields
+		if len(ref.MapKey.Edges) > 1 {
+			continue
+		}
+		if ref.MapKey.Range.Path != ast.Range.Path {
+			continue
+		}
+		var rest []string
+		if ref.MapKey.EdgeKey != nil {
+			rest = keyPathStrings(ref.MapKey.EdgeKey.Path)
+		}
+		if !hasKeyPrefix(path, rest) {
+			continue
+		}
+		if len(rest) == len(path) {
+			// It's always safe to delete, since edge references must coexist with edge definition elsewhere
+			if deleteFromMap(ref.Scope, ref.MapKey) {
+				deleted = true
+			}
+			continue
+		}
+		if ref.MapKey.Value.Map != nil && deleteNestedMapField(ref.MapKey.Value.Map, path[len(rest):]) {
+			deleted = true
+			if len(rest) > 0 && len(ref.MapKey.Value.Map.Nodes) == 0 {
+				dropEmptyMap(ref.Scope, ref.MapKey)
 			}
 		}
 	}

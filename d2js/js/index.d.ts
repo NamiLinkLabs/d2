@@ -241,6 +241,12 @@ export interface ShapeBase {
   icon?: string /* url.URL */;
   iconPosition: string;
   /**
+   * Explicit icon size from icon.width and icon.height, in pixels. Left out
+   * when the size is automatic (32 to 64 px, depending on the shape).
+   */
+  iconWidth?: number /* int */;
+  iconHeight?: number /* int */;
+  /**
    * Whether the shape should allow shapes behind it to bleed through
    * Currently just used for sequence diagram groups
    */
@@ -335,6 +341,12 @@ export interface Connection extends Text {
   tooltip: string;
   icon?: string /* url.URL */;
   iconPosition?: string;
+  /**
+   * Explicit icon size from icon.width and icon.height, in pixels. Left out
+   * when the icon has the default size of 32 px.
+   */
+  iconWidth?: number /* int */;
+  iconHeight?: number /* int */;
   zIndex: number /* int */;
 }
 
@@ -435,6 +447,12 @@ export interface Attributes {
   tooltipPosition?: Scalar;
   /** Connections only */
   labelPadding?: Scalar;
+  /**
+   * The explicit icon.width and icon.height. When unset, the icon size is
+   * automatic.
+   */
+  iconWidth?: Scalar;
+  iconHeight?: Scalar;
   /**
    * These names are attached to the rendered elements in SVG
    * so that users can target them however they like outside of D2

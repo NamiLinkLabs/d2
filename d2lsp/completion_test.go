@@ -206,7 +206,23 @@ layers: {
 			text:   `a.icon.`,
 			line:   0,
 			column: 7,
-			want:   getIconSubCompletions(),
+			want:   getIconFieldCompletions(),
+		},
+		{
+			name:   "icon width value",
+			text:   `a.icon.width:`,
+			line:   0,
+			column: 13,
+			want:   getValueCompletions("width"),
+		},
+		{
+			name: "icon width in map",
+			text: `a: {
+  icon.height:
+}`,
+			line:   1,
+			column: 14,
+			want:   getValueCompletions("height"),
 		},
 		{
 			name:   "label flat dot",
