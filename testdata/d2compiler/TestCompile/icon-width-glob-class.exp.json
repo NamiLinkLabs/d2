@@ -1,0 +1,843 @@
+{
+  "graph": {
+    "name": "",
+    "isFolderOnly": false,
+    "ast": {
+      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,0:0:0-10:0:211",
+      "nodes": [
+        {
+          "map_key": {
+            "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,0:0:0-2:1:40",
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,0:0:0-0:7:7",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,0:0:0-0:7:7",
+                    "value": [
+                      {
+                        "string": "classes",
+                        "raw_string": "classes"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "primary": {},
+            "value": {
+              "map": {
+                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,0:9:9-2:1:40",
+                "nodes": [
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:1:12-1:27:38",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:1:12-1:9:20",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:1:12-1:9:20",
+                              "value": [
+                                {
+                                  "string": "big-icon",
+                                  "raw_string": "big-icon"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "map": {
+                          "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:11:22-1:27:38",
+                          "nodes": [
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:12:23-1:26:37",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:12:23-1:22:33",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:12:23-1:16:27",
+                                        "value": [
+                                          {
+                                            "string": "icon",
+                                            "raw_string": "icon"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:17:28-1:22:33",
+                                        "value": [
+                                          {
+                                            "string": "width",
+                                            "raw_string": "width"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "number": {
+                                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,1:24:35-1:26:37",
+                                    "raw": "96",
+                                    "value": "96"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "map_key": {
+            "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,3:0:41-8:1:165",
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,3:0:41-3:1:42",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,3:0:41-3:1:42",
+                    "value": [
+                      {
+                        "string": "x",
+                        "raw_string": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "primary": {},
+            "value": {
+              "map": {
+                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,3:3:44-8:1:165",
+                "nodes": [
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,4:1:47-4:17:63",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,4:1:47-4:13:59",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,4:1:47-4:2:48",
+                              "value": [
+                                {
+                                  "string": "*",
+                                  "raw_string": "*"
+                                }
+                              ],
+                              "pattern": [
+                                "*"
+                              ]
+                            }
+                          },
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,4:3:49-4:7:53",
+                              "value": [
+                                {
+                                  "string": "icon",
+                                  "raw_string": "icon"
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,4:8:54-4:13:59",
+                              "value": [
+                                {
+                                  "string": "width",
+                                  "raw_string": "width"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "number": {
+                          "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,4:15:61-4:17:63",
+                          "raw": "20",
+                          "value": "20"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:1:65-5:28:92",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:1:65-5:2:66",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:1:65-5:2:66",
+                              "value": [
+                                {
+                                  "string": "a",
+                                  "raw_string": "a"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "map": {
+                          "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:4:68-5:28:92",
+                          "nodes": [
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:5:69-5:27:91",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:5:69-5:9:73",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:5:69-5:9:73",
+                                        "value": [
+                                          {
+                                            "string": "icon",
+                                            "raw_string": "icon"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "unquoted_string": {
+                                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:11:75-5:27:91",
+                                    "value": [
+                                      {
+                                        "string": "https://asdf.com",
+                                        "raw_string": "https://asdf.com"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,6:1:94-6:2:95",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,6:1:94-6:2:95",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,6:1:94-6:2:95",
+                              "value": [
+                                {
+                                  "string": "c",
+                                  "raw_string": "c"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {}
+                    }
+                  },
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:1:97-7:67:163",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:1:97-7:4:100",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:1:97-7:4:100",
+                              "value": [
+                                {
+                                  "string": "img",
+                                  "raw_string": "img"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "map": {
+                          "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:6:102-7:67:163",
+                          "nodes": [
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:7:103-7:19:115",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:7:103-7:12:108",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:7:103-7:12:108",
+                                        "value": [
+                                          {
+                                            "string": "shape",
+                                            "raw_string": "shape"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "unquoted_string": {
+                                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:14:110-7:19:115",
+                                    "value": [
+                                      {
+                                        "string": "image",
+                                        "raw_string": "image"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:21:117-7:43:139",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:21:117-7:25:121",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:21:117-7:25:121",
+                                        "value": [
+                                          {
+                                            "string": "icon",
+                                            "raw_string": "icon"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "unquoted_string": {
+                                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:27:123-7:43:139",
+                                    "value": [
+                                      {
+                                        "string": "https://asdf.com",
+                                        "raw_string": "https://asdf.com"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:45:141-7:54:150",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:45:141-7:50:146",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:45:141-7:50:146",
+                                        "value": [
+                                          {
+                                            "string": "width",
+                                            "raw_string": "width"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "number": {
+                                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:52:148-7:54:150",
+                                    "raw": "50",
+                                    "value": "50"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:56:152-7:66:162",
+                                "key": {
+                                  "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:56:152-7:62:158",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:56:152-7:62:158",
+                                        "value": [
+                                          {
+                                            "string": "height",
+                                            "raw_string": "height"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "number": {
+                                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:64:160-7:66:162",
+                                    "raw": "40",
+                                    "value": "40"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "map_key": {
+            "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:0:166-9:44:210",
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:0:166-9:1:167",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:0:166-9:1:167",
+                    "value": [
+                      {
+                        "string": "b",
+                        "raw_string": "b"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "primary": {},
+            "value": {
+              "map": {
+                "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:3:169-9:44:210",
+                "nodes": [
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:4:170-9:26:192",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:4:170-9:8:174",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:4:170-9:8:174",
+                              "value": [
+                                {
+                                  "string": "icon",
+                                  "raw_string": "icon"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "unquoted_string": {
+                          "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:10:176-9:26:192",
+                          "value": [
+                            {
+                              "string": "https://asdf.com",
+                              "raw_string": "https://asdf.com"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:28:194-9:43:209",
+                      "key": {
+                        "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:28:194-9:33:199",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:28:194-9:33:199",
+                              "value": [
+                                {
+                                  "string": "class",
+                                  "raw_string": "class"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {},
+                      "value": {
+                        "unquoted_string": {
+                          "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:35:201-9:43:209",
+                          "value": [
+                            {
+                              "string": "big-icon",
+                              "raw_string": "big-icon"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "root": {
+      "id": "",
+      "id_val": "",
+      "attributes": {
+        "label": {
+          "value": ""
+        },
+        "labelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "style": {},
+        "iconStyle": {},
+        "near_key": null,
+        "shape": {
+          "value": ""
+        },
+        "direction": {
+          "value": ""
+        },
+        "constraint": null
+      },
+      "zIndex": 0
+    },
+    "edges": null,
+    "objects": [
+      {
+        "id": "x",
+        "id_val": "x",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,3:0:41-3:1:42",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,3:0:41-3:1:42",
+                    "value": [
+                      {
+                        "string": "x",
+                        "raw_string": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "x"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "iconStyle": {},
+          "near_key": null,
+          "shape": {
+            "value": "rectangle"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null
+        },
+        "zIndex": 0
+      },
+      {
+        "id": "a",
+        "id_val": "a",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:1:65-5:2:66",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,5:1:65-5:2:66",
+                    "value": [
+                      {
+                        "string": "a",
+                        "raw_string": "a"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "a"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "icon": {
+            "Scheme": "https",
+            "Opaque": "",
+            "User": null,
+            "Host": "asdf.com",
+            "Path": "",
+            "Fragment": "",
+            "RawQuery": "",
+            "RawPath": "",
+            "RawFragment": "",
+            "ForceQuery": false,
+            "OmitHost": false
+          },
+          "iconStyle": {},
+          "near_key": null,
+          "shape": {
+            "value": "rectangle"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null,
+          "iconWidth": {
+            "value": "20"
+          }
+        },
+        "zIndex": 0
+      },
+      {
+        "id": "c",
+        "id_val": "c",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,6:1:94-6:2:95",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,6:1:94-6:2:95",
+                    "value": [
+                      {
+                        "string": "c",
+                        "raw_string": "c"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "c"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "iconStyle": {},
+          "near_key": null,
+          "shape": {
+            "value": "rectangle"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null,
+          "iconWidth": {
+            "value": "20"
+          }
+        },
+        "zIndex": 0
+      },
+      {
+        "id": "img",
+        "id_val": "img",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:1:97-7:4:100",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,7:1:97-7:4:100",
+                    "value": [
+                      {
+                        "string": "img",
+                        "raw_string": "img"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "img"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "icon": {
+            "Scheme": "https",
+            "Opaque": "",
+            "User": null,
+            "Host": "asdf.com",
+            "Path": "",
+            "Fragment": "",
+            "RawQuery": "",
+            "RawPath": "",
+            "RawFragment": "",
+            "ForceQuery": false,
+            "OmitHost": false
+          },
+          "iconStyle": {},
+          "width": {
+            "value": "50"
+          },
+          "height": {
+            "value": "40"
+          },
+          "near_key": null,
+          "shape": {
+            "value": "image"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null,
+          "iconWidth": {
+            "value": "20"
+          }
+        },
+        "zIndex": 0
+      },
+      {
+        "id": "b",
+        "id_val": "b",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:0:166-9:1:167",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2compiler/TestCompile/icon-width-glob-class.d2,9:0:166-9:1:167",
+                    "value": [
+                      {
+                        "string": "b",
+                        "raw_string": "b"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "b"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "icon": {
+            "Scheme": "https",
+            "Opaque": "",
+            "User": null,
+            "Host": "asdf.com",
+            "Path": "",
+            "Fragment": "",
+            "RawQuery": "",
+            "RawPath": "",
+            "RawFragment": "",
+            "ForceQuery": false,
+            "OmitHost": false
+          },
+          "iconStyle": {},
+          "near_key": null,
+          "shape": {
+            "value": "rectangle"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null,
+          "iconWidth": {
+            "value": "96"
+          },
+          "classes": [
+            "big-icon"
+          ]
+        },
+        "zIndex": 0
+      }
+    ]
+  },
+  "err": null
+}

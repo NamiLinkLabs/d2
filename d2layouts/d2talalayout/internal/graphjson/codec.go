@@ -574,6 +574,8 @@ func serializeIcon(i *layoutgraph.Icon) *SerializedIcon {
 	}
 	return &SerializedIcon{
 		Position: i.Position.String(),
+		Width:    i.Width,
+		Height:   i.Height,
 	}
 }
 
@@ -601,6 +603,8 @@ func deserializeIcon(i *SerializedIcon, guard *limits.WorkGuard) (*layoutgraph.I
 	}
 	return &layoutgraph.Icon{
 		Position: label.FromString(i.Position),
+		Width:    i.Width,
+		Height:   i.Height,
 	}, nil
 }
 

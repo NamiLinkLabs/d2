@@ -1,0 +1,23 @@
+{
+  "graph": null,
+  "err": {
+    "errs": [
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2,0:40:40-0:41:41",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:1:41: icon.width must be a positive integer: \"0\""
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2,1:41:84-1:43:86",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:2:42: icon.height must be a positive integer: \"-4\""
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2,2:40:128-2:43:131",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:3:41: icon.width must be a positive integer: \"abc\""
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2,3:40:173-3:44:177",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:4:41: icon.width must be a positive integer: \"12.5\""
+      }
+    ]
+  }
+}

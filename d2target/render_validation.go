@@ -285,6 +285,8 @@ func validateRenderShapeNumbers(targetShape Shape, path string) error {
 		{name: "strokeWidth", value: targetShape.StrokeWidth},
 		{name: "borderRadius", value: targetShape.BorderRadius},
 		{name: "iconBorderRadius", value: targetShape.IconBorderRadius},
+		{name: "iconWidth", value: targetShape.IconWidth},
+		{name: "iconHeight", value: targetShape.IconHeight},
 	} {
 		if field.value < 0 {
 			return invalidRenderField(path, field.name, field.value, "must be non-negative")
@@ -320,6 +322,12 @@ func validateRenderConnectionNumbers(connection Connection, path string) error {
 	}
 	if !finiteRenderNumber(connection.IconBorderRadius) || connection.IconBorderRadius < 0 {
 		return invalidRenderField(path, "iconBorderRadius", connection.IconBorderRadius, "must be finite and non-negative")
+	}
+	if connection.IconWidth < 0 {
+		return invalidRenderField(path, "iconWidth", connection.IconWidth, "must be non-negative")
+	}
+	if connection.IconHeight < 0 {
+		return invalidRenderField(path, "iconHeight", connection.IconHeight, "must be non-negative")
 	}
 	if !finiteRenderNumber(connection.LabelPercentage) || connection.LabelPercentage < 0 || connection.LabelPercentage > 1 {
 		return invalidRenderField(path, "labelPercentage", connection.LabelPercentage, "must be finite and within [0,1]")
