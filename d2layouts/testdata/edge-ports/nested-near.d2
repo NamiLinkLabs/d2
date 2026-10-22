@@ -1,0 +1,17 @@
+# Pinned connections that cross into and out of constant near shapes, with
+# shapes in the way of the straight line.
+legend: {
+  near: top-center
+  k1
+  k2
+}
+notes: {
+  near: bottom-right
+  n
+}
+a -> b -> c
+x -> y
+legend.k1 -> a: {source-port: bottom; target-port: top}
+legend.k2 -> c: {source-port: right; target-port: right}
+c -> notes.n: {source-port: bottom; target-port: left}
+y -> notes: {source-port: right; target-port: top}

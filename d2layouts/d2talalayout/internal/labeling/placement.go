@@ -45,6 +45,9 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
 	if err != nil {
 		return err
 	}
+	if telemetry := workTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.record(guard.used) }()
+	}
 	checkCanceled := guard.step
 
 	var placedFakeNodes []*layoutgraph.Node
@@ -463,6 +466,9 @@ func placeNewEdges(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgra
 	guard, err := newLabelPlacementWorkGuard(ctx, location, workLimit)
 	if err != nil {
 		return err
+	}
+	if telemetry := workTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.record(guard.used) }()
 	}
 	checkCanceled := guard.step
 

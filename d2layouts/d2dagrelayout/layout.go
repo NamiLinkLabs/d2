@@ -396,30 +396,13 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 		dstAnchor := portAnchors[d2graph.PortEnd{Edge: edge, Src: false}]
 
 		// build a curved path from the dagre route
-		vectors := make([]geo.Vector, 0, len(points)-1)
-		for i := 1; i < len(points); i++ {
-			vectors = append(vectors, points[i-1].VectorTo(points[i]))
-		}
-
-		path := make([]*geo.Point, 0)
-		path = append(path, points[0])
+		path := []*geo.Point{points[0], points[len(points)-1]}
 		if srcAnchor != nil || dstAnchor != nil {
-			path = pinnedCurve(edge, edge.PinRoute(points, srcAnchor, dstAnchor))
+			path = edge.PinnedCurve(edge.PinRoute(points, srcAnchor, dstAnchor))
 			edge.IsCurve = true
-		} else {
-			if len(vectors) > 1 {
-				path = append(path, points[0].AddVector(vectors[0].Multiply(.8)))
-				for i := 1; i < len(vectors)-2; i++ {
-					p := points[i]
-					v := vectors[i]
-					path = append(path, p.AddVector(v.Multiply(.2)))
-					path = append(path, p.AddVector(v.Multiply(.5)))
-					path = append(path, p.AddVector(v.Multiply(.8)))
-				}
-				path = append(path, points[len(points)-2].AddVector(vectors[len(vectors)-1].Multiply(.2)))
-				edge.IsCurve = true
-			}
-			path = append(path, points[len(points)-1])
+		} else if len(points) > 2 {
+			path = geo.Route(points).Curve()
+			edge.IsCurve = true
 		}
 
 		edge.Route = path

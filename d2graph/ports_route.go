@@ -60,6 +60,12 @@ type pinnedEnd struct {
 }
 
 func newPinnedEnd(obj *Object, side geo.Orientation, anchor *geo.Point) pinnedEnd {
+	return newPinnedEndStub(obj, side, anchor, PortStubLen)
+}
+
+// newPinnedEndStub is newPinnedEnd with a stub of stubLen past obj's
+// bounding box.
+func newPinnedEndStub(obj *Object, side geo.Orientation, anchor *geo.Point, stubLen float64) pinnedEnd {
 	n := PortSideNormal(side)
 	// How far anchor is inside the side of the bounding box (non-rectangular
 	// shapes put it on their outline).
@@ -74,7 +80,7 @@ func newPinnedEnd(obj *Object, side geo.Orientation, anchor *geo.Point) pinnedEn
 	default:
 		inset = obj.TopLeft.X + obj.Width - anchor.X
 	}
-	l := math.Max(0, inset) + PortStubLen
+	l := math.Max(0, inset) + stubLen
 	return pinnedEnd{
 		obj:    obj,
 		side:   side,
@@ -125,6 +131,25 @@ func (e *Edge) rerouteBlocked(route []*geo.Point, srcSide geo.Orientation, srcOK
 	}
 	src := newPinnedEnd(e.Src, srcSide, first)
 	dst := newPinnedEnd(e.Dst, dstSide, last)
+	if out := e.routeAround(src, dst, obstacles); out != nil {
+		return out
+	}
+	// A shape close in front of a side leaves no room for a full stub: run
+	// the stub only halfway to that shape and squeeze past it.
+	srcShort, srcOK := shortPinnedEnd(src, obstacles)
+	dstShort, dstOK := shortPinnedEnd(dst, obstacles)
+	if srcOK || dstOK {
+		if out := e.routeAround(srcShort, dstShort, obstacles); out != nil {
+			return out
+		}
+	}
+	return route
+}
+
+// routeAround returns the route from src to dst around the obstacles that
+// routeAroundObstacles finds, first near the ends and then anywhere, or nil
+// when there is no clear one.
+func (e *Edge) routeAround(src, dst pinnedEnd, obstacles []*Object) []*geo.Point {
 	for _, margin := range []float64{4 * PortStubLen, math.Inf(1)} {
 		path := routeAroundObstacles(src, dst, obstacles, margin)
 		if path == nil {
@@ -137,7 +162,57 @@ func (e *Edge) rerouteBlocked(route []*geo.Point, srcSide geo.Orientation, srcOK
 			return out
 		}
 	}
-	return route
+	return nil
+}
+
+// shortPinnedEnd returns end with its stub ending halfway between end.obj's
+// bounding box and the nearest obstacle in front of the anchor, and whether
+// that obstacle is close enough to need it: nearer than the stub plus
+// PortClearance.
+func shortPinnedEnd(end pinnedEnd, obstacles []*Object) (pinnedEnd, bool) {
+	box := end.obj.Box
+	var edge float64 // where the side of the bounding box is, along the normal
+	switch end.side {
+	case geo.Top:
+		edge = -box.TopLeft.Y
+	case geo.Bottom:
+		edge = box.TopLeft.Y + box.Height
+	case geo.Left:
+		edge = -box.TopLeft.X
+	default:
+		edge = box.TopLeft.X + box.Width
+	}
+	free := math.Inf(1)
+	a := end.anchor
+	for _, obj := range obstacles {
+		b := obj.Box
+		var near float64 // where obj starts, along the normal
+		switch end.side {
+		case geo.Top, geo.Bottom:
+			if a.X <= b.TopLeft.X || a.X >= b.TopLeft.X+b.Width {
+				continue
+			}
+			near = b.TopLeft.Y
+			if end.side == geo.Top {
+				near = -(b.TopLeft.Y + b.Height)
+			}
+		default:
+			if a.Y <= b.TopLeft.Y || a.Y >= b.TopLeft.Y+b.Height {
+				continue
+			}
+			near = b.TopLeft.X
+			if end.side == geo.Left {
+				near = -(b.TopLeft.X + b.Width)
+			}
+		}
+		if near > edge {
+			free = math.Min(free, near-edge)
+		}
+	}
+	if free >= PortStubLen+PortClearance || free < 2 {
+		return end, false
+	}
+	return newPinnedEndStub(end.obj, end.side, end.anchor, free/2), true
 }
 
 // maxRouteObstacles bounds the shapes routeAroundObstacles plans around, so

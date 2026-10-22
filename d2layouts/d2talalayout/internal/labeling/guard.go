@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
@@ -621,4 +622,37 @@ func sortSharedSegmentGroup(segments []*geo.Segment, coordinate func(*geo.Point)
 		copy(segments, items)
 	}
 	return nil
+}
+
+// WorkTelemetry adds up the work of the label placements run with a context
+// that carries it, including ones that fail. It is safe for concurrent use.
+type WorkTelemetry struct {
+	mu   sync.Mutex
+	work int64
+}
+
+// Work returns the work recorded so far.
+func (t *WorkTelemetry) Work() int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.work
+}
+
+func (t *WorkTelemetry) record(work int64) {
+	t.mu.Lock()
+	t.work += work
+	t.mu.Unlock()
+}
+
+type workTelemetryKey struct{}
+
+// WithWorkTelemetry returns ctx carrying t for label placement to record its
+// work in.
+func WithWorkTelemetry(ctx context.Context, t *WorkTelemetry) context.Context {
+	return context.WithValue(ctx, workTelemetryKey{}, t)
+}
+
+func workTelemetryFromContext(ctx context.Context) *WorkTelemetry {
+	t, _ := ctx.Value(workTelemetryKey{}).(*WorkTelemetry)
+	return t
 }

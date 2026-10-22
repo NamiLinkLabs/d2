@@ -220,7 +220,7 @@ func buildOVGFromGraphWithGuard(g *layoutgraph.Graph, nearbyNodes []*layoutgraph
 	if err := ovg.mapNodesToContainer(g, guard); err != nil {
 		return nil, err
 	}
-	if err := ovg.flagNodesNearPorts(guard); err != nil {
+	if err := ovg.flagNodesNearPorts(g, guard); err != nil {
 		return nil, err
 	}
 	for i, node := range ovg.Nodes {
@@ -874,6 +874,46 @@ func (ovg *OVG) addNewBoundaryLayers(g *layoutgraph.Graph, tl, br *geo.Point, gu
 	return nil
 }
 
+// portOwnersInGraphOrder returns the nodes with ports in the order of
+// g.Nodes, then any others in the order of their IDs. Building the OVG in a
+// fixed order makes the work it takes, which routing budgets count, the
+// same on every run, as its result already is.
+func (ovg *OVG) portOwnersInGraphOrder(g *layoutgraph.Graph, guard *ovgBuildGuard) ([]*layoutgraph.Node, error) {
+	return portOwnersInGraphOrder(ovg.Ports, g, guard)
+}
+
+func portOwnersInGraphOrder(ports map[*layoutgraph.Node][]*OVGNode, g *layoutgraph.Graph, guard *ovgBuildGuard) ([]*layoutgraph.Node, error) {
+	owners := make([]*layoutgraph.Node, 0, len(ports))
+	inGraph := make(map[*layoutgraph.Node]struct{}, len(ports))
+	if g != nil {
+		if err := guard.reserveWork(uint64(len(g.Nodes))); err != nil {
+			return nil, err
+		}
+		for _, node := range g.Nodes {
+			if _, ok := ports[node]; ok {
+				owners = append(owners, node)
+				inGraph[node] = struct{}{}
+			}
+		}
+	}
+	if len(owners) == len(ports) {
+		return owners, nil
+	}
+	others := make([]*layoutgraph.Node, 0, len(ports)-len(owners))
+	for node := range ports {
+		if _, ok := inGraph[node]; !ok {
+			others = append(others, node)
+		}
+	}
+	if err := guard.reserveSortWork(len(others)); err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(others, func(a, b *layoutgraph.Node) int {
+		return cmp.Compare(a.IDValue(), b.IDValue())
+	})
+	return append(owners, others...), nil
+}
+
 // For each given OVG node, try to add a new node at the graph boundaries that make a direct connection to this node
 func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br *geo.Point, guard *ovgBuildGuard) error {
 	if err := guard.check(); err != nil {
@@ -881,11 +921,27 @@ func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br 
 	}
 	// Don't count containers for children obstruction
 	// Pad boundaries with points to allow edges to reach around
+	//
+	// Every rectangle lies inside tl-br and each boundary point lies outside
+	// it, so whether the line from a port to its boundary point is blocked
+	// does not depend on the layer: work it out once, on the first layer.
+	type boundaryRay struct {
+		node      *layoutgraph.Node
+		port      *OVGNode
+		direction geo.Orientation
+		side      int
+	}
+	blockedRays := make(map[boundaryRay]bool)
+	portOwners, err := ovg.portOwnersInGraphOrder(g, guard)
+	if err != nil {
+		return err
+	}
 	for i := 0.0; i < extraInterestingPointLayers; i++ {
 		if err := guard.step(); err != nil {
 			return err
 		}
-		for node, ports := range ovg.Ports {
+		for _, node := range portOwners {
+			ports := ovg.Ports[node]
 			if err := guard.step(); err != nil {
 				return err
 			}
@@ -911,13 +967,18 @@ func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br 
 					leftPoint := geo.NewPoint(tl.X-(ovgPadding*(i+1)), portNode.Point.Y)
 					rightPoint := geo.NewPoint(br.X+(ovgPadding*(i+1)), portNode.Point.Y)
 
-					for _, boundaryPoint := range []*geo.Point{topPoint, bottomPoint, leftPoint, rightPoint} {
+					for side, boundaryPoint := range []*geo.Point{topPoint, bottomPoint, leftPoint, rightPoint} {
 						if err := guard.step(); err != nil {
 							directionErr = err
 							return true
 						}
-						passesThroughARectangle := false
-						for _, rectangle := range ovg.NodesInsideBoundingBox {
+						ray := boundaryRay{node, portNode, portDirection, side}
+						passesThroughARectangle, known := blockedRays[ray]
+						rectangles := ovg.NodesInsideBoundingBox
+						if known {
+							rectangles = nil
+						}
+						for _, rectangle := range rectangles {
 							if err := guard.step(); err != nil {
 								directionErr = err
 								return true
@@ -946,6 +1007,7 @@ func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br 
 								}
 							}
 						}
+						blockedRays[ray] = passesThroughARectangle
 						if passesThroughARectangle {
 							continue
 						}
@@ -1541,11 +1603,16 @@ func (ovg *OVG) createPortsConnectionsToBoundaries(owner *layoutgraph.Node, port
 // -   for each lined up adjacent
 // -      if adj is not too close: continue
 // -      else: flag adj as too close and follow its edges as other nodes can be too close
-func (ovg *OVG) flagNodesNearPorts(guard *ovgBuildGuard) error {
+func (ovg *OVG) flagNodesNearPorts(g *layoutgraph.Graph, guard *ovgBuildGuard) error {
 	if err := guard.check(); err != nil {
 		return err
 	}
-	for owner, ports := range ovg.Ports {
+	portOwners, err := ovg.portOwnersInGraphOrder(g, guard)
+	if err != nil {
+		return err
+	}
+	for _, owner := range portOwners {
+		ports := ovg.Ports[owner]
 		if err := guard.step(); err != nil {
 			return err
 		}

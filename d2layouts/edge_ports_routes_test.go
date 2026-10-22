@@ -56,7 +56,6 @@ func pinnedRouteSources(t *testing.T) map[string]string {
 type pinnedRouteEngine struct {
 	name   string
 	layout d2graph.LayoutGraph
-	router d2graph.RouteEdges
 }
 
 func pinnedRouteEngines() []pinnedRouteEngine {
@@ -72,13 +71,11 @@ func pinnedRouteEngines() []pinnedRouteEngine {
 			layout: func(ctx context.Context, g *d2graph.Graph) error {
 				return d2talalayout.Layout(ctx, g, &d2talalayout.Options{Seeds: []int64{seed}, MaxConcurrency: 1})
 			},
-			router: d2talalayout.RouteEdges,
 		})
 	}
 	engines = append(engines, pinnedRouteEngine{
 		name:   "tala default",
 		layout: d2talalayout.DefaultLayout,
-		router: d2talalayout.RouteEdges,
 	})
 	return engines
 }
@@ -95,50 +92,59 @@ func TestPinnedRoutesClear(t *testing.T) {
 		t.Fatal(err)
 	}
 	sources := pinnedRouteSources(t)
+	modes := []string{d2target.NestedEdgeRoutingAroundShapes, d2target.NestedEdgeRoutingStraight}
 	for _, engine := range pinnedRouteEngines() {
-		for name, source := range sources {
-			t.Run(engine.name+"/"+name, func(t *testing.T) {
-				layoutName := strings.Fields(engine.name)[0]
-				ctx := d2log.With(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)))
-				opts := &d2lib.CompileOptions{
-					Ruler:  ruler,
-					Layout: &layoutName,
-					LayoutResolver: func(string) (d2graph.LayoutGraph, error) {
-						return engine.layout, nil
-					},
-				}
-				if engine.router != nil {
-					opts.RouterResolver = func(string) (d2graph.RouteEdges, error) { return engine.router, nil }
-				}
-				diagram, g, err := d2lib.Compile(ctx, source, opts, &d2svg.RenderOpts{})
-				if err != nil {
-					t.Fatal(err)
-				}
-				for _, e := range allEdges(g) {
-					if !e.HasPort() || e.Src == e.Dst {
-						continue
-					}
-					if err := e.PortsHonored(); err != nil {
-						t.Error(err)
-					}
-					if err := e.RouteClear(); err != nil {
-						t.Error(err)
-					}
-					if !e.IsCurve {
-						if err := routeOrthogonal(e); err != nil {
-							t.Error(err)
-						}
-					}
-				}
-				for _, board := range allBoards(diagram) {
-					if _, err := d2svg.Render(board, &d2svg.RenderOpts{}); err != nil {
-						t.Errorf("svg: %v", err)
-					}
-					if _, err := d2scenebuild.Build(ctx, sceneBoard(board), d2scenebuild.Options{}); err != nil {
-						t.Errorf("scene: %v", err)
-					}
-				}
-			})
+		for _, mode := range modes {
+			for name, source := range sources {
+				t.Run(engine.name+"/"+mode+"/"+name, func(t *testing.T) {
+					checkPinnedRoutes(t, ruler, engine, mode, source)
+				})
+			}
+		}
+	}
+}
+
+// checkPinnedRoutes compiles source with engine, drawing the connections
+// that cross nested-layout boundaries and run between grid cells as mode
+// says, the way the CLI does, and checks its pinned connections.
+func checkPinnedRoutes(t *testing.T, ruler *textmeasure.Ruler, engine pinnedRouteEngine, mode, source string) {
+	t.Helper()
+	layoutName := strings.Fields(engine.name)[0]
+	ctx := d2log.With(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	opts := &d2lib.CompileOptions{
+		Ruler:  ruler,
+		Layout: &layoutName,
+		LayoutResolver: func(string) (d2graph.LayoutGraph, error) {
+			return engine.layout, nil
+		},
+		NestedEdgeRouting: &mode,
+	}
+	diagram, g, err := d2lib.Compile(ctx, source, opts, &d2svg.RenderOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range allEdges(g) {
+		if !e.HasPort() || e.Src == e.Dst {
+			continue
+		}
+		if err := e.PortsHonored(); err != nil {
+			t.Error(err)
+		}
+		if err := e.RouteClear(); err != nil {
+			t.Error(err)
+		}
+		if !e.IsCurve {
+			if err := routeOrthogonal(e); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+	for _, board := range allBoards(diagram) {
+		if _, err := d2svg.Render(board, &d2svg.RenderOpts{}); err != nil {
+			t.Errorf("svg: %v", err)
+		}
+		if _, err := d2scenebuild.Build(ctx, sceneBoard(board), d2scenebuild.Options{}); err != nil {
+			t.Errorf("scene: %v", err)
 		}
 	}
 }

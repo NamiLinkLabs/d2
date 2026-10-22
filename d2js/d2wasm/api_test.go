@@ -249,9 +249,18 @@ func assertSingleWASMWarning(t *testing.T, warnings []string, want string) {
 
 func compileForTest(t *testing.T, options string) (CompileResponse, *WASMError) {
 	t.Helper()
+	return compileSourceForTest(t, "a -> b\nb -> c\na -> c\n", options)
+}
+
+func compileSourceForTest(t *testing.T, source, options string) (CompileResponse, *WASMError) {
+	t.Helper()
+	fs, err := json.Marshal(map[string]string{"index": source})
+	if err != nil {
+		t.Fatal(err)
+	}
 	call := wrapWASMCall(Compile)
 	defer call.Release()
-	got := call.Invoke(`{"fs":{"index":"a -> b\nb -> c\na -> c\n"},"options":` + options + `}`).String()
+	got := call.Invoke(`{"fs":` + string(fs) + `,"options":` + options + `}`).String()
 	var response struct {
 		Data  *CompileResponse `json:"data"`
 		Error *WASMError       `json:"error"`
@@ -311,26 +320,63 @@ func TestCompileLayoutOptions(t *testing.T) {
 	}
 }
 
-func compileSourceForTest(t *testing.T, source, options string) (CompileResponse, *WASMError) {
-	t.Helper()
-	call := wrapWASMCall(Compile)
-	defer call.Release()
-	fs, err := json.Marshal(map[string]string{"index": source})
-	if err != nil {
-		t.Fatal(err)
+func TestCompileNestedEdgeRouting(t *testing.T) {
+	// From d2lang/d2#1994: the connection from the near shape used to be a
+	// straight line through the shapes between.
+	const source = `a; b
+legend: {near: top-right}
+target
+* -> target
+`
+	route := func(r CompileResponse) int {
+		for _, c := range r.Diagram.Connections {
+			if c.Src == "legend" {
+				return len(c.Route)
+			}
+		}
+		t.Fatalf("no connection from legend in %v", r.Diagram.Connections)
+		return 0
 	}
-	got := call.Invoke(`{"fs":` + string(fs) + `,"options":` + options + `}`).String()
-	var response struct {
-		Data  *CompileResponse `json:"data"`
-		Error *WASMError       `json:"error"`
+	for _, layout := range []string{"dagre", "elk", "tala"} {
+		routed, werr := compileSourceForTest(t, source, `{"layout":"`+layout+`"}`)
+		if werr != nil {
+			t.Fatalf("%s: %v", layout, werr.Message)
+		}
+		if n := route(routed); n <= 2 {
+			t.Errorf("%s: route from the near shape has %d points, want it routed around the shapes", layout, n)
+		}
+		straight, werr := compileSourceForTest(t, source, `{"layout":"`+layout+`","nestedEdgeRouting":"straight"}`)
+		if werr != nil {
+			t.Fatalf("%s straight: %v", layout, werr.Message)
+		}
+		if n := route(straight); n != 2 {
+			t.Errorf("%s straight: route from the near shape has %d points, want 2", layout, n)
+		}
 	}
-	if err := json.Unmarshal([]byte(got), &response); err != nil {
-		t.Fatalf("invalid response: %v", err)
+	if _, werr := compileSourceForTest(t, source, `{"nestedEdgeRouting":"curved"}`); werr == nil || werr.Code != 400 {
+		t.Fatalf("an unknown nestedEdgeRouting should be rejected, got %v", werr)
 	}
-	if response.Error != nil {
-		return CompileResponse{}, response.Error
+
+	// The diagram can pin it, as in the CLI, and the option overrides that.
+	pinned := "vars: {d2-config: {nested-edge-routing: straight}}\n" + source
+	r, werr := compileSourceForTest(t, pinned, `{"layout":"elk"}`)
+	if werr != nil {
+		t.Fatal(werr.Message)
 	}
-	return *response.Data, nil
+	if n := route(r); n != 2 {
+		t.Errorf("nested-edge-routing: straight: route from the near shape has %d points, want 2", n)
+	}
+	r, werr = compileSourceForTest(t, pinned, `{"layout":"elk","nestedEdgeRouting":"around-shapes"}`)
+	if werr != nil {
+		t.Fatal(werr.Message)
+	}
+	if n := route(r); n <= 2 {
+		t.Errorf("nestedEdgeRouting over the diagram's straight: route from the near shape has %d points", n)
+	}
+	_, werr = compileSourceForTest(t, "vars: {d2-config: {nested-edge-routing: curved}}\nx\n", `{}`)
+	if werr == nil || !strings.Contains(werr.Message, `"range":"index,0:19:19-0:38:38"`) || !strings.Contains(werr.Message, "nested-edge-routing") {
+		t.Fatalf("invalid diagram nested-edge-routing = %v, want a compile error at the key", werr)
+	}
 }
 
 func shapeByID(t *testing.T, r CompileResponse, id string) d2target.Shape {

@@ -47,19 +47,37 @@ const (
 var BorderOffset = geo.NewVector(5, 5)
 
 type Config struct {
-	Sketch             *bool           `json:"sketch"`
-	Isometric          *bool           `json:"isometric,omitempty"`
-	ThemeID            *int64          `json:"themeID"`
-	DarkThemeID        *int64          `json:"darkThemeID"`
-	Pad                *int64          `json:"pad"`
-	Center             *bool           `json:"center"`
-	IntersectionGaps   *bool           `json:"intersectionGaps,omitempty"`
+	Sketch           *bool  `json:"sketch"`
+	Isometric        *bool  `json:"isometric,omitempty"`
+	ThemeID          *int64 `json:"themeID"`
+	DarkThemeID      *int64 `json:"darkThemeID"`
+	Pad              *int64 `json:"pad"`
+	Center           *bool  `json:"center"`
+	IntersectionGaps *bool  `json:"intersectionGaps,omitempty"`
+	// NestedEdgeRouting is vars.d2-config.nested-edge-routing: how to draw the
+	// connections that cross into or out of a grid, a constant near or a
+	// sequence diagram, and those between grid cells. It is one of the
+	// NestedEdgeRouting constants.
+	NestedEdgeRouting  *string         `json:"nestedEdgeRouting,omitempty"`
 	LayoutEngine       *string         `json:"layoutEngine"`
 	ThemeOverrides     *ThemeOverrides `json:"themeOverrides,omitempty"`
 	DarkThemeOverrides *ThemeOverrides `json:"darkThemeOverrides,omitempty"`
 	// Data is a data structure for holding user-defined data
 	// useful for layout engines that allow users to configure within source code
 	Data map[string]interface{} `json:"data,omitempty"`
+}
+
+const (
+	// NestedEdgeRoutingAroundShapes routes the connections the layout engine
+	// does not route around the other shapes. It is the default.
+	NestedEdgeRoutingAroundShapes = "around-shapes"
+	// NestedEdgeRoutingStraight draws them as straight lines.
+	NestedEdgeRoutingStraight = "straight"
+)
+
+// ValidNestedEdgeRouting reports whether s is a NestedEdgeRouting value.
+func ValidNestedEdgeRouting(s string) bool {
+	return s == NestedEdgeRoutingAroundShapes || s == NestedEdgeRoutingStraight
 }
 
 type ThemeOverrides struct {
