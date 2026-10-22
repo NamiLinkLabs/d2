@@ -167,6 +167,38 @@ scenarios: {
 			t.Fatalf("%s: layout calls = %d, want 2", change, calls)
 		}
 	}
+
+	labelPadding := `a -> b: hello
+scenarios: {
+  roomy: {
+    (a -> b)[0].label.padding: 20
+  }
+}`
+	optimized, calls := compileForLayoutReuseTest(t, labelPadding, true)
+	if calls != 2 {
+		t.Fatalf("label-padding layout calls = %d, want 2", calls)
+	}
+	baseline, _ := compileForLayoutReuseTest(t, labelPadding, false)
+	assertExactDiagramAndSVG(t, optimized, baseline)
+	if got := optimized.Scenarios[0].Connections[0].LabelPadding; got != 20 {
+		t.Fatalf("scenario label padding = %d, want 20", got)
+	}
+
+	// A container's box is the same before layout, but its padding depends
+	// on the explicit icon size.
+	iconSize := `g: {
+  icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg
+  a -> b
+}
+scenarios: {
+  changed: {
+    g.icon.width: 120
+  }
+}`
+	_, calls = compileForLayoutReuseTest(t, iconSize, true)
+	if calls != 2 {
+		t.Fatalf("icon-size layout calls = %d, want 2", calls)
+	}
 }
 
 func TestCompileLayoutReuseRequiresExplicitStableResolver(t *testing.T) {

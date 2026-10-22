@@ -513,7 +513,7 @@ func (b *meshBuilder) edges(edges []d2isometric.Edge, placer *routeCaptionPlacer
 				b.addSurfaceLink(edge.Link, edge.Tooltip, surface)
 			}
 			if hasIcon {
-				shape := d2target.Shape{ID: edge.ID, Text: edge.Metadata.Original.Text, Icon: edge.Metadata.Original.Icon, IconPosition: edge.Metadata.Original.IconPosition}
+				shape := d2target.Shape{ID: edge.ID, Text: edge.Metadata.Original.Text, Icon: edge.Metadata.Original.Icon, IconPosition: edge.Metadata.Original.IconPosition, IconWidth: edge.Metadata.Original.IconWidth, IconHeight: edge.Metadata.Original.IconHeight}
 				surface = b.shapeIcon(shape, surface, edge.Opacity, "edge", edge.Metadata.Original.IconBorderRadius)
 			}
 			b.label(caption.text, surface, caption.style, caption.ink, edge.Opacity, "edge")

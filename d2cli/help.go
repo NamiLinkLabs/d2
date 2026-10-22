@@ -20,6 +20,7 @@ Usage:
   %[1]s fmt file.d2 ...
   %[1]s play [--theme=0] [--sketch] file.d2
   %[1]s validate file.d2
+  %[1]s extract image.svg [file.d2 | directory | -]
 
 %[1]s compiles and renders file.d2 to file.svg | file.png | file.pdf | file.pptx | file.gif | file.txt
 It defaults to file.svg if an output path is not provided.
@@ -39,6 +40,10 @@ Use --target to select a board, or --target='' for the root without its subboard
 
 Use - to have d2 read from stdin or write to stdout.
 
+--embed-source stores the D2 source, the files it imports and the render flags in SVG and PNG
+exports. Such an image is valid input: d2 image.svg out.pdf renders its source again, and
+d2 extract image.svg prints it. The embedded text includes comments and any boards the image does not show.
+
 PNG exports support up to 32768 pixels per dimension, subject to rendering resource limits.
 
 See man d2 for more detailed docs.
@@ -53,6 +58,7 @@ Subcommands:
   %[1]s fmt file.d2 ... - Format passed files
 	%[1]s play file.d2 - Opens the file in playground, an online web viewer (https://play.d2lang.com)
   %[1]s validate file.d2  - Validates file.d2
+  %[1]s extract image.svg [file.d2 | directory | -] - Writes the D2 source embedded in an image exported with --embed-source (default: stdout)
 
 See more docs and the source code at https://github.com/d2lang/d2.
 Hosted icons at https://icons.d2lang.com.

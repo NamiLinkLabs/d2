@@ -11,6 +11,8 @@ type SerializedLabel struct {
 // SerializedIcon is the fixture representation of icon placement.
 type SerializedIcon struct {
 	Position string
+	Width    float64 `json:",omitempty"`
+	Height   float64 `json:",omitempty"`
 }
 
 // SerializedPoint is the fixed JSON representation of a geometric point.

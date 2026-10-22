@@ -7,6 +7,9 @@ include changes to the main d2 project.**
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
 - Support `source-port` / `target-port` connection pins: compiled connections carry `srcPort` / `dstPort` (`"top" | "right" | "bottom" | "left"`), `routeEdges` keeps rerouted connections on their pinned sides, and completions suggest the sides
+- Add `labelPadding` to connections in the diagram, from D2's new `label.padding`
+- Add the `embedSource` compile option, which embeds the D2 source in rendered SVGs, and `D2.extractSource()` / `D2.embedSource()` to read it back from SVG and PNG images or add it to other images
+- Add `iconWidth` and `iconHeight` to compiled shapes and connections that set `icon.width` or `icon.height`
 
 ## [0.1.34]
 ### September 7, 2026

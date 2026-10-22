@@ -98,6 +98,12 @@ func markdownShapeLabelTopLeft(targetShape d2target.Shape) *geo.Point {
 	return position.GetPointOnBox(box, label.PADDING, float64(targetShape.LabelWidth), float64(targetShape.LabelHeight))
 }
 
+// hasMarkdownBackground reports whether buildMarkdownLabel paints background
+// behind Markdown.
+func hasMarkdownBackground(background string) bool {
+	return background != "" && !strings.EqualFold(background, libcolor.None) && !strings.EqualFold(background, "transparent")
+}
+
 func (b *builder) buildMarkdownLabel(
 	object, id, source, fontName string,
 	fontSize, width, height int,
@@ -146,7 +152,7 @@ func (b *builder) buildMarkdownLabel(
 	viewport := d2scene.Box{Width: float64(width), Height: float64(height)}
 	root.Clip = boxClip(viewport)
 
-	if background != "" && !strings.EqualFold(background, libcolor.None) && !strings.EqualFold(background, "transparent") {
+	if hasMarkdownBackground(background) {
 		fill, err := b.paint(background, object+" Markdown background")
 		if err != nil {
 			return nil, err

@@ -3599,6 +3599,135 @@ obj {
 			},
 		},
 		{
+			name: "icon-width-height",
+			text: `x: {
+	icon: https://asdf.com
+	icon.width: 24
+	icon.height: 16
+}
+y: {
+	icon: https://asdf.com {
+		near: border-top-left
+		width: 48
+		height: 32
+	}
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				w, h := g.Objects[0].IconSize()
+				tassert.Equal(t, 24, w)
+				tassert.Equal(t, 16, h)
+				tassert.Equal(t, "24", g.Objects[0].Attributes.IconWidth.Value)
+				w, h = g.Objects[1].IconSize()
+				tassert.Equal(t, 48, w)
+				tassert.Equal(t, 32, h)
+				tassert.Equal(t, "border-top-left", g.Objects[1].Attributes.IconPosition.Value)
+			},
+		},
+		{
+			name: "icon-width-square",
+			text: `x: {icon: https://asdf.com; icon.width: 40}
+y: {icon: https://asdf.com; icon.height: 20}
+z: {icon: https://asdf.com}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				w, h := g.Objects[0].IconSize()
+				tassert.Equal(t, 40, w)
+				tassert.Equal(t, 40, h)
+				w, h = g.Objects[1].IconSize()
+				tassert.Equal(t, 20, w)
+				tassert.Equal(t, 20, h)
+				w, h = g.Objects[2].IconSize()
+				tassert.Equal(t, 0, w)
+				tassert.Equal(t, 0, h)
+				rw, rh := g.Objects[2].IconReservedSize()
+				tassert.Equal(t, float64(d2target.MAX_ICON_SIZE), rw)
+				tassert.Equal(t, float64(d2target.MAX_ICON_SIZE), rh)
+			},
+		},
+		{
+			name: "icon-width-null",
+			text: `x: {icon: https://asdf.com; icon.width: 40; icon.height: 30}
+x.icon.width: null
+x.icon.height: null
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[0].Attributes.IconWidth)
+				tassert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[0].Attributes.IconHeight)
+			},
+		},
+		{
+			name: "icon-width-glob-class",
+			text: `classes: {
+	big-icon: {icon.width: 96}
+}
+x: {
+	*.icon.width: 20
+	a: {icon: https://asdf.com}
+	c
+	img: {shape: image; icon: https://asdf.com; width: 50; height: 40}
+}
+b: {icon: https://asdf.com; class: big-icon}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				a, _ := g.Root.HasChild([]string{"x", "a"})
+				b, _ := g.Root.HasChild([]string{"b"})
+				c, _ := g.Root.HasChild([]string{"x", "c"})
+				img, _ := g.Root.HasChild([]string{"x", "img"})
+				w, _ := a.IconSize()
+				tassert.Equal(t, 20, w)
+				w, _ = b.IconSize()
+				tassert.Equal(t, 96, w)
+				// no icon, so no icon size
+				w, _ = c.IconSize()
+				tassert.Equal(t, 0, w)
+				// the icon of an image is the shape itself
+				w, _ = img.IconSize()
+				tassert.Equal(t, 0, w)
+			},
+		},
+		{
+			name: "icon-width-edge",
+			text: `a -> b: {icon: https://asdf.com; icon.width: 24}
+a -> b
+(a -> b)[1].icon: https://asdf.com {width: 32; height: 16}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				w, h := g.Edges[0].ExplicitIconSize()
+				tassert.Equal(t, 24, w)
+				tassert.Equal(t, 24, h)
+				w, h = g.Edges[1].ExplicitIconSize()
+				tassert.Equal(t, 32, w)
+				tassert.Equal(t, 16, h)
+			},
+		},
+		{
+			name: "errors/icon-width-invalid",
+			text: `a: {icon: https://asdf.com; icon.width: 0}
+b: {icon: https://asdf.com; icon.height: -4}
+c: {icon: https://asdf.com; icon.width: abc}
+d: {icon: https://asdf.com; icon.width: 12.5}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:1:41: icon.width must be a positive integer: "0"
+d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:2:42: icon.height must be a positive integer: "-4"
+d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:3:41: icon.width must be a positive integer: "abc"
+d2/testdata/d2compiler/TestCompile/errors/icon-width-invalid.d2:4:41: icon.width must be a positive integer: "12.5"`,
+		},
+		{
+			name: "errors/icon-width-composite",
+			text: `a: {icon: https://asdf.com; icon.width: {a: b}}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/errors/icon-width-composite.d2:1:29: icon.width must be a positive integer`,
+		},
+		{
+			name: "errors/icon-shape",
+			text: `a: {icon: https://asdf.com; icon.shape: circle}
+b: {label.width: 20}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/errors/icon-shape.d2:1:29: unexpected field shape
+d2/testdata/d2compiler/TestCompile/errors/icon-shape.d2:2:5: unexpected field width`,
+		},
+		{
 			name: "tooltip-near-parent",
 			text: `hey: sushi {
 	tooltip.near: top-left
@@ -3665,6 +3794,124 @@ obj {
 }
 `,
 			expErr: `d2/testdata/d2compiler/TestCompile/label-near-invalid-field.d2:4:3: unexpected field a`,
+		},
+		{
+			name: "edge-label-padding",
+			text: `a -> b: hi {label.padding: 8}
+c -> d: {
+  label: there {
+    padding: 0
+    near: outside-top-center
+  }
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, "8", g.Edges[0].LabelPadding.Value)
+				tassert.Equal(t, 8, g.Edges[0].LabelPaddingPx())
+				tassert.Equal(t, "0", g.Edges[1].LabelPadding.Value)
+				tassert.Equal(t, 0, g.Edges[1].LabelPaddingPx())
+				tassert.Equal(t, "outside-top-center", g.Edges[1].Attributes.LabelPosition.Value)
+			},
+		},
+		{
+			name: "label-padding-object-names",
+			text: `padding: {label-padding}
+padding -> padding.label-padding: hi {label.padding: 4}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 2, len(g.Objects))
+				tassert.Equal(t, "padding", g.Objects[0].ID)
+				tassert.Equal(t, "label-padding", g.Objects[1].ID)
+				tassert.Equal(t, 4, g.Edges[0].LabelPaddingPx())
+			},
+		},
+		{
+			name: "edge-label-padding-glob",
+			text: `(** -> **)[*].label.padding: 6
+a -> b: hi
+c: {
+  d -> e: there
+}
+x
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 2, len(g.Edges))
+				for _, e := range g.Edges {
+					tassert.Equal(t, 6, e.LabelPaddingPx())
+				}
+				for _, obj := range g.Objects {
+					tassert.Nil(t, obj.LabelPadding)
+				}
+			},
+		},
+		{
+			name: "edge-label-padding-class",
+			text: `classes: {
+  roomy: {label.padding: 12}
+}
+a -> b: hi {class: roomy}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 12, g.Edges[0].LabelPaddingPx())
+			},
+		},
+		{
+			name: "edge-label-padding-null",
+			text: `a -> b: hi {label.padding: 6}
+c -> d: there {
+  label.padding: 6
+  label.padding: null
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 6, g.Edges[0].LabelPaddingPx())
+				tassert.Nil(t, g.Edges[1].LabelPadding)
+				tassert.Equal(t, 0, g.Edges[1].LabelPaddingPx())
+			},
+		},
+		{
+			name: "edge-label-padding-negative",
+			text: `a -> b: hi {label.padding: -1}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-negative.d2:1:28: expected "label.padding" to be an integer between 0 and 100`,
+		},
+		{
+			name: "edge-label-padding-non-integer",
+			text: `a -> b: hi {label.padding: abc}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-non-integer.d2:1:28: expected "label.padding" to be an integer between 0 and 100`,
+		},
+		{
+			name: "edge-label-padding-too-large",
+			text: `a -> b: hi {label.padding: 101}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-too-large.d2:1:28: expected "label.padding" to be an integer between 0 and 100`,
+		},
+		{
+			name: "edge-label-padding-composite",
+			text: `a -> b: hi {label.padding: {x: 1}}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-composite.d2:1:19: "label.padding" must be set to a value`,
+		},
+		{
+			name: "shape-label-padding",
+			text: `x: hi {label.padding: 4}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/shape-label-padding.d2:1:8: "label.padding" can only be used on connections`,
+		},
+		{
+			name: "arrowhead-label-padding",
+			text: `a -> b: {
+  target-arrowhead.label: 1 {padding: 4}
+}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/arrowhead-label-padding.d2:2:30: "label.padding" cannot be used on arrowhead labels`,
+		},
+		{
+			name: "icon-padding",
+			text: `x: {icon: https://icons.terrastruct.com/essentials/004-picture.svg {padding: 4}}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/icon-padding.d2:1:69: unexpected field padding`,
 		},
 		{
 			name: "grid",

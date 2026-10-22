@@ -723,7 +723,11 @@ func copyIconRecord(source *Icon) *Icon {
 	if source == nil {
 		return nil
 	}
-	return &Icon{Position: label.FromString(source.Position.String())}
+	return &Icon{
+		Position: label.FromString(source.Position.String()),
+		Width:    source.Width,
+		Height:   source.Height,
+	}
 }
 
 func copyEdgeStyle(source EdgeStyle) EdgeStyle {

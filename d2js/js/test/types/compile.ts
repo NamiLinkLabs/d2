@@ -3,6 +3,8 @@ import {
   type CompileOptions,
   type CompileRequest,
   type CompileResponse,
+  type EmbeddedSource,
+  type ExtractedSource,
   type RenderOptions,
 } from "../../index.js";
 
@@ -29,6 +31,11 @@ for (const layout of ["dagre", "elk", "tala"] as const) {
 }
 
 configured.then((response) => {
+  const shapeIconWidth: number | undefined = response.diagram.shapes[0].iconWidth;
+  const shapeIconHeight: number | undefined = response.diagram.shapes[0].iconHeight;
+  const connectionIconWidth: number | undefined = response.diagram.connections[0].iconWidth;
+  const connectionIconHeight: number | undefined = response.diagram.connections[0].iconHeight;
+  void [shapeIconWidth, shapeIconHeight, connectionIconWidth, connectionIconHeight];
   const renderOptions: RenderOptions = response.renderOptions;
   d2.render(response.diagram, renderOptions);
   d2.render(response.diagram, { ...renderOptions, isometric: false });
@@ -47,3 +54,18 @@ d2.compile(source, { layout: "unknown" });
 d2.compile({ inputPath: "index" });
 // @ts-expect-error Layout options belong in input.options, not the request root.
 d2.compile({ fs: { index: source }, layout: "tala" });
+
+const embedded: Promise<CompileResponse> = d2.compile(source, { embedSource: true });
+embedded.then(async (result) => {
+  const svg: string = await d2.render(result.diagram, result.renderOptions);
+  const extracted: ExtractedSource | null = await d2.extractSource(svg);
+  if (extracted) {
+    const again: CompileResponse = await d2.compile(extracted);
+    const sourceOfImage: EmbeddedSource = extracted.source;
+    const pngOut: Uint8Array = await d2.embedSource(new Uint8Array(), sourceOfImage);
+    const svgOut: string = await d2.embedSource(svg, sourceOfImage);
+    void again;
+    void pngOut;
+    void svgOut;
+  }
+});

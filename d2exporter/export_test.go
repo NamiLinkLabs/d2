@@ -86,6 +86,29 @@ y: {shape: square}
 			},
 		},
 		{
+			name: "icon_size",
+
+			dsl: `a: {icon: https://icons.terrastruct.com/essentials/004-picture.svg; icon.width: 48}
+b: {icon: https://icons.terrastruct.com/essentials/004-picture.svg {near: border-top-left; width: 40; height: 24}}
+c: {icon: https://icons.terrastruct.com/essentials/004-picture.svg}
+img: {shape: image; icon: https://icons.terrastruct.com/essentials/004-picture.svg; icon.width: 48}
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				byID := map[string]d2target.Shape{}
+				for _, s := range d.Shapes {
+					byID[s.ID] = s
+				}
+				tassert.Equal(t, 48, byID["a"].IconWidth)
+				tassert.Equal(t, 48, byID["a"].IconHeight)
+				tassert.Equal(t, 40, byID["b"].IconWidth)
+				tassert.Equal(t, 24, byID["b"].IconHeight)
+				tassert.Equal(t, "BORDER_TOP_LEFT", byID["b"].IconPosition)
+				tassert.Equal(t, 0, byID["c"].IconWidth)
+				// the icon of an image is the shape itself
+				tassert.Equal(t, 0, byID["img"].IconWidth)
+			},
+		},
+		{
 			name: "sequence_group_position",
 
 			dsl: `hey {
@@ -113,6 +136,18 @@ func testConnection(t *testing.T) {
 			name: "basic",
 			dsl: `x -> y
 `,
+		},
+		{
+			name: "icon_size",
+			dsl: `x -> y: {icon: https://icons.terrastruct.com/essentials/004-picture.svg; icon.width: 48; icon.height: 24}
+x -> y: {icon: https://icons.terrastruct.com/essentials/004-picture.svg}
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				tassert.Equal(t, 48, d.Connections[0].IconWidth)
+				tassert.Equal(t, 24, d.Connections[0].IconHeight)
+				tassert.Equal(t, 0, d.Connections[1].IconWidth)
+				tassert.Equal(t, 0, d.Connections[1].IconHeight)
+			},
 		},
 		{
 			name: "stroke-dash",
@@ -366,4 +401,44 @@ func compile(ctx context.Context, d2 string) (*d2target.Diagram, error) {
 	}
 	d, _, e := d2lib.Compile(ctx, d2, opts, nil)
 	return d, e
+}
+
+// TestExportLabelPadding checks that layouts get the padded label box while
+// the diagram keeps the text size and the padding apart.
+func TestExportLabelPadding(t *testing.T) {
+	t.Parallel()
+	ctx := log.With(context.Background(), testlog.New(t))
+
+	g, _, err := d2compiler.Compile("", strings.NewReader(`a -> b: hello {label.padding: 9}
+c -> d: hello
+e -> f: "" {label.padding: 9}
+`), nil)
+	assert.Success(t, err)
+	ruler, err := textmeasure.NewRuler()
+	assert.Success(t, err)
+	assert.Success(t, g.SetDimensions(nil, ruler, nil, nil))
+	text := g.Edges[1].LabelDimensions
+	tassert.Equal(t, text.Width+18, g.Edges[0].LabelDimensions.Width)
+	tassert.Equal(t, text.Height+18, g.Edges[0].LabelDimensions.Height)
+	// SetDimensions measures the text again rather than growing the box twice.
+	assert.Success(t, g.SetDimensions(nil, ruler, nil, nil))
+	tassert.Equal(t, text.Width+18, g.Edges[0].LabelDimensions.Width)
+	tassert.Equal(t, text, g.Edges[1].LabelDimensions)
+	tassert.Equal(t, 0, g.Edges[2].LabelDimensions.Width)
+
+	graphInfo := d2layouts.NestedGraphInfo(g.Root)
+	assert.Success(t, d2layouts.LayoutNested(ctx, g, graphInfo, d2dagrelayout.DefaultLayout, d2layouts.DefaultRouter))
+	d, err := d2exporter.Export(ctx, g, nil, nil)
+	assert.Success(t, err)
+
+	padded, plain, empty := d.Connections[0], d.Connections[1], d.Connections[2]
+	tassert.Equal(t, 9, padded.LabelPadding)
+	tassert.Equal(t, text.Width, padded.LabelWidth)
+	tassert.Equal(t, text.Height, padded.LabelHeight)
+	tassert.Equal(t, 0, plain.LabelPadding)
+	tassert.Equal(t, text.Width, plain.LabelWidth)
+	tassert.Equal(t, 0, empty.LabelPadding)
+	box := padded.LabelBox()
+	tassert.Equal(t, float64(text.Width+18), box.Width)
+	tassert.Equal(t, float64(text.Height+18), box.Height)
 }

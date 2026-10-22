@@ -231,10 +231,10 @@ func nativeStructuredIconSurface(n d2isometric.Node, y float64) labelSurface {
 	// Keep its native placement: narrow SQL headers have no spare inside lane
 	// in which to move an outside icon without covering their source label.
 	box := geo.NewBox(geo.NewPoint(0, 0), float64(s.Width), float64(s.Height))
-	size := float64(d2target.GetIconSize(box, s.IconPosition))
-	p := position.GetPointOnBox(box, label.PADDING, size, size)
+	iconBox := d2target.IconBox(box, box, s.IconPosition, s.IconWidth, s.IconHeight)
+	p := iconBox.TopLeft
 	sx, sz := n.Size.X/float64(s.Width), n.Size.Z/float64(s.Height)
-	return labelSurface{center: nv(n.Position.X-n.Size.X/2+(p.X+size/2)*sx, y, n.Position.Z-n.Size.Z/2+(p.Y+size/2)*sz), width: size * sx, depth: size * sz}
+	return labelSurface{center: nv(n.Position.X-n.Size.X/2+(p.X+iconBox.Width/2)*sx, y, n.Position.Z-n.Size.Z/2+(p.Y+iconBox.Height/2)*sz), width: iconBox.Width * sx, depth: iconBox.Height * sz}
 }
 
 func (b *meshBuilder) structuredRail(n d2isometric.Node, z, depth, bottom, top float64, fill string) {

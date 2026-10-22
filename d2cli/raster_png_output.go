@@ -28,7 +28,10 @@ func pngFrameOptions() d2raster.FrameOptions {
 	return options
 }
 
-func renderPNGToWriter(ctx context.Context, inputPath string, cacheImages bool, diagram *d2target.Diagram, opts d2svg.RenderOpts, encoder *rasterPNGEncoder, output io.Writer) error {
+// renderPNGToWriter streams the PNG of diagram to output. textChunks are
+// complete PNG chunks, such as an embedded source, written before the image
+// data.
+func renderPNGToWriter(ctx context.Context, inputPath string, cacheImages bool, diagram *d2target.Diagram, opts d2svg.RenderOpts, encoder *rasterPNGEncoder, textChunks []byte, output io.Writer) error {
 	document, err := buildScene(ctx, inputPath, cacheImages, diagram, opts)
 	if err != nil {
 		return err
@@ -38,10 +41,14 @@ func renderPNGToWriter(ctx context.Context, inputPath string, cacheImages bool, 
 		encoder = &localEncoder
 		defer localEncoder.close()
 	}
-	return encodePNGBands(ctx, output, document, &encoder.bands)
+	return encodePNGBandsWithChunks(ctx, output, document, &encoder.bands, textChunks)
 }
 
 func encodePNGBands(ctx context.Context, output io.Writer, document *d2scene.Document, encoder *rasterPNGBandEncoder) error {
+	return encodePNGBandsWithChunks(ctx, output, document, encoder, nil)
+}
+
+func encodePNGBandsWithChunks(ctx context.Context, output io.Writer, document *d2scene.Document, encoder *rasterPNGBandEncoder, textChunks []byte) error {
 	options := pngFrameOptions()
 	started := false
 	defer encoder.close()
@@ -51,6 +58,9 @@ func encodePNGBands(ctx context.Context, output io.Writer, document *d2scene.Doc
 			// before this callback. Its opaque background guarantees RGB output.
 			height := int(math.Ceil(document.LogicalHeight * options.Scale))
 			if err := encoder.start(ctx, output, band.Bounds().Dx(), height, true); err != nil {
+				return err
+			}
+			if err := encoder.writeChunks(textChunks); err != nil {
 				return err
 			}
 			started = true
