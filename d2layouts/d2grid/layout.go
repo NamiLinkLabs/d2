@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/d2lang/d2/d2graph"
-	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
 	"github.com/d2lang/util-go/go2"
@@ -97,7 +96,8 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 			// . ├────┤───────├────┤
 			// .  icon  label  icon
 			// with an icon in top left we need 2x the space to fit the label in the center
-			iconSize := float64(d2target.MAX_ICON_SIZE) + 2*label.PADDING
+			iconWidth, _ := obj.IconReservedSize()
+			iconSize := iconWidth + 2*label.PADDING
 			padding.Left = math.Max(padding.Left, iconSize)
 			padding.Right = math.Max(padding.Right, iconSize)
 			minWidth := 2*iconSize + float64(obj.LabelDimensions.Width) + 2*label.PADDING

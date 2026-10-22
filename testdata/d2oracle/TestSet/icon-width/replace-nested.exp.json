@@ -1,0 +1,230 @@
+{
+  "graph": {
+    "name": "",
+    "isFolderOnly": false,
+    "ast": {
+      "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:0:0-1:0:55",
+      "nodes": [
+        {
+          "map_key": {
+            "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:0:0-0:54:54",
+            "key": {
+              "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:0:0-0:1:1",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:0:0-0:1:1",
+                    "value": [
+                      {
+                        "string": "x",
+                        "raw_string": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "primary": {},
+            "value": {
+              "map": {
+                "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:3:3-0:54:54",
+                "nodes": [
+                  {
+                    "map_key": {
+                      "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:4:4-0:53:53",
+                      "key": {
+                        "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:4:4-0:8:8",
+                        "path": [
+                          {
+                            "unquoted_string": {
+                              "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:4:4-0:8:8",
+                              "value": [
+                                {
+                                  "string": "icon",
+                                  "raw_string": "icon"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "primary": {
+                        "unquoted_string": {
+                          "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:10:10-0:29:29",
+                          "value": [
+                            {
+                              "string": "https://a.com/a.svg",
+                              "raw_string": "https://a.com/a.svg"
+                            }
+                          ]
+                        }
+                      },
+                      "value": {
+                        "map": {
+                          "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:30:30-0:53:53",
+                          "nodes": [
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:31:31-0:40:40",
+                                "key": {
+                                  "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:31:31-0:36:36",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:31:31-0:36:36",
+                                        "value": [
+                                          {
+                                            "string": "width",
+                                            "raw_string": "width"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "number": {
+                                    "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:38:38-0:40:40",
+                                    "raw": "32",
+                                    "value": "32"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "map_key": {
+                                "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:42:42-0:52:52",
+                                "key": {
+                                  "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:42:42-0:48:48",
+                                  "path": [
+                                    {
+                                      "unquoted_string": {
+                                        "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:42:42-0:48:48",
+                                        "value": [
+                                          {
+                                            "string": "height",
+                                            "raw_string": "height"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "primary": {},
+                                "value": {
+                                  "number": {
+                                    "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:50:50-0:52:52",
+                                    "raw": "24",
+                                    "value": "24"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "root": {
+      "id": "",
+      "id_val": "",
+      "attributes": {
+        "label": {
+          "value": ""
+        },
+        "labelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "style": {},
+        "iconStyle": {},
+        "near_key": null,
+        "shape": {
+          "value": ""
+        },
+        "direction": {
+          "value": ""
+        },
+        "constraint": null
+      },
+      "zIndex": 0
+    },
+    "edges": null,
+    "objects": [
+      {
+        "id": "x",
+        "id_val": "x",
+        "references": [
+          {
+            "key": {
+              "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:0:0-0:1:1",
+              "path": [
+                {
+                  "unquoted_string": {
+                    "range": "d2/testdata/d2oracle/TestSet/icon-width/replace-nested.d2,0:0:0-0:1:1",
+                    "value": [
+                      {
+                        "string": "x",
+                        "raw_string": "x"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "key_path_index": 0,
+            "map_key_edge_index": -1
+          }
+        ],
+        "attributes": {
+          "label": {
+            "value": "x"
+          },
+          "labelDimensions": {
+            "width": 0,
+            "height": 0
+          },
+          "style": {},
+          "icon": {
+            "Scheme": "https",
+            "Opaque": "",
+            "User": null,
+            "Host": "a.com",
+            "Path": "/a.svg",
+            "Fragment": "",
+            "RawQuery": "",
+            "RawPath": "",
+            "RawFragment": "",
+            "ForceQuery": false,
+            "OmitHost": false
+          },
+          "iconStyle": {},
+          "near_key": null,
+          "shape": {
+            "value": "rectangle"
+          },
+          "direction": {
+            "value": ""
+          },
+          "constraint": null,
+          "iconWidth": {
+            "value": "32"
+          },
+          "iconHeight": {
+            "value": "24"
+          }
+        },
+        "zIndex": 0
+      }
+    ]
+  },
+  "err": "<nil>"
+}

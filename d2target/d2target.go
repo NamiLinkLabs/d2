@@ -499,20 +499,11 @@ func (diagram Diagram) BoundingBox() (topLeft, bottomRight Point) {
 			x2 = go2.Max(x2, targetShape.Pos.X+MULTIPLE_OFFSET+targetShape.Width+targetShape.StrokeWidth)
 		}
 
-		if targetShape.Icon != nil && label.FromString(targetShape.IconPosition).IsOutside() {
-			contentBox := geo.NewBox(geo.NewPoint(0, 0), float64(targetShape.Width), float64(targetShape.Height))
-			s := shape.NewShape(targetShape.Type, contentBox)
-			size := GetIconSize(s.GetInnerBox(), targetShape.IconPosition)
-
-			if strings.HasPrefix(targetShape.IconPosition, "OUTSIDE_TOP") {
-				y1 = go2.Min(y1, targetShape.Pos.Y-label.PADDING-size)
-			} else if strings.HasPrefix(targetShape.IconPosition, "OUTSIDE_BOTTOM") {
-				y2 = go2.Max(y2, targetShape.Pos.Y+targetShape.Height+label.PADDING+size)
-			} else if strings.HasPrefix(targetShape.IconPosition, "OUTSIDE_LEFT") {
-				x1 = go2.Min(x1, targetShape.Pos.X-label.PADDING-size)
-			} else if strings.HasPrefix(targetShape.IconPosition, "OUTSIDE_RIGHT") {
-				x2 = go2.Max(x2, targetShape.Pos.X+targetShape.Width+label.PADDING+size)
-			}
+		if iconBox := targetShape.GetIconBox(); iconBox != nil {
+			x1 = go2.Min(x1, int(math.Floor(iconBox.TopLeft.X)))
+			y1 = go2.Min(y1, int(math.Floor(iconBox.TopLeft.Y)))
+			x2 = go2.Max(x2, int(math.Ceil(iconBox.TopLeft.X+iconBox.Width)))
+			y2 = go2.Max(y2, int(math.Ceil(iconBox.TopLeft.Y+iconBox.Height)))
 		}
 
 		if targetShape.Label != "" {
@@ -555,6 +546,15 @@ func (diagram Diagram) BoundingBox() (topLeft, bottomRight Point) {
 			y2 = go2.Max(y2, int(math.Ceil(point.Y))+int(math.Ceil(float64(connection.StrokeWidth)/2.)))
 		}
 
+		if connection.Icon != nil {
+			if iconTL := connection.GetIconPosition(); iconTL != nil {
+				iconWidth, iconHeight := connection.IconSize()
+				x1 = go2.Min(x1, int(math.Floor(iconTL.X)))
+				y1 = go2.Min(y1, int(math.Floor(iconTL.Y)))
+				x2 = go2.Max(x2, int(math.Ceil(iconTL.X+iconWidth)))
+				y2 = go2.Max(y2, int(math.Ceil(iconTL.Y+iconHeight)))
+			}
+		}
 		if connection.Label != "" {
 			labelTL := connection.GetLabelTopLeft()
 			x1 = go2.Min(x1, int(labelTL.X))
@@ -798,6 +798,10 @@ type Shape struct {
 	Icon             *url.URL `json:"icon"`
 	IconBorderRadius int      `json:"iconBorderRadius,omitempty"`
 	IconPosition     string   `json:"iconPosition"`
+	// IconWidth and IconHeight are the explicit icon size (icon.width and
+	// icon.height). 0 means the renderer picks the size, see GetIconSize.
+	IconWidth  int `json:"iconWidth,omitempty"`
+	IconHeight int `json:"iconHeight,omitempty"`
 
 	// Whether the shape should allow shapes behind it to bleed through
 	// Currently just used for sequence diagram groups
@@ -930,8 +934,20 @@ type Connection struct {
 	Icon             *url.URL `json:"icon"`
 	IconPosition     string   `json:"iconPosition,omitempty"`
 	IconBorderRadius float64  `json:"iconBorderRadius,omitempty"`
+	// IconWidth and IconHeight are the explicit icon size (icon.width and
+	// icon.height). 0 means DEFAULT_ICON_SIZE.
+	IconWidth  int `json:"iconWidth,omitempty"`
+	IconHeight int `json:"iconHeight,omitempty"`
 
 	ZIndex int `json:"zIndex"`
+}
+
+// IconSize returns the size of the connection's icon.
+func (c *Connection) IconSize() (width, height float64) {
+	if c.IconWidth > 0 && c.IconHeight > 0 {
+		return float64(c.IconWidth), float64(c.IconHeight)
+	}
+	return DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE
 }
 
 func (c *Connection) GetIconPosition() *geo.Point {
@@ -939,13 +955,14 @@ func (c *Connection) GetIconPosition() *geo.Point {
 		return nil
 	}
 
+	width, height := c.IconSize()
 	if c.Label != "" {
 		labelTL := c.GetLabelTopLeft()
 		if labelTL != nil {
 			// Position icon to the left of the label with a small gap
 			return &geo.Point{
-				X: labelTL.X - CONNECTION_ICON_LABEL_GAP - DEFAULT_ICON_SIZE,
-				Y: labelTL.Y + float64(c.LabelHeight)/2 - DEFAULT_ICON_SIZE/2,
+				X: labelTL.X - CONNECTION_ICON_LABEL_GAP - width,
+				Y: labelTL.Y + float64(c.LabelHeight)/2 - math.Floor(height/2),
 			}
 		}
 	}
@@ -954,8 +971,8 @@ func (c *Connection) GetIconPosition() *geo.Point {
 		c.Route,
 		float64(c.StrokeWidth),
 		-1,
-		float64(DEFAULT_ICON_SIZE),
-		float64(DEFAULT_ICON_SIZE),
+		width,
+		height,
 	)
 	return point
 }
@@ -1377,6 +1394,46 @@ func init() {
 	}
 	// SQUARE_TYPE is defined twice in the map, make sure it doesn't get set to the empty string one
 	SHAPE_TYPE_TO_DSL_SHAPE[shape.SQUARE_TYPE] = ShapeRectangle
+}
+
+// GetIconBox returns the box the shape's icon is drawn in, or nil when the
+// shape draws no icon. Renderers draw the icon in this box.
+func (s Shape) GetIconBox() *geo.Box {
+	if s.Icon == nil || s.Type == ShapeImage {
+		return nil
+	}
+	box := geo.NewBox(
+		geo.NewPoint(float64(s.Pos.X), float64(s.Pos.Y)),
+		float64(s.Width),
+		float64(s.Height),
+	)
+	if s.Type == ShapeSQLTable || s.Type == ShapeClass {
+		// Tables and classes place their icon on their own box.
+		return IconBox(box, box, s.IconPosition, s.IconWidth, s.IconHeight)
+	}
+	geometry := shape.NewShape(DSL_SHAPE_TO_SHAPE_TYPE[s.Type], box)
+	if s.Type == ShapeCloud && s.ContentAspectRatio != nil {
+		geometry.SetInnerBoxAspectRatio(*s.ContentAspectRatio)
+	}
+	return IconBox(geometry.GetBox(), geometry.GetInnerBox(), s.IconPosition, s.IconWidth, s.IconHeight)
+}
+
+// IconBox returns the box an icon is drawn in at position on a shape whose
+// box is box and whose inner box is inner. Outside and border positions are
+// placed on box, the other positions inside inner. width and height are the
+// explicit icon size; when they are 0 the size comes from GetIconSize.
+func IconBox(box, inner *geo.Box, position string, width, height int) *geo.Box {
+	iconPosition := label.FromString(position)
+	b := inner
+	if iconPosition.IsOutside() || iconPosition.IsBorder() {
+		b = box
+	}
+	if width <= 0 || height <= 0 {
+		size := GetIconSize(b, position)
+		width, height = size, size
+	}
+	tl := iconPosition.GetPointOnBox(b, label.PADDING, float64(width), float64(height))
+	return geo.NewBox(tl, float64(width), float64(height))
 }
 
 func GetIconSize(box *geo.Box, position string) int {

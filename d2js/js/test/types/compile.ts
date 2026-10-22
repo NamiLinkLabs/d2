@@ -31,6 +31,11 @@ for (const layout of ["dagre", "elk", "tala"] as const) {
 }
 
 configured.then((response) => {
+  const shapeIconWidth: number | undefined = response.diagram.shapes[0].iconWidth;
+  const shapeIconHeight: number | undefined = response.diagram.shapes[0].iconHeight;
+  const connectionIconWidth: number | undefined = response.diagram.connections[0].iconWidth;
+  const connectionIconHeight: number | undefined = response.diagram.connections[0].iconHeight;
+  void [shapeIconWidth, shapeIconHeight, connectionIconWidth, connectionIconHeight];
   const renderOptions: RenderOptions = response.renderOptions;
   d2.render(response.diagram, renderOptions);
   d2.render(response.diagram, { ...renderOptions, isometric: false });

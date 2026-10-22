@@ -1126,3 +1126,32 @@ func TestGraphCopyPreservesUnsetTreeSentinelReference(t *testing.T) {
 		t.Fatalf("copy changed public unset edge IDs: %d, %d", copiedTree.SentinelEdge.ID, copy.Edges[1].ID)
 	}
 }
+
+func TestGraphJSONPreservesExplicitIconSize(t *testing.T) {
+	graph := layoutgraph.NewGraph()
+	sized := graph.AddNode(layoutgraph.NewNode(1, 100, 100))
+	sized.Icon = &layoutgraph.Icon{Position: label.BorderTopLeft, Width: 48, Height: 24}
+	auto := graph.AddNode(layoutgraph.NewNode(2, 100, 100))
+	auto.InitIcon()
+
+	data, err := Marshal(t.Context(), graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(`"Width":48`)) || bytes.Count(data, []byte(`"Width":`)) != 1 {
+		t.Fatalf("graph JSON icon size: %s", data)
+	}
+	var roundTrip layoutgraph.Graph
+	if err := Unmarshal(t.Context(), data, &roundTrip); err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range roundTrip.Nodes {
+		want := [2]float64{48, 24}
+		if node.ID == 2 {
+			want = [2]float64{}
+		}
+		if node.Icon == nil || node.Icon.Width != want[0] || node.Icon.Height != want[1] {
+			t.Fatalf("node %d icon %+v, want size %v", node.ID, node.Icon, want)
+		}
+	}
+}
