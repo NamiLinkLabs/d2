@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,7 +46,9 @@ const (
 	DagreRankSep = "dagre-ranksep"
 	DagrePadding = "dagre-padding"
 
-	TALASeeds = "tala-seeds"
+	TALASeeds         = "tala-seeds"
+	TALAQuality       = "tala-quality"
+	TALASeparateEdges = "tala-separate-edges"
 )
 
 // MaxPixels bounds the spacing and padding a diagram can ask for. Larger
@@ -69,6 +72,10 @@ const (
 	ELKAlgorithmID
 	// Int64List is a list of signed 64-bit integers.
 	Int64List
+	// TALAQualityLevel is a TALA quality level: full, balanced or fast.
+	TALAQualityLevel
+	// Bool is true or false.
+	Bool
 )
 
 // Spec describes one key.
@@ -95,7 +102,12 @@ var specs = []Spec{
 	{Key: DagrePadding, Engine: "dagre", Kind: Padding},
 
 	{Key: TALASeeds, Engine: "tala", Kind: Int64List},
+	{Key: TALAQuality, Engine: "tala", Kind: TALAQualityLevel},
+	{Key: TALASeparateEdges, Engine: "tala", Kind: Bool},
 }
+
+// talaQualities are the quality levels d2talalayout accepts.
+var talaQualities = []string{"full", "balanced", "fast"}
 
 // elkAlgorithms are the algorithms elk-go registers, by their short names.
 // ELK also accepts them prefixed with "org.eclipse.elk.".
@@ -177,6 +189,10 @@ func Validate(spec Spec, value any) error {
 		_, err = algorithm(spec.Key, value)
 	case Int64List:
 		_, err = int64List(spec.Key, value)
+	case TALAQualityLevel:
+		_, err = talaQuality(spec.Key, value)
+	case Bool:
+		_, err = boolean(spec.Key, value)
 	}
 	return err
 }
@@ -357,6 +373,30 @@ func algorithm(key string, v any) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("expected one of %s for %q, got %q", strings.Join(elkAlgorithms, ", "), key, describe(v))
+}
+
+func talaQuality(key string, v any) (string, error) {
+	if s, ok := v.(string); ok && slices.Contains(talaQualities, s) {
+		return s, nil
+	}
+	return "", fmt.Errorf("expected one of %s for %q, got %q", strings.Join(talaQualities, ", "), key, describe(v))
+}
+
+// boolean accepts true and false: the strings D2 config data holds, or a Go
+// bool.
+func boolean(key string, v any) (bool, error) {
+	switch v := v.(type) {
+	case bool:
+		return v, nil
+	case string:
+		switch v {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		}
+	}
+	return false, fmt.Errorf("expected true or false for %q, got %q", key, describe(v))
 }
 
 func int64List(key string, v any) ([]int64, error) {

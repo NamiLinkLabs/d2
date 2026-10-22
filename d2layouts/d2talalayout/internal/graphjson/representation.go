@@ -151,6 +151,7 @@ type SerializedGraph struct {
 	CellSize float64
 
 	IsRootHierarchy bool                         `json:"isRootHierarchy,omitempty"`
+	SeparateEdges   bool                         `json:"separateEdges,omitempty"`
 	Containers      map[int64][]int64            `json:"containers"`
 	Hubs            map[int64][]int64            `json:"hubs,omitempty"`
 	Clusters        map[int64]SerializedCluster  `json:"clusters,omitempty"`

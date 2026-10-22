@@ -30,6 +30,10 @@ type GraphRouteOptions struct {
 	RoutesPreviouslyCompleted bool
 	Observer                  SubgraphRouteObserver
 	CompletionObserver        RouteCompletionObserver
+	// SingleFlavor routes each subgraph with one edge ordering instead of
+	// comparing every route-generation flavor. It trades route quality for
+	// speed and stays deterministic.
+	SingleFlavor bool
 }
 
 // RouteGraph runs the complete graph-routing stage. The returned boolean is
@@ -174,7 +178,7 @@ func RouteGraphWithWorkLimit(ctx context.Context, graph *layoutgraph.Graph, opti
 				return err
 			}
 			subgraph.ComputeCellSize()
-			ovg, routeErr := routeEdgesWithResourceGuards(routingCtx, subgraph, nodesInBoundingBox, ovgGuard, maxRouteSearchWorkUnits)
+			ovg, routeErr := routeEdgesWithFlavors(routingCtx, subgraph, nodesInBoundingBox, ovgGuard, maxRouteSearchWorkUnits, options.SingleFlavor)
 			if routeErr != nil {
 				return routeErr
 			}

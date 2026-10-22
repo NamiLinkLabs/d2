@@ -63,6 +63,9 @@ this family that the unmodified engine completes (see the 200/500 rows).
   after another.
 - `tala-1seed`: the same with `Seeds: []int64{1}` (D2:
   `vars: {d2-config: {data: {tala-seeds: [1]}}}`, CLI `--tala-seeds=1`).
+- `tala-separate`, `tala-separate-1seed`: `tala` and `tala-1seed` with
+  `SeparateEdges` (D2: `vars: {d2-config: {data: {tala-separate-edges: true}}}`,
+  CLI `--tala-separate-edges`). Added later; see `SEPARATE-EDGES.md`.
 - `dagre`, `elk`: D2's built-in Go implementations, as in D2.js.
 
 All run through `d2lib.Compile` exactly as D2.js does.
@@ -80,6 +83,11 @@ All run through `d2lib.Compile` exactly as D2.js does.
   than 1°. Curves (dagre) count every maximal run of same-direction turning
   totalling at least 20°, so a quarter arc is 1 bend and an S-curve is 2.
 - **edge length**: total rendered length of all routes, in px.
+- **shared**: total length, in px, along which two different connections'
+  rendered paths lie on top of each other (collinear overlap of horizontal or
+  vertical segments on the same line within 0.5px, summed over every pair of
+  connections; overlaps of at most 1px are ignored). It measures edge
+  bundling; see `SEPARATE-EDGES.md`. Added after this baseline was recorded.
 - **bbox**: `d2target.Diagram.BoundingBox()` (shapes, labels and routes).
 - **empty %**: (bbox area − Σ area of top-level shapes) / bbox area. Top-level
   shapes are root objects, containers included, so space inside containers
@@ -213,6 +221,21 @@ treat crossings/length as indicative only.
 Compared with the D2.js default (3 seeds), the combination is 5.7x faster on
 `arch_060` (6.0 → 1.05 s) and 5.2x on `arch_100` (18.7 → 3.6 s), still far
 from the B1 target: configuration alone is not enough.
+
+## Quality levels
+
+`Options.Quality` / D2.js `tala.quality` / diagram `tala-quality` select
+`full` (default, unchanged), `balanced` or `fast`. Native, GOMAXPROCS=1,
+median of 3, measured back to back against this baseline (details, seed
+robustness and the lever experiments in [QUALITY.md](QUALITY.md)):
+
+| case | `tala` (base) | `balanced` | `fast` | crossings base / balanced / fast |
+|---|---:|---:|---:|---|
+| arch_010 | 237 ms | 116 ms (2.1x) | 36 ms (6.6x) | 0 / 0 / 0 |
+| arch_060 | 6011 ms | 2386 ms (2.5x) | 979 ms (6.1x) | 50 / 60 / 60 |
+| arch_100 | 20250 ms | 7722 ms (2.6x) | 3003 ms (6.7x) | 107 / 108 / 108 |
+
+D2.js (WASM) `arch_060`: 24.9 s default, 9.9 s `balanced`, 4.5 s `fast`.
 
 ## Seeds and concurrency
 

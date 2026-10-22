@@ -50,6 +50,36 @@ func TestCrossings(t *testing.T) {
 	}
 }
 
+func TestSharedLength(t *testing.T) {
+	cases := []struct {
+		name  string
+		conns []d2target.Connection
+		want  float64
+	}{
+		{"horizontal overlap", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 50, 0, 150, 0)}, 50},
+		{"vertical overlap, reversed", []d2target.Connection{conn("a", false, 0, 0, 0, 100), conn("b", false, 0, 150, 0, 40)}, 60},
+		// A trunk out of one port that then branches, as TALA bundles a fan-out.
+		{"trunk", []d2target.Connection{conn("a", false, 0, 0, 0, 50, -100, 50), conn("b", false, 0, 0, 0, 50, 100, 50)}, 50},
+		{"three on one line counts each pair", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 0, 0, 100, 0), conn("c", false, 0, 0, 100, 0)}, 300},
+		{"parallel lines", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 0, 10, 100, 10)}, 0},
+		{"within half a pixel", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 0, 0.4, 100, 0.4)}, 100},
+		{"within half a pixel across a pixel boundary", []d2target.Connection{conn("a", false, 0, 0.9, 100, 0.9), conn("b", false, 0, 1.1, 100, 1.1)}, 100},
+		{"half a pixel apart", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 0, 0.5, 100, 0.5)}, 0},
+		{"touching ends", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 100, 0, 200, 0)}, 0},
+		{"one pixel", []d2target.Connection{conn("a", false, 0, 0, 100, 0), conn("b", false, 99, 0, 200, 0)}, 0},
+		{"crossing", []d2target.Connection{conn("a", false, 0, 50, 100, 50), conn("b", false, 50, 0, 50, 100)}, 0},
+		{"same connection doubles back", []d2target.Connection{conn("a", false, 0, 0, 100, 0, 0, 0)}, 0},
+		{"diagonal", []d2target.Connection{conn("a", false, 0, 0, 100, 100), conn("b", false, 0, 0, 100, 100)}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Measure(&d2target.Diagram{Connections: tc.conns}).SharedLength; math.Abs(got-tc.want) > 1e-9 {
+				t.Fatalf("got shared length %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBendsAndLength(t *testing.T) {
 	cases := []struct {
 		name   string

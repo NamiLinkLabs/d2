@@ -4,6 +4,7 @@ package d2wasm
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"syscall/js"
@@ -317,6 +318,124 @@ func TestCompileLayoutOptions(t *testing.T) {
 	}
 	if _, werr := compileForTest(t, `{"layout":"tala","tala":{"seeds":[7]}}`); werr != nil {
 		t.Fatalf("tala seeds: %v", werr.Message)
+	}
+}
+
+// talaQualitySource lays out differently at the fast and full TALA levels.
+const talaQualitySource = `client -> edge.cdn -> edge.lb
+edge.lb -> svc.api
+edge.lb -> billing.api
+svc.api -> svc.db
+svc.api -> svc.cache
+svc.worker -> svc.db
+billing.api -> billing.db
+billing.api -> svc.api: lookup
+billing.worker -> billing.db
+svc.worker -> billing.api
+svc.db: {shape: cylinder}
+billing.db: {shape: cylinder}
+`
+
+func shapePositions(r CompileResponse) string {
+	positions := make([]string, 0, len(r.Diagram.Shapes))
+	for _, s := range r.Diagram.Shapes {
+		positions = append(positions, fmt.Sprintf("%s@%d,%d", s.ID, s.Pos.X, s.Pos.Y))
+	}
+	return strings.Join(positions, " ")
+}
+
+func TestCompileTALAQuality(t *testing.T) {
+	compile := func(source, options string) string {
+		t.Helper()
+		r, werr := compileSourceForTest(t, source, options)
+		if werr != nil {
+			t.Fatalf("%s: %v", options, werr.Message)
+		}
+		return shapePositions(r)
+	}
+	full := compile(talaQualitySource, `{"layout":"tala"}`)
+	if explicit := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"full"}}`); explicit != full {
+		t.Fatal(`quality "full" differs from the default`)
+	}
+	fast := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"fast"}}`)
+	if fast == full {
+		t.Fatal(`quality "fast" had no effect`)
+	}
+	if again := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"fast"}}`); again != fast {
+		t.Fatal(`quality "fast" is not deterministic`)
+	}
+	if balanced := compile(talaQualitySource, `{"layout":"tala","tala":{"quality":"balanced","seeds":[1]}}`); balanced != fast {
+		// With one seed, balanced runs exactly the fast pipeline.
+		t.Fatal(`quality "balanced" with one seed differs from "fast"`)
+	}
+	// The diagram's tala-quality takes precedence over the compile option.
+	fromData := compile("vars: {d2-config: {data: {tala-quality: fast}}}\n"+talaQualitySource, `{"layout":"tala","tala":{"quality":"full"}}`)
+	if fromData != fast {
+		t.Fatal("diagram tala-quality did not take precedence over tala.quality")
+	}
+
+	for _, options := range []string{
+		`{"layout":"tala","tala":{"quality":"turbo"}}`,
+		`{"layout":"tala","tala":{"quality":""}}`,
+		`{"layout":"tala","tala":{"quality":"FAST"}}`,
+	} {
+		if _, werr := compileSourceForTest(t, talaQualitySource, options); werr == nil || werr.Code != 400 || !strings.Contains(werr.Message, "tala.quality must be one of") {
+			t.Fatalf("%s: error = %v, want a 400 naming tala.quality", options, werr)
+		}
+	}
+	if _, werr := compileSourceForTest(t, talaQualitySource, `{"layout":"tala","tala":{"quality":7}}`); werr == nil {
+		t.Fatal("a non-string quality must be rejected")
+	}
+	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-quality: turbo}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, `"range":"index,0:26:26-0:38:38"`) || !strings.Contains(werr.Message, "expected one of full, balanced, fast for") {
+		t.Fatalf("invalid diagram tala-quality: error = %v", werr)
+	}
+}
+
+// talaFansSource is a fan-out and fan-in that TALA bundles by default.
+const talaFansSource = "lb -> web1\nlb -> web2\nlb -> web3\nweb1 -> db\nweb2 -> db\nweb3 -> db\n"
+
+func connectionRoutes(r CompileResponse) string {
+	routes := make([]string, 0, len(r.Diagram.Connections))
+	for _, c := range r.Diagram.Connections {
+		route := c.ID + ":"
+		for _, p := range c.Route {
+			route += fmt.Sprintf(" %v,%v", p.X, p.Y)
+		}
+		routes = append(routes, route)
+	}
+	return strings.Join(routes, " ")
+}
+
+func TestCompileTALASeparateEdges(t *testing.T) {
+	compile := func(source, options string) string {
+		t.Helper()
+		r, werr := compileSourceForTest(t, source, options)
+		if werr != nil {
+			t.Fatalf("%s: %v", options, werr.Message)
+		}
+		return connectionRoutes(r)
+	}
+	bundled := compile(talaFansSource, `{"layout":"tala"}`)
+	if off := compile(talaFansSource, `{"layout":"tala","tala":{"separateEdges":false}}`); off != bundled {
+		t.Fatal("separateEdges: false differs from the default")
+	}
+	separate := compile(talaFansSource, `{"layout":"tala","tala":{"separateEdges":true}}`)
+	if separate == bundled {
+		t.Fatal("separateEdges: true had no effect")
+	}
+	if again := compile(talaFansSource, `{"layout":"tala","tala":{"separateEdges":true}}`); again != separate {
+		t.Fatal("separateEdges: true is not deterministic")
+	}
+	// The diagram's tala-separate-edges takes precedence over the compile option.
+	fromData := compile("vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+talaFansSource, `{"layout":"tala","tala":{"separateEdges":true}}`)
+	if fromData != compile("vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+talaFansSource, `{"layout":"tala"}`) {
+		t.Fatal("diagram tala-separate-edges did not take precedence over tala.separateEdges")
+	}
+	if _, werr := compileSourceForTest(t, talaFansSource, `{"layout":"tala","tala":{"separateEdges":"yes"}}`); werr == nil || werr.Code != 400 {
+		t.Fatalf("a non-boolean separateEdges: error = %v, want a 400", werr)
+	}
+	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-separate-edges: yes}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, `"range":"index,0:26:26-0:45:45"`) || !strings.Contains(werr.Message, "expected true or false for") {
+		t.Fatalf("invalid diagram tala-separate-edges: error = %v", werr)
 	}
 }
 

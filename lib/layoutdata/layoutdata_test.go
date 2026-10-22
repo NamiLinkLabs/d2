@@ -180,12 +180,41 @@ func TestValidate(t *testing.T) {
 			good = "layered"
 		case Int64List:
 			good = []any{"1"}
+		case TALAQualityLevel:
+			good = "fast"
+		case Bool:
+			good = "true"
 		}
 		if err := Validate(spec, good); err != nil {
 			t.Errorf("Validate(%s, %#v) = %v", spec.Key, good, err)
 		}
 		if err := Validate(spec, map[string]any{}); err == nil {
 			t.Errorf("Validate(%s, map) succeeded", spec.Key)
+		}
+	}
+}
+
+func TestValidateTALAQualityAndSeparateEdges(t *testing.T) {
+	quality, _ := Lookup(TALAQuality)
+	separate, _ := Lookup("TALA-Separate-Edges")
+	for _, q := range []string{"full", "balanced", "fast"} {
+		if err := Validate(quality, q); err != nil {
+			t.Errorf("Validate(tala-quality, %q) = %v", q, err)
+		}
+	}
+	for _, bad := range []any{"turbo", "", "FAST", []any{"fast"}} {
+		if err := Validate(quality, bad); err == nil || !strings.Contains(err.Error(), `for "tala-quality"`) {
+			t.Errorf("Validate(tala-quality, %#v) = %v", bad, err)
+		}
+	}
+	for _, good := range []any{"true", "false", true, false} {
+		if err := Validate(separate, good); err != nil {
+			t.Errorf("Validate(tala-separate-edges, %#v) = %v", good, err)
+		}
+	}
+	for _, bad := range []any{"yes", "1", "", []any{"true"}} {
+		if err := Validate(separate, bad); err == nil || !strings.Contains(err.Error(), `expected true or false for "tala-separate-edges"`) {
+			t.Errorf("Validate(tala-separate-edges, %#v) = %v", bad, err)
 		}
 	}
 }

@@ -15,6 +15,9 @@ import (
 type seedInput struct {
 	graph    *layoutgraph.Graph
 	bindings translation
+	// effort trims the engine pipeline of every seed and of the compound
+	// refinement; the zero value is the full pipeline.
+	effort engine.Effort
 }
 
 // newSeedInput translates a D2 graph into an isolated TALA input. It reads but
@@ -41,6 +44,7 @@ func runSeed(ctx context.Context, input seedInput, seed int64) (*layoutgraph.Gra
 		return nil, err
 	}
 	return engine.Layout(ctx, input.graph, engine.LayoutOptions{
-		Seed: seed,
+		Seed:   seed,
+		Effort: input.effort,
 	})
 }

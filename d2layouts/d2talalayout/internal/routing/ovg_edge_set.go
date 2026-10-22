@@ -4,87 +4,132 @@ import "sort"
 
 // Keeps OVG edges as one set for vertical edges and other set of horizontal ones.
 // Can quickly check for intersections/overlaps
+//
+// Each axis keeps its distinct line coordinates sorted, with the edges on a
+// line stored at the same index. Range scans therefore walk the per-line edge
+// lists directly instead of hashing every visited coordinate.
 type ovgEdgeSet struct {
-	horizontalEdges map[float64][]OVGEdge
-	verticalEdges   map[float64][]OVGEdge
+	// horizontalLists[i] holds the edges on y = horizontals[i], ordered by
+	// minimum X; verticalLists[i] holds the edges on x = verticals[i], ordered
+	// by minimum Y. The parallel span slices keep each edge's extent along its
+	// line so scans read contiguous floats instead of chasing node pointers.
 	horizontals     []float64
+	horizontalLists [][]OVGEdge
+	horizontalSpans [][]ovgSpan
 	verticals       []float64
+	verticalLists   [][]OVGEdge
+	verticalSpans   [][]ovgSpan
 	edges           map[OVGEdge]struct{}
+}
+
+// ovgSpan is an edge's extent along its line: lo is the coordinate the
+// sorted line order uses (the From coordinate when it is the smaller one,
+// otherwise the To coordinate) and hi is the other endpoint's coordinate.
+type ovgSpan struct {
+	lo, hi float64
+}
+
+func edgeSpan(e *OVGEdge, isVertical bool) ovgSpan {
+	if isVertical {
+		if e.From.Y < e.To.Y {
+			return ovgSpan{lo: e.From.Y, hi: e.To.Y}
+		}
+		return ovgSpan{lo: e.To.Y, hi: e.From.Y}
+	}
+	if e.From.X < e.To.X {
+		return ovgSpan{lo: e.From.X, hi: e.To.X}
+	}
+	return ovgSpan{lo: e.To.X, hi: e.From.X}
 }
 
 func newOvgEdgeSet() *ovgEdgeSet {
 	return &ovgEdgeSet{
-		horizontalEdges: make(map[float64][]OVGEdge, 16),
-		verticalEdges:   make(map[float64][]OVGEdge, 16),
 		horizontals:     make([]float64, 0, 16),
+		horizontalLists: make([][]OVGEdge, 0, 16),
+		horizontalSpans: make([][]ovgSpan, 0, 16),
 		verticals:       make([]float64, 0, 16),
+		verticalLists:   make([][]OVGEdge, 0, 16),
+		verticalSpans:   make([][]ovgSpan, 0, 16),
 		edges:           make(map[OVGEdge]struct{}, 16),
 	}
 }
 
-// insertSortedFloat64 inserts a value into a sorted slice while maintaining order
-// Uses binary search to find insertion point - O(log n) instead of O(n log n)
-func (set *ovgEdgeSet) insertSortedFloat64(slice *[]float64, val float64) {
-	i := sort.SearchFloat64s(*slice, val)
-	if i < len(*slice) && (*slice)[i] == val {
-		return // Already exists
+// lineIndex returns the index of coordinate in the sorted line coordinates and
+// whether that line exists. It matches float64 map-key equality for the finite
+// coordinates routing uses (including -0 == +0).
+func lineIndex(coordinates []float64, coordinate float64) (int, bool) {
+	i := sort.SearchFloat64s(coordinates, coordinate)
+	return i, i < len(coordinates) && coordinates[i] == coordinate
+}
+
+// horizontalEdgesAt returns the edges on the horizontal line y.
+func (set *ovgEdgeSet) horizontalEdgesAt(y float64) []OVGEdge {
+	if i, ok := lineIndex(set.horizontals, y); ok {
+		return set.horizontalLists[i]
 	}
-	*slice = append(*slice, 0)
-	copy((*slice)[i+1:], (*slice)[i:])
-	(*slice)[i] = val
+	return nil
+}
+
+// verticalEdgesAt returns the edges on the vertical line x.
+func (set *ovgEdgeSet) verticalEdgesAt(x float64) []OVGEdge {
+	if i, ok := lineIndex(set.verticals, x); ok {
+		return set.verticalLists[i]
+	}
+	return nil
+}
+
+// lineSlot returns the index of coordinate's edge list, inserting an empty
+// line in sorted position when it does not exist yet.
+func lineSlot(coordinates *[]float64, lists *[][]OVGEdge, spans *[][]ovgSpan, coordinate float64) int {
+	i, ok := lineIndex(*coordinates, coordinate)
+	if ok {
+		return i
+	}
+	*coordinates = append(*coordinates, 0)
+	copy((*coordinates)[i+1:], (*coordinates)[i:])
+	(*coordinates)[i] = coordinate
+	*lists = append(*lists, nil)
+	copy((*lists)[i+1:], (*lists)[i:])
+	(*lists)[i] = make([]OVGEdge, 0, 16)
+	*spans = append(*spans, nil)
+	copy((*spans)[i+1:], (*spans)[i:])
+	(*spans)[i] = make([]ovgSpan, 0, 16)
+	return i
 }
 
 // insertSortedEdge inserts an edge into a sorted edge slice while maintaining order
 // Edges are sorted by their minimum coordinate (Y for vertical, X for horizontal)
-func (set *ovgEdgeSet) insertSortedEdge(edges *[]OVGEdge, edge OVGEdge, isVertical bool) {
-	getMinCoord := func(e OVGEdge) float64 {
-		if isVertical {
-			if e.From.Y < e.To.Y {
-				return e.From.Y
-			}
-			return e.To.Y
-		} else {
-			if e.From.X < e.To.X {
-				return e.From.X
-			}
-			return e.To.X
-		}
-	}
-
-	edgeMinCoord := getMinCoord(edge)
+func (set *ovgEdgeSet) insertSortedEdge(edges *[]OVGEdge, spans *[]ovgSpan, edge OVGEdge, isVertical bool) {
+	span := edgeSpan(&edge, isVertical)
 
 	// Binary search for insertion point
-	i := sort.Search(len(*edges), func(j int) bool {
-		return getMinCoord((*edges)[j]) >= edgeMinCoord
+	i := sort.Search(len(*spans), func(j int) bool {
+		return (*spans)[j].lo >= span.lo
 	})
 
 	*edges = append(*edges, OVGEdge{})
 	copy((*edges)[i+1:], (*edges)[i:])
 	(*edges)[i] = edge
+	*spans = append(*spans, ovgSpan{})
+	copy((*spans)[i+1:], (*spans)[i:])
+	(*spans)[i] = span
 }
 
 func (set *ovgEdgeSet) add(edge *OVGEdge) {
-	if _, exists := set.edges[*edge]; exists {
+	// The set stores geometry only; an OVG edge's creation index is not part of
+	// its identity here.
+	key := OVGEdge{From: edge.From, To: edge.To, Distance: edge.Distance}
+	if _, exists := set.edges[key]; exists {
 		return
 	}
-	set.edges[*edge] = struct{}{}
+	set.edges[key] = struct{}{}
 
 	if edge.isVertical() {
-		if _, exists := set.verticalEdges[edge.From.X]; !exists {
-			set.verticalEdges[edge.From.X] = make([]OVGEdge, 0, 16)
-			set.insertSortedFloat64(&set.verticals, edge.From.X)
-		}
-		edges := set.verticalEdges[edge.From.X]
-		set.insertSortedEdge(&edges, *edge, true)
-		set.verticalEdges[edge.From.X] = edges
+		i := lineSlot(&set.verticals, &set.verticalLists, &set.verticalSpans, edge.From.X)
+		set.insertSortedEdge(&set.verticalLists[i], &set.verticalSpans[i], key, true)
 	} else if edge.isHorizontal() {
-		if _, exists := set.horizontalEdges[edge.From.Y]; !exists {
-			set.horizontalEdges[edge.From.Y] = make([]OVGEdge, 0, 16)
-			set.insertSortedFloat64(&set.horizontals, edge.From.Y)
-		}
-		edges := set.horizontalEdges[edge.From.Y]
-		set.insertSortedEdge(&edges, *edge, false)
-		set.horizontalEdges[edge.From.Y] = edges
+		i := lineSlot(&set.horizontals, &set.horizontalLists, &set.horizontalSpans, edge.From.Y)
+		set.insertSortedEdge(&set.horizontalLists[i], &set.horizontalSpans[i], key, false)
 	}
 }
 
@@ -95,25 +140,35 @@ func (set *ovgEdgeSet) addGuarded(edge *OVGEdge, guard workBudget) error {
 	if err := guard.step(); err != nil {
 		return err
 	}
-	if _, exists := set.edges[*edge]; exists {
+	if _, exists := set.edges[OVGEdge{From: edge.From, To: edge.To, Distance: edge.Distance}]; exists {
 		return nil
 	}
 	if edge.isVertical() {
-		if _, exists := set.verticalEdges[edge.From.X]; !exists {
+		i, exists := lineIndex(set.verticals, edge.From.X)
+		if !exists {
 			if err := guard.add(uint64(len(set.verticals)) + 1); err != nil {
 				return err
 			}
 		}
-		if err := guard.add(uint64(len(set.verticalEdges[edge.From.X])) + 1); err != nil {
+		lineLength := 0
+		if exists {
+			lineLength = len(set.verticalLists[i])
+		}
+		if err := guard.add(uint64(lineLength) + 1); err != nil {
 			return err
 		}
 	} else if edge.isHorizontal() {
-		if _, exists := set.horizontalEdges[edge.From.Y]; !exists {
+		i, exists := lineIndex(set.horizontals, edge.From.Y)
+		if !exists {
 			if err := guard.add(uint64(len(set.horizontals)) + 1); err != nil {
 				return err
 			}
 		}
-		if err := guard.add(uint64(len(set.horizontalEdges[edge.From.Y])) + 1); err != nil {
+		lineLength := 0
+		if exists {
+			lineLength = len(set.horizontalLists[i])
+		}
+		if err := guard.add(uint64(lineLength) + 1); err != nil {
 			return err
 		}
 	}
@@ -126,7 +181,137 @@ func (set *ovgEdgeSet) intersectsWithGuarded(edge *OVGEdge, guard workBudget) (b
 }
 
 func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (bool, error) {
+	if guard == nil {
+		intersects, _ := set.intersectsWithCount(edge)
+		return intersects, nil
+	}
+	if batchesRouteSteps(guard) {
+		// Scan without a budget, then charge exactly the units the stepped
+		// scan would have charged. chargeSkippedRouteWork stops at the same
+		// limit with the same error and used count, and the scan has no side
+		// effects, so the result is identical.
+		intersects, steps := set.intersectsWithCount(edge)
+		if err := chargeSkippedRouteWork(guard, steps); err != nil {
+			return false, err
+		}
+		return intersects, nil
+	}
+	return set.intersectsWithSteps(edge, guard, nil)
+}
+
+// intersectsWithCount is intersectsWithSteps without a budget. It returns the
+// same answer and the number of work units the stepped scan charges for it.
+func (set *ovgEdgeSet) intersectsWithCount(edge *OVGEdge) (bool, int) {
+	steps := 0
+	if edge.isHorizontal() {
+		minX, maxX := edge.From.X, edge.To.X
+		if maxX < minX {
+			minX, maxX = maxX, minX
+		}
+		// check for overlaps
+		if i, ok := lineIndex(set.horizontals, edge.From.Y); ok {
+			list, spans := set.horizontalLists[i], set.horizontalSpans[i]
+			for k := range spans {
+				steps++
+				span := spans[k]
+				if maxX <= span.lo {
+					break
+				}
+				if span.hi <= minX {
+					continue
+				}
+				if !edge.sharePoints(list[k]) {
+					return true, steps
+				}
+			}
+		}
+		y := edge.From.Y
+		start := sort.Search(len(set.verticals), func(i int) bool { return !(set.verticals[i] < minX) })
+		steps += start
+		// check for crossings
+		for lineOffset, lineCoordinate := range set.verticals[start:] {
+			steps++
+			if lineCoordinate < minX {
+				continue
+			}
+			if maxX < lineCoordinate {
+				break
+			}
+			list, spans := set.verticalLists[start+lineOffset], set.verticalSpans[start+lineOffset]
+			for k := range spans {
+				steps++
+				span := spans[k]
+				if y < span.lo {
+					break
+				}
+				if span.hi < y {
+					continue
+				}
+				if !edge.sharePoints(list[k]) {
+					return true, steps
+				}
+			}
+		}
+	} else if edge.isVertical() {
+		minY, maxY := edge.From.Y, edge.To.Y
+		if maxY < minY {
+			minY, maxY = maxY, minY
+		}
+		// check for overlaps
+		if i, ok := lineIndex(set.verticals, edge.From.X); ok {
+			list, spans := set.verticalLists[i], set.verticalSpans[i]
+			for k := range spans {
+				steps++
+				span := spans[k]
+				if maxY <= span.lo {
+					break
+				}
+				if span.hi <= minY {
+					continue
+				}
+				if !edge.sharePoints(list[k]) {
+					return true, steps
+				}
+			}
+		}
+		x := edge.From.X
+		start := sort.Search(len(set.horizontals), func(i int) bool { return !(set.horizontals[i] < minY) })
+		steps += start
+		for lineOffset, lineCoordinate := range set.horizontals[start:] {
+			steps++
+			if lineCoordinate < minY {
+				continue
+			}
+			if maxY < lineCoordinate {
+				break
+			}
+			list, spans := set.horizontalLists[start+lineOffset], set.horizontalSpans[start+lineOffset]
+			for k := range spans {
+				steps++
+				span := spans[k]
+				if x < span.lo {
+					break
+				}
+				if span.hi < x {
+					continue
+				}
+				if !edge.sharePoints(list[k]) {
+					return true, steps
+				}
+			}
+		}
+	}
+	return false, steps
+}
+
+// intersectsWithSteps scans for an overlap or crossing. Each scanned line and
+// edge is one unit of work: charged to guard one at a time when guard is
+// non-nil, and added to *steps when steps is non-nil.
+func (set *ovgEdgeSet) intersectsWithSteps(edge *OVGEdge, guard workBudget, steps *int) (bool, error) {
 	step := func() error {
+		if steps != nil {
+			*steps++
+		}
 		if guard == nil {
 			return nil
 		}
@@ -139,7 +324,7 @@ func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (b
 		}
 
 		// check for overlaps
-		for _, e := range set.horizontalEdges[edge.From.Y] {
+		for _, e := range set.horizontalEdgesAt(edge.From.Y) {
 			if err := step(); err != nil {
 				return false, err
 			}
@@ -168,11 +353,14 @@ func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (b
 		// The axes are sorted. Charge the skipped prefix as before, but begin
 		// geometry checks at the first line that can cross this segment.
 		start := sort.Search(len(set.verticals), func(i int) bool { return !(set.verticals[i] < minX) })
+		if steps != nil {
+			*steps += start
+		}
 		if err := chargeSkippedRouteWork(guard, start); err != nil {
 			return false, err
 		}
 		// check for crossings
-		for _, lineCoordinate := range set.verticals[start:] {
+		for lineOffset, lineCoordinate := range set.verticals[start:] {
 			if err := step(); err != nil {
 				return false, err
 			}
@@ -185,7 +373,7 @@ func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (b
 			if maxX < lineCoordinate {
 				break
 			}
-			for _, e := range set.verticalEdges[lineCoordinate] {
+			for _, e := range set.verticalLists[start+lineOffset] {
 				if err := step(); err != nil {
 					return false, err
 				}
@@ -215,7 +403,7 @@ func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (b
 			minY, maxY = maxY, minY
 		}
 		// check for overlaps
-		for _, e := range set.verticalEdges[edge.From.X] {
+		for _, e := range set.verticalEdgesAt(edge.From.X) {
 			if err := step(); err != nil {
 				return false, err
 			}
@@ -242,10 +430,13 @@ func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (b
 
 		x := edge.From.X
 		start := sort.Search(len(set.horizontals), func(i int) bool { return !(set.horizontals[i] < minY) })
+		if steps != nil {
+			*steps += start
+		}
 		if err := chargeSkippedRouteWork(guard, start); err != nil {
 			return false, err
 		}
-		for _, lineCoordinate := range set.horizontals[start:] {
+		for lineOffset, lineCoordinate := range set.horizontals[start:] {
 			if err := step(); err != nil {
 				return false, err
 			}
@@ -255,7 +446,7 @@ func (set *ovgEdgeSet) intersectsWithChecked(edge *OVGEdge, guard workBudget) (b
 			if maxY < lineCoordinate {
 				break
 			}
-			for _, e := range set.horizontalEdges[lineCoordinate] {
+			for _, e := range set.horizontalLists[start+lineOffset] {
 				if err := step(); err != nil {
 					return false, err
 				}
@@ -291,9 +482,9 @@ func (set *ovgEdgeSet) overlappingEdgesChecked(edge *OVGEdge, guard workBudget) 
 	var overlapping []OVGEdge
 	var maybeOverlap []OVGEdge
 	if edge.isVertical() {
-		maybeOverlap = set.verticalEdges[edge.From.X]
+		maybeOverlap = set.verticalEdgesAt(edge.From.X)
 	} else if edge.isHorizontal() {
-		maybeOverlap = set.horizontalEdges[edge.From.Y]
+		maybeOverlap = set.horizontalEdgesAt(edge.From.Y)
 	}
 
 	for _, e := range maybeOverlap {

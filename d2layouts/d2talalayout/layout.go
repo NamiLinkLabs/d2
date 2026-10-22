@@ -19,13 +19,26 @@ const (
 )
 
 // Options controls deterministic local layout attempts. The zero value uses
-// the package defaults. Seeds stored on the D2 graph take precedence over
-// Seeds. MaxConcurrency bounds simultaneous attempts; zero selects the package
-// default.
+// the package defaults. Diagram data stored on the D2 graph takes precedence
+// over Options: tala-seeds over Seeds, tala-quality over Quality and
+// tala-separate-edges over SeparateEdges. MaxConcurrency bounds simultaneous
+// attempts; zero selects the package default.
 type Options struct {
 	// Seeds selects deterministic attempts. Nil uses the package defaults; an
-	// explicitly empty slice is invalid.
+	// explicitly empty slice is invalid. QualityFast runs only the first seed.
 	Seeds []int64 `json:"tala-seeds"`
+
+	// Quality trades layout quality for speed. Empty selects QualityFull.
+	Quality Quality `json:"tala-quality"`
+
+	// SeparateEdges gives every connection its own route. By default TALA
+	// bundles connections that share an endpoint: they leave or enter it
+	// through one port and share a trunk, tree edges form a bus, and fans
+	// into a cluster of shapes merge. With SeparateEdges, routes avoid
+	// sharing segments and ports with each other. This is a strong
+	// preference, not a guarantee: a crowded side may still force an
+	// overlap. False keeps the default, bundled routes.
+	SeparateEdges bool `json:"tala-separate-edges"`
 
 	// MaxConcurrency bounds simultaneous attempts. Zero uses the package default.
 	MaxConcurrency int `json:"-"`
@@ -34,7 +47,7 @@ type Options struct {
 // DefaultOptions returns an independent copy of the package defaults.
 func DefaultOptions() Options {
 	return Options{
-		Seeds:          []int64{1, 2, 3},
+		Seeds:          defaultSeeds(),
 		MaxConcurrency: defaultSeedConcurrency(),
 	}
 }
@@ -81,10 +94,42 @@ func normalizeSeeds(seeds []int64) ([]int64, error) {
 	return unique, nil
 }
 
-func layoutPlan(graph *d2graph.Graph, opts *Options) ([]int64, int, error) {
+// layoutRequest is the resolved, validated plan of one Layout call.
+type layoutRequest struct {
+	seeds       []int64
+	concurrency int
+	quality     Quality
+	profile     qualityProfile
+	// separateEdges gives every edge its own route.
+	separateEdges bool
+}
+
+// layoutPlan resolves options and diagram data into a layout request. Diagram
+// data takes precedence over options, and options over package defaults, for
+// both the seeds and the quality level. Seeds are validated in full before the
+// quality level keeps only the ones it runs.
+func layoutPlan(graph *d2graph.Graph, opts *Options) (layoutRequest, error) {
 	defaults := DefaultOptions()
 	if opts == nil {
 		opts = &defaults
+	}
+
+	quality := opts.Quality
+	if graph.Data != nil {
+		if raw, ok := layoutdata.Value(graph.Data, layoutdata.TALAQuality); ok {
+			var err error
+			quality, err = qualityFromData(raw)
+			if err != nil {
+				return layoutRequest{}, err
+			}
+		}
+	}
+	profile, err := quality.profile()
+	if err != nil {
+		return layoutRequest{}, err
+	}
+	if quality == "" {
+		quality = QualityFull
 	}
 
 	seeds := opts.Seeds
@@ -94,28 +139,33 @@ func layoutPlan(graph *d2graph.Graph, opts *Options) ([]int64, int, error) {
 	if graph.Data != nil {
 		dataSeeds, ok, err := layoutdata.Int64s(graph.Data, layoutdata.TALASeeds)
 		if err != nil {
-			return nil, 0, err
+			return layoutRequest{}, err
 		}
 		if ok {
 			seeds = dataSeeds
 		}
 	}
 
-	seeds, err := normalizeSeeds(seeds)
+	seeds, err = normalizeSeeds(seeds)
 	if err != nil {
-		return nil, 0, err
+		return layoutRequest{}, err
 	}
+	seeds = profile.limitSeeds(seeds)
 	concurrency := opts.MaxConcurrency
 	if concurrency == 0 {
 		concurrency = defaults.MaxConcurrency
 	}
 	if concurrency < 0 || concurrency > maxSeeds {
-		return nil, 0, fmt.Errorf("tala MaxConcurrency must be between 1 and %d, or zero for the default", maxSeeds)
+		return layoutRequest{}, fmt.Errorf("tala MaxConcurrency must be between 1 and %d, or zero for the default", maxSeeds)
 	}
 	if concurrency > len(seeds) {
 		concurrency = len(seeds)
 	}
-	return seeds, concurrency, nil
+	separateEdges, err := resolveSeparateEdges(graph, opts)
+	if err != nil {
+		return layoutRequest{}, err
+	}
+	return layoutRequest{seeds: seeds, concurrency: concurrency, quality: quality, profile: profile, separateEdges: separateEdges}, nil
 }
 
 func runLocalSeed(
@@ -228,7 +278,7 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 	if graph == nil || graph.Root == nil {
 		return fmt.Errorf("tala requires a D2 graph with a root object")
 	}
-	seeds, concurrency, err := layoutPlan(graph, opts)
+	request, err := layoutPlan(graph, opts)
 	if err != nil {
 		return err
 	}
@@ -236,6 +286,8 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 	if err != nil {
 		return err
 	}
+	input.effort = request.profile.effort
+	input.graph.SeparateEdges = request.separateEdges
 	// Logging and request metadata commonly wrap Background with values, leaving
 	// Done nil. Give the CPU-heavy engine phase a real cancellation channel so
 	// its hot work guards can poll that channel without repeatedly traversing
@@ -247,14 +299,14 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 	}
 	defer cancelWork()
 	pins := newAbsolutePins(input.graph)
-	best, err := layoutSeedInput(workCtx, input, seeds, concurrency)
+	best, err := layoutSeedInput(workCtx, input, request.seeds, request.concurrency)
 	if err != nil {
 		return err
 	}
 	// Nested pins use an estimated container padding first. When the selected
 	// layout shows a different padding, one more pass places them exactly.
 	if pins.correct(workCtx, best.graph) {
-		best, err = layoutSeedInput(workCtx, input, seeds, concurrency)
+		best, err = layoutSeedInput(workCtx, input, request.seeds, request.concurrency)
 		if err != nil {
 			return err
 		}
@@ -271,7 +323,7 @@ func layoutSeedInput(workCtx context.Context, input seedInput, seeds []int64, co
 	}
 	ordinary := best
 	best, err = considerSeedCandidate(workCtx, best, func() (seedResult, error) {
-		candidate, err := engine.CompoundCandidate(workCtx, best.graph)
+		candidate, err := engine.CompoundCandidateWithEffort(workCtx, best.graph, input.effort)
 		if err != nil {
 			return seedResult{}, err
 		}

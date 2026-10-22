@@ -330,7 +330,7 @@ func TestAddTreeNodesSharesOccupiedAlignedPort(t *testing.T) {
 				t.Fatalf("aligned tree port lost an owner: %v", canonical.portOwnersByNode)
 			}
 			if !canonical.hasPortDirection(child, geo.Top) {
-				t.Fatalf("aligned child port directions = %v, want to include %v", canonical.portOwnersByNode[child].directions, geo.Top)
+				t.Fatalf("aligned child port directions = %v, want to include %v", canonical.portDirectionsForObstacle(child), geo.Top)
 			}
 			foundCanonical := slices.Contains(ovg.Ports[child], canonical)
 			if !foundCanonical {

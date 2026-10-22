@@ -208,6 +208,21 @@ export interface DagreOptions {
 export interface TALAOptions {
   /** Deterministic layout attempts. `tala-seeds` in the diagram still takes precedence. */
   seeds?: number[];
+  /**
+   * Deterministic speed/quality trade-off [default: 'full'].
+   * 'full' runs every seed with the full pipeline; 'balanced' runs every seed with a reduced pipeline
+   * (shorter placement search, one routing order, no SwapStuff/GapNormalization passes);
+   * 'fast' runs only the first seed with that reduced pipeline (for previews, e.g. while dragging).
+   * `tala-quality` in the diagram (`vars: {d2-config: {data: {tala-quality: fast}}}`) still takes precedence.
+   */
+  quality?: "full" | "balanced" | "fast";
+  /**
+   * Give every connection its own route [default: false]. By default TALA bundles connections
+   * that share an endpoint: they leave or enter it through one port and share a trunk.
+   * Also applies to `routeEdges`. `tala-separate-edges` in the diagram
+   * (`vars: {d2-config: {data: {tala-separate-edges: true}}}`) still takes precedence.
+   */
+  separateEdges?: boolean;
 }
 
 export interface CompileRequest {
@@ -227,7 +242,8 @@ export interface RouteEdgesRequest {
   /**
    * The options the diagram was compiled with. Fonts, theme and sketch change
    * how labels are measured; layout picks the default label positions for
-   * shapes that don't give one.
+   * shapes that don't give one; `tala.separateEdges` keeps the new routes
+   * apart from connections that share an endpoint.
    */
   options?: CompileOptions;
   /** The final box of every shape of the root board, as in diagram.shapes. */

@@ -75,6 +75,12 @@ type BestEffortOptions struct {
 	// by several calls: each call spends from what the previous ones left,
 	// and once it is spent the edges left are not routed.
 	Budget *WorkBudget
+	// TALA, if set, holds the options of the TALA layout the edges belong
+	// to. Of them only SeparateEdges applies, and diagram data under
+	// tala-separate-edges takes precedence, as for Layout. Without it the
+	// edges are bundled and that data is ignored, as layouts other than
+	// TALA ignore it.
+	TALA *Options
 }
 
 // WorkBudget is a budget of routing work shared by RouteEdgesBestEffort
@@ -177,6 +183,10 @@ func (o *BestEffortOptions) withDefaults() BestEffortOptions {
 // against the same graph.
 func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *BestEffortOptions) (unrouted []*d2graph.Edge, err error) {
 	budget := opts.withDefaults()
+	var separate separateEdgesFunc
+	if budget.TALA != nil {
+		separate = talaSeparateEdges(budget.TALA)
+	}
 	if ctx == nil {
 		return nil, fmt.Errorf("TALA edge routing requires a context")
 	}
@@ -248,7 +258,7 @@ func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2grap
 		routeErr := errors.New("routing work budget spent")
 		if ok {
 			telemetry := &routing.SearchTelemetry{}
-			routeErr = routeEdgesWithinBudget(routing.WithSearchTelemetry(ctx, telemetry), g, routable, budget.TogetherWork, attemptWork)
+			routeErr = routeEdgesWithinBudget(routing.WithSearchTelemetry(ctx, telemetry), g, routable, separate, budget.TogetherWork, attemptWork)
 			if budget.Budget != nil {
 				budget.Budget.chargeAttempt(g, telemetry)
 			}
@@ -292,7 +302,7 @@ func RouteEdgesBestEffort(ctx context.Context, g *d2graph.Graph, edges []*d2grap
 		g.Edges = pair
 		spent += pairShapeWork * uint64(len(g.Objects))
 		telemetry := &routing.SearchTelemetry{}
-		routeErr := routeEdgesWithinBudget(routing.WithSearchTelemetry(ctx, telemetry), g, pair, budget.PairWork, attemptWork)
+		routeErr := routeEdgesWithinBudget(routing.WithSearchTelemetry(ctx, telemetry), g, pair, separate, budget.PairWork, attemptWork)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

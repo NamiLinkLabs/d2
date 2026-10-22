@@ -57,7 +57,20 @@ func DefaultRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge)
 // talaRouter is DefaultRouter with the work budget of d2talalayout.RouteEdges,
 // which TALA layouts used before, for routing edges together.
 func talaRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
-	return routeAroundShapes(ctx, g, edges, nil)
+	return TALARouter(nil)(ctx, g, edges)
+}
+
+// TALARouter returns RouterFor("tala") for a TALA layout with opts: of them
+// only SeparateEdges applies, and diagram data under tala-separate-edges takes
+// precedence, as it does for the layout. Nil opts uses the defaults.
+func TALARouter(opts *d2talalayout.Options) d2graph.RouteEdges {
+	talaOpts := d2talalayout.DefaultOptions()
+	if opts != nil {
+		talaOpts = *opts
+	}
+	return func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+		return routeAroundShapes(ctx, g, edges, &d2talalayout.BestEffortOptions{TALA: &talaOpts})
+	}
 }
 
 // routeBestEffort is a seam for tests of the straight fallback.

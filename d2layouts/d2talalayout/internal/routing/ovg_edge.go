@@ -9,6 +9,11 @@ type OVGEdge struct {
 	To   *OVGNode
 
 	Distance float64
+
+	// index is the edge's position in OVG.Edges when OVG.Connect created it
+	// (zero for free-standing edges). Routers use it for dense per-edge state
+	// after checking that OVG.Edges[index] is this edge.
+	index int
 }
 
 func NewOVGEdge(from, to *OVGNode) *OVGEdge {

@@ -2,6 +2,7 @@ package d2cli
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +34,70 @@ func TestTALALayoutOptions(t *testing.T) {
 	graph.Data = map[string]any{"tala-seeds": []int64{7}}
 	if err := layout(t.Context(), graph); err != nil {
 		t.Fatalf("diagram seeds did not override command-line seeds: %v", err)
+	}
+}
+
+func TestTALASeparateEdgesFlag(t *testing.T) {
+	state := layoutOptionsState(t, "--tala-separate-edges")
+	separate, err := LayoutResolver(t.Context(), state)("tala")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundled, err := LayoutResolver(t.Context(), layoutOptionsState(t))("tala")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A fan-out and fan-in, which TALA bundles by default.
+	const fans = "lb -> web1\nlb -> web2\nlb -> web3\nweb1 -> db\nweb2 -> db\nweb3 -> db"
+	if layoutDiagramJSON(t, separate, fans) == layoutDiagramJSON(t, bundled, fans) {
+		t.Fatal("--tala-separate-edges did not change the layout")
+	}
+	off, err := LayoutResolver(t.Context(), layoutOptionsState(t, "--tala-separate-edges=false"))("tala")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if layoutDiagramJSON(t, off, fans) != layoutDiagramJSON(t, bundled, fans) {
+		t.Fatal("--tala-separate-edges=false changed the layout")
+	}
+	// Diagram data takes precedence over the flag.
+	if layoutDiagramJSON(t, separate, "vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+fans) !=
+		layoutDiagramJSON(t, bundled, "vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+fans) {
+		t.Fatal("diagram tala-separate-edges did not override --tala-separate-edges")
+	}
+}
+
+func TestTALARouterResolverUsesSeparateEdgesFlag(t *testing.T) {
+	route := func(args ...string) string {
+		t.Helper()
+		router, err := RouterResolver(t.Context(), layoutOptionsState(t, args...))("tala")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// More connections leave a toward the column on its right than its
+		// right side has ports for, so TALA bundles some by default.
+		graph, _, err := d2compiler.Compile("test.d2", strings.NewReader("a -> b1\na -> b2\na -> b3\na -> b4\na -> b5"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, obj := range graph.Objects {
+			if obj.ID == "a" {
+				obj.Box = geo.NewBox(geo.NewPoint(0, 200), 60, 120)
+				continue
+			}
+			row := float64(obj.ID[1] - '1')
+			obj.Box = geo.NewBox(geo.NewPoint(400, 100*row), 60, 60)
+		}
+		if err := router(t.Context(), graph, graph.Edges); err != nil {
+			t.Fatal(err)
+		}
+		routes := ""
+		for _, edge := range graph.Edges {
+			routes += fmt.Sprint(edge.AbsID(), edge.Route, "\n")
+		}
+		return routes
+	}
+	if route("--tala-separate-edges") == route() {
+		t.Fatal("the TALA router ignored --tala-separate-edges")
 	}
 }
 
@@ -118,9 +183,18 @@ func simpleLayoutGraph() *d2graph.Graph {
 
 func layoutGraphJSON(t *testing.T, layout d2graph.LayoutGraph) string {
 	t.Helper()
-	graph, _, err := d2compiler.Compile("test.d2", strings.NewReader("a -> b\na -> c\nb -> d\nc -> d\nb -> b"), nil)
+	return layoutDiagramJSON(t, layout, "a -> b\na -> c\nb -> d\nc -> d\nb -> b")
+}
+
+func layoutDiagramJSON(t *testing.T, layout d2graph.LayoutGraph, source string) string {
+	t.Helper()
+	graph, config, err := d2compiler.Compile("test.d2", strings.NewReader(source), nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if config != nil {
+		// d2lib hands the diagram's d2-config data to layouts the same way.
+		graph.Data = config.Data
 	}
 	ruler, err := textmeasure.NewRuler()
 	if err != nil {

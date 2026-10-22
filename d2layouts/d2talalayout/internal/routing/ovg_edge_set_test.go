@@ -24,24 +24,24 @@ func TestOvgEdgeSetAdd(t *testing.T) {
 
 	vertical := NewOVGEdge(NewOVGNode(geo.NewPoint(5, 5)), NewOVGNode(geo.NewPoint(5, 15)))
 	set.add(vertical)
-	assert.Equal(t, 1, len(set.verticalEdges))
-	assert.Equal(t, 0, len(set.horizontalEdges))
-	if set.verticalEdges[5][0] != *vertical {
+	assert.Equal(t, 1, len(set.verticalLists))
+	assert.Equal(t, 0, len(set.horizontalLists))
+	if set.verticalEdgesAt(5)[0] != *vertical {
 		t.Fatal("Expected vertical edge to exist in edge set")
 	}
 
 	horizontal := NewOVGEdge(NewOVGNode(geo.NewPoint(5, 5)), NewOVGNode(geo.NewPoint(15, 5)))
 	set.add(horizontal)
-	assert.Equal(t, 1, len(set.horizontalEdges))
-	assert.Equal(t, 1, len(set.verticalEdges))
-	if set.horizontalEdges[5][0] != *horizontal {
+	assert.Equal(t, 1, len(set.horizontalLists))
+	assert.Equal(t, 1, len(set.verticalLists))
+	if set.horizontalEdgesAt(5)[0] != *horizontal {
 		t.Fatal("Expected horizontal edge to exist in edge set")
 	}
 
 	diagonal := NewOVGEdge(NewOVGNode(geo.NewPoint(5, 10)), NewOVGNode(geo.NewPoint(15, 5)))
 	set.add(diagonal)
-	assert.Equal(t, 1, len(set.horizontalEdges))
-	assert.Equal(t, 1, len(set.verticalEdges))
+	assert.Equal(t, 1, len(set.horizontalLists))
+	assert.Equal(t, 1, len(set.verticalLists))
 }
 
 func TestOvgEdgeSetIntersectsWith(t *testing.T) {

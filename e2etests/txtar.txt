@@ -1773,6 +1773,36 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 
 a->b
 
+-- tala-separate-edges --
+# TALA bundles connections that share an endpoint (fans, trees); this asks it
+# to give every connection its own route. dagre and ELK ignore the key.
+vars: {
+  d2-config: {
+    data: {
+      tala-separate-edges: true
+    }
+  }
+}
+
+clients -> lb: https
+lb -> web1
+lb -> web2
+lb -> web3
+web1 -> db
+web2 -> db
+web3 -> db
+db: {shape: cylinder}
+
+org: {
+  ceo -> cto
+  ceo -> cfo
+  ceo -> coo
+  cto -> eng1
+  cto -> eng2
+  cto -> eng3
+}
+web2 -> org.ceo: reports
+
 -- edge-ports --
 # source-port / target-port pin a connection end to a side.
 a -> b: {source-port: right; target-port: left}

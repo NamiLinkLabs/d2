@@ -311,7 +311,35 @@ func (fromGraph *Graph) abductEdges(container *Node, toGraph *Graph) []*EdgeAbdu
 	return containerAbductions
 }
 
+// isDescendantOf walks up from maybeDescendant through containers, cluster
+// vessels and sequence vessels. It is the iterative form of
+// isDescendantOfRecursive, which it falls back to after an implausibly deep
+// walk so that malformed (cyclic) ownership fails exactly as before.
 func (maybeDescendant *Node) isDescendantOf(maybeAncestor *Node) bool {
+	const iterativeDepth = 1 << 16
+	for range iterativeDepth {
+		if maybeAncestor == maybeDescendant {
+			return true
+		}
+		if maybeDescendant == nil {
+			return false
+		}
+		switch {
+		case maybeDescendant.Container != nil:
+			maybeDescendant = maybeDescendant.Container
+		case maybeDescendant.Cluster != nil:
+			maybeDescendant = maybeDescendant.Cluster.Vessel
+		case maybeDescendant.Sequence != nil:
+			maybeDescendant = maybeDescendant.Sequence.Vessel
+		default:
+			// Covers the case of nil ancestor
+			return maybeAncestor == nil
+		}
+	}
+	return maybeDescendant.isDescendantOfRecursive(maybeAncestor)
+}
+
+func (maybeDescendant *Node) isDescendantOfRecursive(maybeAncestor *Node) bool {
 	if maybeAncestor == maybeDescendant {
 		return true
 	}
@@ -319,13 +347,13 @@ func (maybeDescendant *Node) isDescendantOf(maybeAncestor *Node) bool {
 		return false
 	}
 	if maybeDescendant.Container != nil {
-		return maybeDescendant.Container.isDescendantOf(maybeAncestor)
+		return maybeDescendant.Container.isDescendantOfRecursive(maybeAncestor)
 	}
 	if maybeDescendant.Cluster != nil {
-		return maybeDescendant.Cluster.Vessel.isDescendantOf(maybeAncestor)
+		return maybeDescendant.Cluster.Vessel.isDescendantOfRecursive(maybeAncestor)
 	}
 	if maybeDescendant.Sequence != nil {
-		return maybeDescendant.Sequence.Vessel.isDescendantOf(maybeAncestor)
+		return maybeDescendant.Sequence.Vessel.isDescendantOfRecursive(maybeAncestor)
 	}
 	// Covers the case of nil ancestor
 	return maybeAncestor == nil

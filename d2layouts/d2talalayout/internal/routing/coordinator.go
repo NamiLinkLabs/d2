@@ -423,6 +423,31 @@ func routeEdgesWithResourceGuards(
 	ovgGuard *ovgBuildGuard,
 	searchWorkLimit uint64,
 ) (*OVG, error) {
+	return routeEdgesWithFlavors(ctx, g, nearbyNodes, ovgGuard, searchWorkLimit, false)
+}
+
+// graphRouteFlavors returns the route-generation flavors compared for g, in
+// their fixed comparison order. A single flavor keeps ShortestToLongest, the
+// first ordinary flavor, which gave the fewest crossings of the three on the
+// benchmark corpus when used alone.
+func graphRouteFlavors(g *layoutgraph.Graph, single bool) []RouteGenerationFlavor {
+	if g.Nodes[0].Hierarchy != nil {
+		return []RouteGenerationFlavor{TopDownLeftRight}
+	}
+	if single {
+		return []RouteGenerationFlavor{ShortestToLongest}
+	}
+	return []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
+}
+
+func routeEdgesWithFlavors(
+	ctx context.Context,
+	g *layoutgraph.Graph,
+	nearbyNodes []*layoutgraph.Node,
+	ovgGuard *ovgBuildGuard,
+	searchWorkLimit uint64,
+	singleFlavor bool,
+) (*OVG, error) {
 	ovg, err := buildOVGFromGraphWithGuard(g, nearbyNodes, ovgGuard)
 	if err != nil {
 		return ovg, err
@@ -441,6 +466,14 @@ func routeEdgesWithResourceGuards(
 		if tree, has := g.NodeToTree[node]; has {
 			// we don't route the edge from tree root to rootSentinel here since the root may move relative to the rootSentinel
 			if _, is := isTreeEdge[tree.SentinelEdge]; !is {
+				continue
+			}
+			// A tree's edges otherwise leave the parent through one shared
+			// port as a bus; separate edges are routed like any other edge.
+			// The OVG keeps the tree's bus lines and parent-aligned child
+			// ports (addTreeNodes): sharing them is penalized, but they let
+			// a child aligned with its parent get a straight route.
+			if g.SeparateEdges {
 				continue
 			}
 
@@ -480,10 +513,7 @@ func routeEdgesWithResourceGuards(
 	g.TurnCost()
 	g.NonCenterPortCost()
 
-	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
-	if g.Nodes[0].Hierarchy != nil {
-		flavors = []RouteGenerationFlavor{TopDownLeftRight}
-	}
+	flavors := graphRouteFlavors(g, singleFlavor)
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
 		router, err := newOVGEdgeRouterWithWorkLimit(ctx, flavor, ovg, g, existingRoutes, unroutedEdges, searchWorkLimit)
@@ -627,10 +657,7 @@ func routeAdditionalEdgesWithResourceLimits(
 	g.TurnCost()
 	g.NonCenterPortCost()
 
-	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
-	if g.Nodes[0].Hierarchy != nil {
-		flavors = []RouteGenerationFlavor{TopDownLeftRight}
-	}
+	flavors := graphRouteFlavors(g, false)
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
 		router, err := newOVGEdgeRouterWithWorkLimit(ctx, flavor, ovg, g, existingRoutes, edges, searchWorkLimit)
@@ -719,7 +746,8 @@ func routeSentinelEdge(tree *layoutgraph.Tree,
 	for _, n := range nodesFromSourcePortToTargetPort {
 		if n.isPort() {
 			validOwner := false
-			for owner := range n.portOwners() {
+			for _, entry := range n.portOwners() {
+				owner := entry.owner
 				if edge.From.IsDescendantOf(owner) || edge.To.IsDescendantOf(owner) {
 					validOwner = true
 					break
@@ -1228,10 +1256,22 @@ func routeLineChecked(
 	return bestFromPort, bestToPort, bestCost, nil
 }
 
+// separatesEdges reports whether edge belongs to a graph that gives every
+// edge its own route (layoutgraph.Graph.SeparateEdges). Such an edge never
+// shares a segment with another route on purpose; the router may still
+// overlap routes when nothing else is feasible, as sharedRouteCost is a
+// penalty rather than a constraint.
+func separatesEdges(edge *layoutgraph.Edge) bool {
+	return edge != nil && edge.From != nil && edge.From.Graph != nil && edge.From.Graph.SeparateEdges
+}
+
 // return true if gEdge can overlap with the other edges provided
 func edgeCanOverlapEdges(edge *layoutgraph.Edge, otherEdges []*layoutgraph.Edge, sourceClusterNodes, targetClusterNodes map[*layoutgraph.Node]bool) bool {
 	if len(otherEdges) == 0 {
 		return true
+	}
+	if separatesEdges(edge) {
+		return false
 	}
 	if edge.TargetArrowheadLabel != nil || edge.SourceArrowheadLabel != nil {
 		return false

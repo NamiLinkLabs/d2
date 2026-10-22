@@ -98,11 +98,16 @@ func nestedEdgeRoutingOption(ms *xmain.State) (*string, error) {
 }
 
 // RouterResolver selects the edge router for the edges a built-in engine
-// does not route itself.
-func RouterResolver(_ context.Context, _ *xmain.State) func(string) (d2graph.RouteEdges, error) {
+// does not route itself, bound to the same typed TALA options as
+// LayoutResolver.
+func RouterResolver(_ context.Context, ms *xmain.State) func(string) (d2graph.RouteEdges, error) {
+	tala, talaErr := talaRouter(ms)
 	return func(name string) (d2graph.RouteEdges, error) {
 		if !isBuiltinLayout(name) {
 			return nil, layoutNotFound(name)
+		}
+		if strings.EqualFold(name, "tala") {
+			return tala, talaErr
 		}
 		return d2layouts.RouterFor(name), nil
 	}

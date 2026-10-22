@@ -182,28 +182,30 @@ func BenchmarkAmbiguousIdentitySort(b *testing.B) {
 func TestLayoutPlanPrecedence(t *testing.T) {
 	opts := &Options{Seeds: []int64{4, 5}, MaxConcurrency: 1}
 
-	fromData, concurrency, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
+	fromDataPlan, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
 		"tala-seeds": []any{9, 9, 8},
 	}}, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
+	fromData, concurrency := fromDataPlan.seeds, fromDataPlan.concurrency
 	if !slices.Equal(fromData, []int64{9, 8}) || concurrency != 1 {
 		t.Fatalf("data plan = (%v, %d)", fromData, concurrency)
 	}
 
-	fromOpts, _, err := layoutPlan(&d2graph.Graph{}, opts)
+	fromOptsPlan, err := layoutPlan(&d2graph.Graph{}, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(fromOpts, []int64{4, 5}) {
+	if fromOpts := fromOptsPlan.seeds; !slices.Equal(fromOpts, []int64{4, 5}) {
 		t.Fatalf("option seeds = %v", fromOpts)
 	}
 
-	fromDefaults, concurrency, err := layoutPlan(&d2graph.Graph{}, nil)
+	fromDefaultsPlan, err := layoutPlan(&d2graph.Graph{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	fromDefaults, concurrency := fromDefaultsPlan.seeds, fromDefaultsPlan.concurrency
 	if !slices.Equal(fromDefaults, []int64{1, 2, 3}) {
 		t.Fatalf("default seeds = %v", fromDefaults)
 	}
@@ -211,10 +213,11 @@ func TestLayoutPlanPrecedence(t *testing.T) {
 		t.Fatalf("default concurrency = %d", concurrency)
 	}
 
-	fromZeroValue, zeroConcurrency, err := layoutPlan(&d2graph.Graph{}, &Options{})
+	fromZeroValuePlan, err := layoutPlan(&d2graph.Graph{}, &Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	fromZeroValue, zeroConcurrency := fromZeroValuePlan.seeds, fromZeroValuePlan.concurrency
 	if !slices.Equal(fromZeroValue, fromDefaults) || zeroConcurrency != concurrency {
 		t.Fatalf(
 			"zero-value plan = (%v, %d), want defaults (%v, %d)",
@@ -225,17 +228,17 @@ func TestLayoutPlanPrecedence(t *testing.T) {
 		)
 	}
 
-	if _, _, err := layoutPlan(&d2graph.Graph{}, &Options{Seeds: []int64{}}); err == nil || !strings.Contains(err.Error(), "at least one") {
+	if _, err := layoutPlan(&d2graph.Graph{}, &Options{Seeds: []int64{}}); err == nil || !strings.Contains(err.Error(), "at least one") {
 		t.Fatalf("explicit empty seeds error = %v", err)
 	}
 
-	fromZeroWithData, _, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
+	fromZeroWithDataPlan, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
 		"tala-seeds": []any{8, 9},
 	}}, &Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(fromZeroWithData, []int64{8, 9}) {
+	if fromZeroWithData := fromZeroWithDataPlan.seeds; !slices.Equal(fromZeroWithData, []int64{8, 9}) {
 		t.Fatalf("graph data did not override zero-value defaults: %v", fromZeroWithData)
 	}
 }
@@ -306,7 +309,7 @@ func TestLayoutPlanRejectsInvalidInput(t *testing.T) {
 				// D2 field names are case-insensitive.
 				key = "TALA-Seeds"
 			}
-			_, _, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
+			_, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
 				key: tt.raw,
 			}}, &Options{Seeds: []int64{7}})
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
@@ -316,14 +319,14 @@ func TestLayoutPlanRejectsInvalidInput(t *testing.T) {
 	}
 
 	for _, concurrency := range []int{-1, maxSeeds + 1} {
-		_, _, err := layoutPlan(&d2graph.Graph{}, &Options{Seeds: []int64{1}, MaxConcurrency: concurrency})
+		_, err := layoutPlan(&d2graph.Graph{}, &Options{Seeds: []int64{1}, MaxConcurrency: concurrency})
 		if err == nil || !strings.Contains(err.Error(), "MaxConcurrency") {
 			t.Fatalf("MaxConcurrency=%d error = %v", concurrency, err)
 		}
 	}
-	_, concurrency, err := layoutPlan(&d2graph.Graph{}, &Options{Seeds: []int64{1, 2}, MaxConcurrency: maxSeeds})
-	if err != nil || concurrency != 2 {
-		t.Fatalf("clamped concurrency = %d, err = %v", concurrency, err)
+	clamped, err := layoutPlan(&d2graph.Graph{}, &Options{Seeds: []int64{1, 2}, MaxConcurrency: maxSeeds})
+	if err != nil || clamped.concurrency != 2 {
+		t.Fatalf("clamped concurrency = %d, err = %v", clamped.concurrency, err)
 	}
 }
 

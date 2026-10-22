@@ -1,6 +1,9 @@
 package layoutgraph
 
-import "maps"
+import (
+	"maps"
+	"sync"
+)
 
 // LookupEdgeLengthCost reads one entry from the graph-owned placement cache
 // while holding the graph's cost read lock.
@@ -86,4 +89,18 @@ func (snapshot *PlacementCostSnapshot) Restore() {
 	snapshot.graph.crossingCost = snapshot.crossingCost
 	snapshot.graph.turnCost = snapshot.turnCost
 	snapshot.graph.nonCenterPortCost = snapshot.nonCenterPortCost
+}
+
+// EdgeCrossingCache is graph-owned storage for placement's incremental edge
+// crossing count. The graph owns only its lifetime; placementcost owns the
+// contents and validates them against the graph on every use, so clones and
+// rebuilt graphs simply start without state.
+type EdgeCrossingCache struct {
+	Mu    sync.Mutex
+	State any
+}
+
+// EdgeCrossingCache returns the graph's edge-crossing scoring cache.
+func (graph *Graph) EdgeCrossingCache() *EdgeCrossingCache {
+	return &graph.edgeCrossingCache
 }
