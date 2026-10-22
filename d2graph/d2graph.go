@@ -227,6 +227,9 @@ type Attributes struct {
 	IconPosition    *Scalar `json:"iconPosition,omitempty"`
 	TooltipPosition *Scalar `json:"tooltipPosition,omitempty"`
 
+	// LabelPadding is the space, in pixels, kept free around a connection's
+	// label (label.padding). Connections only.
+	LabelPadding *Scalar `json:"labelPadding,omitempty"`
 	// IconWidth and IconHeight are the explicit icon.width and icon.height.
 	// When unset, the icon size is automatic.
 	IconWidth  *Scalar `json:"iconWidth,omitempty"`
@@ -1367,6 +1370,19 @@ func (e *Edge) Text() *d2target.MText {
 	}
 }
 
+// LabelPaddingPx returns the edge's label.padding in pixels, or 0 when unset.
+// The compiler has already checked that the value is an integer in range.
+func (e *Edge) LabelPaddingPx() int {
+	if e.LabelPadding == nil {
+		return 0
+	}
+	p, err := strconv.Atoi(e.LabelPadding.Value)
+	if err != nil || p < 0 {
+		return 0
+	}
+	return p
+}
+
 func (e *Edge) Move(dx, dy float64) {
 	for _, p := range e.Route {
 		p.X += dx
@@ -1799,6 +1815,12 @@ func (g *Graph) SetDimensions(mtexts []*d2target.MText, ruler *textmeasure.Ruler
 		}
 
 		edge.LabelDimensions = *dims
+		// Layouts reserve the label's padded box. The exporter takes the
+		// padding back out, so labelWidth and labelHeight stay the text size.
+		if p := edge.LabelPaddingPx(); p > 0 {
+			edge.LabelDimensions.Width += 2 * p
+			edge.LabelDimensions.Height += 2 * p
+		}
 	}
 	return nil
 }

@@ -3672,6 +3672,124 @@ d2/testdata/d2compiler/TestCompile/errors/icon-shape.d2:2:5: unexpected field wi
 			expErr: `d2/testdata/d2compiler/TestCompile/label-near-invalid-field.d2:4:3: unexpected field a`,
 		},
 		{
+			name: "edge-label-padding",
+			text: `a -> b: hi {label.padding: 8}
+c -> d: {
+  label: there {
+    padding: 0
+    near: outside-top-center
+  }
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, "8", g.Edges[0].LabelPadding.Value)
+				tassert.Equal(t, 8, g.Edges[0].LabelPaddingPx())
+				tassert.Equal(t, "0", g.Edges[1].LabelPadding.Value)
+				tassert.Equal(t, 0, g.Edges[1].LabelPaddingPx())
+				tassert.Equal(t, "outside-top-center", g.Edges[1].Attributes.LabelPosition.Value)
+			},
+		},
+		{
+			name: "label-padding-object-names",
+			text: `padding: {label-padding}
+padding -> padding.label-padding: hi {label.padding: 4}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 2, len(g.Objects))
+				tassert.Equal(t, "padding", g.Objects[0].ID)
+				tassert.Equal(t, "label-padding", g.Objects[1].ID)
+				tassert.Equal(t, 4, g.Edges[0].LabelPaddingPx())
+			},
+		},
+		{
+			name: "edge-label-padding-glob",
+			text: `(** -> **)[*].label.padding: 6
+a -> b: hi
+c: {
+  d -> e: there
+}
+x
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 2, len(g.Edges))
+				for _, e := range g.Edges {
+					tassert.Equal(t, 6, e.LabelPaddingPx())
+				}
+				for _, obj := range g.Objects {
+					tassert.Nil(t, obj.LabelPadding)
+				}
+			},
+		},
+		{
+			name: "edge-label-padding-class",
+			text: `classes: {
+  roomy: {label.padding: 12}
+}
+a -> b: hi {class: roomy}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 12, g.Edges[0].LabelPaddingPx())
+			},
+		},
+		{
+			name: "edge-label-padding-null",
+			text: `a -> b: hi {label.padding: 6}
+c -> d: there {
+  label.padding: 6
+  label.padding: null
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, 6, g.Edges[0].LabelPaddingPx())
+				tassert.Nil(t, g.Edges[1].LabelPadding)
+				tassert.Equal(t, 0, g.Edges[1].LabelPaddingPx())
+			},
+		},
+		{
+			name: "edge-label-padding-negative",
+			text: `a -> b: hi {label.padding: -1}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-negative.d2:1:28: expected "label.padding" to be an integer between 0 and 100`,
+		},
+		{
+			name: "edge-label-padding-non-integer",
+			text: `a -> b: hi {label.padding: abc}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-non-integer.d2:1:28: expected "label.padding" to be an integer between 0 and 100`,
+		},
+		{
+			name: "edge-label-padding-too-large",
+			text: `a -> b: hi {label.padding: 101}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-too-large.d2:1:28: expected "label.padding" to be an integer between 0 and 100`,
+		},
+		{
+			name: "edge-label-padding-composite",
+			text: `a -> b: hi {label.padding: {x: 1}}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/edge-label-padding-composite.d2:1:19: "label.padding" must be set to a value`,
+		},
+		{
+			name: "shape-label-padding",
+			text: `x: hi {label.padding: 4}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/shape-label-padding.d2:1:8: "label.padding" can only be used on connections`,
+		},
+		{
+			name: "arrowhead-label-padding",
+			text: `a -> b: {
+  target-arrowhead.label: 1 {padding: 4}
+}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/arrowhead-label-padding.d2:2:30: "label.padding" cannot be used on arrowhead labels`,
+		},
+		{
+			name: "icon-padding",
+			text: `x: {icon: https://icons.terrastruct.com/essentials/004-picture.svg {padding: 4}}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/icon-padding.d2:1:69: unexpected field padding`,
+		},
+		{
 			name: "grid",
 			text: `hey: {
 	grid-rows: 200

@@ -163,3 +163,68 @@ func TestBuildRejectsInvalidConnectionLabelContracts(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildPaddedConnectionLabel(t *testing.T) {
+	t.Parallel()
+
+	diagram := validDiagram()
+	connection := &diagram.Connections[0]
+	connection.Text = d2target.Text{
+		Label: "line\nlabel", FontSize: 16, FontFamily: "default", Italic: true,
+		LabelWidth: 40, LabelHeight: 40,
+	}
+	connection.LabelPosition = "INSIDE_MIDDLE_CENTER"
+	connection.LabelPadding = 10
+	connection.Fill = "#eeeeee"
+	pad := int64(0)
+	document, err := Build(context.Background(), diagram, Options{Pad: &pad})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The text stays where it is without padding (see
+	// TestBuildConnectionLabelsAndDiagramWideMask); the mask hole and the fill
+	// grow by the padding on every side.
+	node := findSceneNode(t, document.Root, "a-b")
+	hole := findSceneNode(t, node.Children[0].Mask.Root, "a-b:label-mask-hole").Primitive.(d2scene.Rect)
+	if hole.Box != (d2scene.Box{X: 20, Y: -20, Width: 60, Height: 60}) {
+		t.Fatalf("padded label mask hole = %+v", hole.Box)
+	}
+	background := findSceneNode(t, node, "a-b:label-fill").Primitive.(d2scene.Rect)
+	if background.Box != (d2scene.Box{X: 20, Y: -20, Width: 60, Height: 60}) || background.RadiusX != 10 {
+		t.Fatalf("padded label fill = %+v", background)
+	}
+	first := findSceneNode(t, node, "a-b:label:0").Primitive.(d2scene.TextRun)
+	if first.Origin != (d2scene.Point{X: 50, Y: 6}) {
+		t.Fatalf("padded label text origin = %+v, want the unpadded origin", first.Origin)
+	}
+}
+
+func TestBuildPaddedMarkdownConnectionLabelBackground(t *testing.T) {
+	t.Parallel()
+
+	diagram := validDiagram()
+	connection := &diagram.Connections[0]
+	connection.Text = d2target.Text{
+		Label: "**bold**", Language: "markdown", FontSize: 16,
+		LabelWidth: 40, LabelHeight: 20,
+	}
+	connection.LabelPosition = "INSIDE_MIDDLE_CENTER"
+	connection.LabelPadding = 6
+	connection.Fill = "#eeeeee"
+	pad := int64(0)
+	document, err := Build(context.Background(), diagram, Options{Pad: &pad})
+	if err != nil {
+		t.Fatal(err)
+	}
+	background := findSceneNode(t, document.Root, "a-b:markdown-background").Primitive.(d2scene.Rect)
+	if background.Box != (d2scene.Box{X: 24, Y: -6, Width: 52, Height: 32}) {
+		t.Fatalf("padded Markdown background = %+v", background.Box)
+	}
+	if findOptionalSceneNode(document.Root, "a-b:markdown:background") != nil {
+		t.Fatal("padded Markdown label painted its clipped background too")
+	}
+	if diagram.Connections[0].Fill != "#eeeeee" {
+		t.Fatal("scene build mutated the connection's fill")
+	}
+}

@@ -1001,12 +1001,22 @@ func makeLabelMask(labelTL *geo.Point, width, height int, opacity float64) strin
 	return makeLabelMaskWithTransform(labelTL, width, height, opacity, nil)
 }
 
-func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity float64, shapePos *geo.Point) string {
+// makeMaskRect cuts box out of the connections, e.g. a connection's
+// d2target.Connection.LabelMaskBox.
+func makeMaskRect(box *geo.Box, opacity float64) string {
 	fill := "black"
 	if opacity != 1 {
 		fill = fmt.Sprintf("rgba(0,0,0,%.2f)", opacity)
 	}
+	return fmt.Sprintf(`<rect x="%s" y="%s" width="%d" height="%d" fill="%s"></rect>`,
+		svg.FormatFloat(box.TopLeft.X), svg.FormatFloat(box.TopLeft.Y),
+		int(box.Width),
+		int(box.Height),
+		fill,
+	)
+}
 
+func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity float64, shapePos *geo.Point) string {
 	x := labelTL.X - 2
 	y := labelTL.Y
 
@@ -1017,12 +1027,7 @@ func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity f
 		y -= shapePos.Y
 	}
 
-	return fmt.Sprintf(`<rect x="%s" y="%s" width="%d" height="%d" fill="%s"></rect>`,
-		svg.FormatFloat(x), svg.FormatFloat(y),
-		width+4,
-		height,
-		fill,
-	)
+	return makeMaskRect(geo.NewBox(geo.NewPoint(x, y), float64(width+4), float64(height)), opacity)
 }
 
 // border label mask is minimal, intending to only cover the portion of the border that passes through the label
@@ -1147,20 +1152,11 @@ func drawConnection(writer io.Writer, diagramHash, maskID string, connection d2t
 		labelTL.X = math.Round(labelTL.X)
 		labelTL.Y = math.Round(labelTL.Y)
 
-		maskTL := labelTL.Copy()
-		width := connection.LabelWidth
-		height := connection.LabelHeight
-
-		if connection.Icon != nil {
-			width += d2target.CONNECTION_ICON_LABEL_GAP + int(iconWidth)
-			maskTL.X -= d2target.CONNECTION_ICON_LABEL_GAP + iconWidth
-		}
-
+		opacity := 0.75
 		if label.FromString(connection.LabelPosition).IsOnEdge() {
-			labelMask = makeLabelMask(maskTL, width, height, 1)
-		} else {
-			labelMask = makeLabelMask(maskTL, width, height, 0.75)
+			opacity = 1
 		}
+		labelMask = makeMaskRect(connection.LabelMaskBox(labelTL), opacity)
 	} else if connection.Icon != nil {
 		iconPos := connection.GetIconPosition()
 		if iconPos != nil {
@@ -1267,6 +1263,17 @@ func drawConnection(writer io.Writer, diagramHash, maskID string, connection d2t
 			if err != nil {
 				return labelMask, err
 			}
+			background := connection.Fill
+			if connection.LabelPadding > 0 && hasMarkdownBackground(background) {
+				// The background covers the padding too.
+				p := connection.LabelPadding
+				rectEl := d2themes.NewThemableElement("rect", inlineTheme)
+				rectEl.X, rectEl.Y = labelTL.X-float64(p), labelTL.Y-float64(p)
+				rectEl.Width, rectEl.Height = float64(connection.LabelWidth+2*p), float64(connection.LabelHeight+2*p)
+				rectEl.Fill = background
+				fmt.Fprint(writer, rectEl.Render())
+				background = ""
+			}
 			fmt.Fprint(writer, markdown.render(
 				layout,
 				labelTL.X,
@@ -1274,7 +1281,7 @@ func drawConnection(writer io.Writer, diagramHash, maskID string, connection d2t
 				connection.LabelWidth,
 				connection.LabelHeight,
 				connection.GetFontColor(),
-				connection.Fill,
+				background,
 				connection.Link != "",
 				connection.Underline,
 			))
@@ -1339,10 +1346,11 @@ func drawConnection(writer io.Writer, diagramHash, maskID string, connection d2t
 				fontClass += " text-underline"
 			}
 			if connection.Fill != color.Empty {
+				fillBox := connection.LabelFillBox(labelTL)
 				rectEl := d2themes.NewThemableElement("rect", inlineTheme)
 				rectEl.Rx = 10
-				rectEl.X, rectEl.Y = labelTL.X-4, labelTL.Y-3
-				rectEl.Width, rectEl.Height = float64(connection.LabelWidth)+8, float64(connection.LabelHeight)+6
+				rectEl.X, rectEl.Y = fillBox.TopLeft.X, fillBox.TopLeft.Y
+				rectEl.Width, rectEl.Height = fillBox.Width, fillBox.Height
 				rectEl.Fill = connection.Fill
 				fmt.Fprint(writer, rectEl.Render())
 			}
