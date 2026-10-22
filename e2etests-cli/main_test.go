@@ -126,6 +126,50 @@ local.code -> aws.ec2: {
 			},
 		},
 		{
+			name: "intersection-gaps",
+			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
+				const crossing = "grid-columns: 3\na; b; c; d; e; f; g; h; i\nb -> h\nd -> f\n"
+				writeFile(t, dir, "plain.d2", crossing)
+				writeFile(t, dir, "config.d2", "vars: {d2-config: {intersection-gaps: true}}\n"+crossing)
+				svg := func(args ...string) string {
+					t.Helper()
+					assert.Success(t, runTestMainPersist(t, ctx, dir, env, append(args, "out.svg")...))
+					return string(readFile(t, dir, "out.svg"))
+				}
+				png := func(args ...string) []byte {
+					t.Helper()
+					assert.Success(t, runTestMainPersist(t, ctx, dir, env, append(args, "out.png")...))
+					out := readFile(t, dir, "out.png")
+					validatePNG(t, out, 0, 0)
+					return out
+				}
+				if out := svg("plain.d2"); strings.Contains(out, "-gap-") {
+					t.Fatal("gaps by default")
+				}
+				if out := svg("--intersection-gaps", "plain.d2"); !strings.Contains(out, "-gap-0") {
+					t.Fatal("--intersection-gaps left no gap")
+				}
+				if out := svg("config.d2"); !strings.Contains(out, "-gap-0") {
+					t.Fatal("d2-config intersection-gaps left no gap")
+				}
+				if out := svg("--intersection-gaps=false", "config.d2"); strings.Contains(out, "-gap-") {
+					t.Fatal("--intersection-gaps=false didn't override d2-config")
+				}
+				plain := png("plain.d2")
+				gapped := png("--intersection-gaps", "plain.d2")
+				if bytes.Equal(plain, gapped) {
+					t.Fatal("--intersection-gaps didn't change the PNG")
+				}
+				if !bytes.Equal(png("--intersection-gaps=false", "config.d2"), plain) {
+					t.Fatal("--intersection-gaps=false didn't override d2-config in PNG")
+				}
+				env.Setenv("D2_INTERSECTION_GAPS", "1")
+				if !bytes.Equal(png("plain.d2"), gapped) {
+					t.Fatal("D2_INTERSECTION_GAPS didn't leave the same gaps")
+				}
+			},
+		},
+		{
 			name: "layout-extra-args",
 			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
 				writeFile(t, dir, "hello-world.d2", `x -> y`)

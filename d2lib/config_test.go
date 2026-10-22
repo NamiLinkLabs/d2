@@ -142,3 +142,68 @@ func TestDisabledIsometricRendersIdenticallyToDefault(t *testing.T) {
 		})
 	}
 }
+
+func TestIntersectionGapsConfigPrecedence(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		config, option *bool
+		want           bool
+	}{
+		{"default", nil, nil, false},
+		{"source enabled", boolPointer(true), nil, true},
+		{"caller enabled", boolPointer(false), boolPointer(true), true},
+		{"caller disabled", boolPointer(true), boolPointer(false), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			compileOpts := &CompileOptions{}
+			renderOpts := &d2svg.RenderOpts{IntersectionGaps: test.option}
+			applyConfigs(&d2target.Config{IntersectionGaps: test.config}, compileOpts, renderOpts)
+			applyDefaults(compileOpts, renderOpts)
+			if renderOpts.IntersectionGaps == nil || *renderOpts.IntersectionGaps != test.want {
+				t.Fatalf("intersection gaps = %v, want %v", renderOpts.IntersectionGaps, test.want)
+			}
+		})
+	}
+}
+
+func TestIntersectionGapsConfig(t *testing.T) {
+	for _, test := range []struct {
+		name, source string
+		option       *bool
+		want         bool
+	}{
+		{"default", "a -> b", nil, false},
+		{"explicit false", "a -> b", boolPointer(false), false},
+		{"source false", "vars: {d2-config: {intersection-gaps: false}}\na -> b", nil, false},
+		{"source true", "vars: {d2-config: {intersection-gaps: true}}\na -> b", nil, true},
+		{"disable source true", "vars: {d2-config: {intersection-gaps: true}}\na -> b", boolPointer(false), false},
+		{"caller true", "a -> b", boolPointer(true), true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ruler, err := textmeasure.NewRuler()
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := &d2svg.RenderOpts{IntersectionGaps: test.option}
+			diagram, _, err := Compile(context.Background(), test.source, &CompileOptions{
+				Ruler:          ruler,
+				LayoutResolver: func(string) (d2graph.LayoutGraph, error) { return d2dagrelayout.DefaultLayout, nil },
+			}, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if opts.IntersectionGaps == nil || *opts.IntersectionGaps != test.want {
+				t.Fatalf("effective option = %v, want %v", opts.IntersectionGaps, test.want)
+			}
+			// Disabled and absent look the same: keep both out of the diagram's
+			// JSON and hash.
+			if test.want {
+				if diagram.Config.IntersectionGaps == nil || !*diagram.Config.IntersectionGaps {
+					t.Fatal("enabled gaps are missing from the diagram config")
+				}
+			} else if diagram.Config.IntersectionGaps != nil {
+				t.Fatal("disabled gaps leaked into the diagram config")
+			}
+		})
+	}
+}

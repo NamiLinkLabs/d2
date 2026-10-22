@@ -12,6 +12,7 @@ import (
 	"github.com/d2lang/d2/d2renderers/d2fonts"
 	"github.com/d2lang/d2/d2renderers/d2scene"
 	"github.com/d2lang/d2/d2renderers/d2svgimport"
+	"github.com/d2lang/d2/d2renderers/internal/crossgaps"
 	"github.com/d2lang/d2/d2renderers/internal/fontface"
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/d2themes"
@@ -111,6 +112,9 @@ type Options struct {
 	// leave it false and retain typed metadata without static footnotes. Its
 	// work is bounded by LinkBudget.
 	Appendix bool
+	// IntersectionGaps leaves an empty gap in a connection where another one
+	// drawn above it crosses, as d2svg.RenderOpts.IntersectionGaps does.
+	IntersectionGaps bool
 
 	// Assets configures the explicit, bounded I/O phase for image and
 	// icon sources. Build stores only immutable bytes or imported vector scene
@@ -158,6 +162,9 @@ type builder struct {
 	fontGlyphs          int
 	fontFaces           map[d2scene.AssetID]*fontface.ParsedFace
 	codeTokens          codeTokenBudget
+
+	// connectionGaps are the gaps to leave in each diagram connection, by ID.
+	connectionGaps map[string][]crossgaps.Gap
 }
 
 // Build preflights diagram features and returns a fully resolved, network-free
@@ -666,6 +673,9 @@ func (b *builder) buildDocument() (*d2scene.Document, error) {
 		return nil, err
 	}
 	b.connectionMask = connectionMask
+	if err := b.findConnectionGaps(); err != nil {
+		return nil, err
+	}
 
 	objects := make([]diagramObject, 0, len(b.diagram.Shapes)+len(b.diagram.Connections))
 	for i, targetShape := range b.diagram.Shapes {

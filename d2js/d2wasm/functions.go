@@ -300,6 +300,9 @@ func Compile(args []js.Value) (interface{}, error) {
 	if input.Opts != nil && input.Opts.Center != nil {
 		renderOpts.Center = input.Opts.Center
 	}
+	if input.Opts != nil && input.Opts.IntersectionGaps != nil {
+		renderOpts.IntersectionGaps = input.Opts.IntersectionGaps
+	}
 	if input.Opts != nil && input.Opts.ThemeID != nil {
 		renderOpts.ThemeID = input.Opts.ThemeID
 	}
@@ -346,6 +349,7 @@ func Compile(args []js.Value) (interface{}, error) {
 			Isometric:          renderOpts.Isometric,
 			Pad:                renderOpts.Pad,
 			Center:             renderOpts.Center,
+			IntersectionGaps:   renderOpts.IntersectionGaps,
 			Scale:              renderOpts.Scale,
 			ForceAppendix:      input.Opts.ForceAppendix,
 			Target:             input.Opts.Target,
@@ -452,6 +456,9 @@ func Render(args []js.Value) (interface{}, error) {
 	}
 	if input.Opts != nil && input.Opts.Center != nil {
 		renderOpts.Center = input.Opts.Center
+	}
+	if input.Opts != nil && input.Opts.IntersectionGaps != nil {
+		renderOpts.IntersectionGaps = input.Opts.IntersectionGaps
 	}
 	if input.Opts != nil && input.Opts.ThemeID != nil {
 		renderOpts.ThemeID = input.Opts.ThemeID
