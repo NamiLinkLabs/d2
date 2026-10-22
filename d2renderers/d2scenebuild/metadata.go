@@ -143,12 +143,13 @@ func (b *builder) connectionLinkRegion(object string, connection d2target.Connec
 		return d2scene.LinkRegion{}, invalidField(object, "labelPosition", connection.LabelPosition, "does not resolve to a finite metadata hit region")
 	}
 	urlValue, target := linkDestination(connection.Link)
+	p := float64(connection.LabelPadding)
 	return d2scene.LinkRegion{
-		// Only the rounded connection-label box is interactive; the route, arrows,
-		// endpoint labels, and icon are not.
+		// Only the rounded connection-label box, with its padding, is
+		// interactive; the route, arrows, endpoint labels, and icon are not.
 		Box: d2scene.Box{
-			X: math.Round(topLeft.X), Y: math.Round(topLeft.Y),
-			Width: float64(connection.LabelWidth), Height: float64(connection.LabelHeight),
+			X: math.Round(topLeft.X) - p, Y: math.Round(topLeft.Y) - p,
+			Width: float64(connection.LabelWidth) + 2*p, Height: float64(connection.LabelHeight) + 2*p,
 		},
 		URL: urlValue, Tooltip: connection.Tooltip, Target: target,
 	}, nil

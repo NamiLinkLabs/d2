@@ -23,6 +23,7 @@ import (
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
+	"github.com/d2lang/d2/lib/layoutdata"
 	"github.com/d2lang/d2/lib/shape"
 )
 
@@ -101,6 +102,9 @@ type ELKGraph struct {
 	Edges         []*ELKEdge `json:"edges,omitempty"`
 }
 
+// ConfigurableOpts are the ELK options D2 exposes. A diagram can set each of
+// them under vars.d2-config.data with the name of the matching command-line
+// flag (see lib/layoutdata), and values set there take precedence.
 type ConfigurableOpts struct {
 	Algorithm       string `json:"elk.algorithm,omitempty"`
 	NodeSpacing     int    `json:"spacing.nodeNodeBetweenLayers,omitempty"`
@@ -108,6 +112,16 @@ type ConfigurableOpts struct {
 	EdgeNodeSpacing int    `json:"spacing.edgeNodeBetweenLayers,omitempty"`
 	EdgeEdgeSpacing *int   `json:"spacing.edgeEdgeBetweenLayers,omitempty"`
 	SelfLoopSpacing int    `json:"elk.spacing.nodeSelfLoop"`
+	// InLayerNodeSpacing is the space between nodes of the same layer. Nil
+	// keeps ELK's default of 20.
+	InLayerNodeSpacing *int `json:"elk.spacing.nodeNode,omitempty"`
+	// InLayerEdgeSpacing is the space between edges running through the same
+	// layer. Nil keeps ELK's default of 10.
+	InLayerEdgeSpacing *int `json:"elk.spacing.edgeEdge,omitempty"`
+	// InLayerEdgeNodeSpacing is the space between nodes and edges running past
+	// them in the same layer. Nil keeps D2's 40. It is sent to ELK as
+	// elk.spacing.edgeNode, which elkOpts already carries.
+	InLayerEdgeNodeSpacing *int `json:"-"`
 }
 
 const default_edge_edge_spacing = 50
@@ -122,6 +136,10 @@ var DefaultOpts = ConfigurableOpts{
 }
 
 var port_spacing = 40.
+
+// edge_node_spacing is the default in-layer edge-node spacing sent to ELK. D2's
+// own bend clean-up after ELK keeps using it as a fixed clearance, so a smaller
+// elk-edgeNode only makes the routes ELK produces more compact.
 var edge_node_spacing = 40
 
 type objectDegree struct {
@@ -177,7 +195,7 @@ func (s elkGraphStats) maxSelfLoopLabel(parent *d2graph.Object, isWidth bool) in
 }
 
 type elkOpts struct {
-	EdgeNode              int       `json:"elk.spacing.edgeNode,omitempty"`
+	EdgeNode              *int      `json:"elk.spacing.edgeNode,omitempty"`
 	FixedAlignment        string    `json:"elk.layered.nodePlacement.bk.fixedAlignment,omitempty"`
 	Thoroughness          int       `json:"elk.layered.thoroughness,omitempty"`
 	Direction             Direction `json:"elk.direction"`
@@ -208,10 +226,24 @@ func edgeEdgeSpacingOrDefault(opts *ConfigurableOpts) *int {
 	return go2.Pointer(*opts.EdgeEdgeSpacing)
 }
 
+func edgeNodeSpacingOrDefault(opts *ConfigurableOpts) *int {
+	if opts.InLayerEdgeNodeSpacing == nil {
+		return go2.Pointer(edge_node_spacing)
+	}
+	return go2.Pointer(*opts.InLayerEdgeNodeSpacing)
+}
+
+func copyOptionalInt(v *int) *int {
+	if v == nil {
+		return nil
+	}
+	return go2.Pointer(*v)
+}
+
 func newRootLayoutOptions(opts *ConfigurableOpts) *elkOpts {
 	return &elkOpts{
 		Thoroughness:          8,
-		EdgeNode:              edge_node_spacing,
+		EdgeNode:              edgeNodeSpacingOrDefault(opts),
 		HierarchyHandling:     "INCLUDE_CHILDREN",
 		FixedAlignment:        "BALANCED",
 		ConsiderModelOrder:    "NODES_AND_EDGES",
@@ -224,6 +256,9 @@ func newRootLayoutOptions(opts *ConfigurableOpts) *elkOpts {
 			EdgeNodeSpacing: opts.EdgeNodeSpacing,
 			EdgeEdgeSpacing: edgeEdgeSpacingOrDefault(opts),
 			SelfLoopSpacing: opts.SelfLoopSpacing,
+
+			InLayerNodeSpacing: copyOptionalInt(opts.InLayerNodeSpacing),
+			InLayerEdgeSpacing: copyOptionalInt(opts.InLayerEdgeSpacing),
 		},
 	}
 }
@@ -233,7 +268,7 @@ func newContainerLayoutOptions(opts *ConfigurableOpts) *elkOpts {
 		Thoroughness:      8,
 		HierarchyHandling: "INCLUDE_CHILDREN",
 		FixedAlignment:    "BALANCED",
-		EdgeNode:          edge_node_spacing,
+		EdgeNode:          edgeNodeSpacingOrDefault(opts),
 		// ELK 0.12 crashes on compound subgraphs when model-order
 		// processing is enabled below the root. Keep it disabled there.
 		ConsiderModelOrder:    "NONE",
@@ -246,6 +281,9 @@ func newContainerLayoutOptions(opts *ConfigurableOpts) *elkOpts {
 			EdgeEdgeSpacing: edgeEdgeSpacingOrDefault(opts),
 			SelfLoopSpacing: opts.SelfLoopSpacing,
 			Padding:         opts.Padding,
+
+			InLayerNodeSpacing: copyOptionalInt(opts.InLayerNodeSpacing),
+			InLayerEdgeSpacing: copyOptionalInt(opts.InLayerEdgeSpacing),
 		},
 	}
 }
@@ -264,6 +302,13 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 	defer xdefer.Errorf(&err, "failed to ELK layout")
 	if err := layoutguard.CheckGraph(ctx, "ELK", g); err != nil {
 		return err
+	}
+	if g.Data != nil {
+		withData, err := withGraphData(*opts, g.Data)
+		if err != nil {
+			return err
+		}
+		opts = &withData
 	}
 	graphStats := collectELKGraphStats(g)
 
@@ -1010,48 +1055,31 @@ type shapePadding struct {
 	top, left, bottom, right int
 }
 
-// parse out values from elk padding string. e.g. "[top=50,left=50,bottom=50,right=50]"
+// parsePadding parses an ELK padding string such as
+// "[top=50,left=50,bottom=50,right=50]", or one number for all four sides.
+// Strings that are not strictly in that form keep the lenient reading D2 has
+// always given them; sides that are missing are 0.
 func parsePadding(in string) shapePadding {
-	reTop := regexp.MustCompile(`top=(\d+)`)
-	reLeft := regexp.MustCompile(`left=(\d+)`)
-	reBottom := regexp.MustCompile(`bottom=(\d+)`)
-	reRight := regexp.MustCompile(`right=(\d+)`)
-
-	padding := shapePadding{}
-
-	submatches := reTop.FindStringSubmatch(in)
-	if len(submatches) == 2 {
+	if p, err := layoutdata.ParsePadding(in); err == nil {
+		return shapePadding{top: p.Top, left: p.Left, bottom: p.Bottom, right: p.Right}
+	}
+	side := func(name string) int {
+		submatches := regexp.MustCompile(name + `=(\d+)`).FindStringSubmatch(in)
+		if len(submatches) != 2 {
+			return 0
+		}
 		i, err := strconv.ParseInt(submatches[1], 10, 64)
-		if err == nil {
-			padding.top = int(i)
+		if err != nil {
+			return 0
 		}
+		return int(i)
 	}
-
-	submatches = reLeft.FindStringSubmatch(in)
-	if len(submatches) == 2 {
-		i, err := strconv.ParseInt(submatches[1], 10, 64)
-		if err == nil {
-			padding.left = int(i)
-		}
+	return shapePadding{
+		top:    side("top"),
+		left:   side("left"),
+		bottom: side("bottom"),
+		right:  side("right"),
 	}
-
-	submatches = reBottom.FindStringSubmatch(in)
-	if len(submatches) == 2 {
-		i, err := strconv.ParseInt(submatches[1], 10, 64)
-		if err == nil {
-			padding.bottom = int(i)
-		}
-	}
-
-	submatches = reRight.FindStringSubmatch(in)
-	i, err := strconv.ParseInt(submatches[1], 10, 64)
-	if len(submatches) == 2 {
-		if err == nil {
-			padding.right = int(i)
-		}
-	}
-
-	return padding
 }
 
 func (padding shapePadding) String() string {
@@ -1081,17 +1109,27 @@ func adjustPadding(obj *d2graph.Object, width, height float64, padding shapePadd
 		}
 	}
 	if obj.HasIcon() && obj.IconPosition != nil {
-		iconSize := d2target.MAX_ICON_SIZE + 2*label.PADDING
+		reservedWidth, reservedHeight := obj.IconReservedSize()
+		iconWidth := int(math.Ceil(reservedWidth)) + 2*label.PADDING
+		iconHeight := int(math.Ceil(reservedHeight)) + 2*label.PADDING
 		switch label.FromString(*obj.IconPosition) {
 		case label.InsideTopLeft, label.InsideTopCenter, label.InsideTopRight:
-			extraTop = go2.Max(extraTop, iconSize)
+			extraTop = go2.Max(extraTop, iconHeight)
 		case label.InsideBottomLeft, label.InsideBottomCenter, label.InsideBottomRight:
-			extraBottom = go2.Max(extraBottom, iconSize)
+			extraBottom = go2.Max(extraBottom, iconHeight)
 		case label.InsideMiddleLeft:
-			extraLeft = go2.Max(extraLeft, iconSize)
+			extraLeft = go2.Max(extraLeft, iconWidth)
 		case label.InsideMiddleRight:
-			extraRight = go2.Max(extraRight, iconSize)
+			extraRight = go2.Max(extraRight, iconWidth)
 		}
+		// The margin for a border icon is taken off the container's box after
+		// layout, which moves its children only half as far, so pad for the
+		// other half to keep their distance to the edge.
+		borderMargin := obj.BorderIconMargin(label.PADDING, false)
+		extraTop += int(math.Ceil(borderMargin.Top / 2))
+		extraBottom += int(math.Ceil(borderMargin.Bottom / 2))
+		extraLeft += int(math.Ceil(borderMargin.Left / 2))
+		extraRight += int(math.Ceil(borderMargin.Right / 2))
 	}
 
 	maxChildWidth, maxChildHeight := math.Inf(-1), math.Inf(-1)

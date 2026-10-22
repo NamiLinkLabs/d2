@@ -140,6 +140,22 @@ func layoutIntFlag(ms *xmain.State, name string, fallback int) (int, error) {
 	return int(value), nil
 }
 
+// layoutChangedPixelsFlag returns the value of a spacing flag the user passed,
+// or nil when they did not, so the layout engine keeps its own default.
+func layoutChangedPixelsFlag(ms *xmain.State, name string) (*int, error) {
+	if !hasLayoutFlag(ms, name) || !ms.Opts.Flags.Lookup(name).Changed {
+		return nil, nil
+	}
+	value, err := layoutIntFlag(ms, name, 0)
+	if err != nil {
+		return nil, err
+	}
+	if value < 0 {
+		return nil, xmain.UsageErrorf("--%s must not be negative", name)
+	}
+	return &value, nil
+}
+
 func layoutStringFlag(ms *xmain.State, name, fallback string) (string, error) {
 	if !hasLayoutFlag(ms, name) {
 		return fallback, nil

@@ -162,6 +162,32 @@ routed, in time or at all, are listed in `errors` with the reason; the others ge
 Connections from a shape to itself are always listed there; move their route with the shape.
 Sequence diagram lifelines only exist after layout, so their ids are unknown.
 
+### `extractSource(image: string | Uint8Array | ArrayBuffer): Promise<ExtractedSource | null>`
+
+Reads the D2 source embedded in an SVG or PNG image exported with `embedSource`,
+`d2 --embed-source` or Boxwire, or resolves to null when the image has none. The result
+is a compile request with the embedded files, entry path and options, so the image can
+be rendered again and keeps its source:
+
+```javascript
+const result = await d2.compile(source, { layout: 'elk', embedSource: true });
+const svg = await d2.render(result.diagram, result.renderOptions); // carries the source
+
+const again = await d2.compile(await d2.extractSource(svg));
+const sameSvg = await d2.render(again.diagram, again.renderOptions);
+```
+
+### `embedSource(image: string | Uint8Array | ArrayBuffer, source: EmbeddedSource): Promise<string | Uint8Array>`
+
+Embeds `renderOptions.source` in an image D2.js did not render itself, for example a PNG
+drawn from the SVG on a canvas, replacing an earlier embedded source. Strings come back
+as strings, bytes as bytes.
+
+SVGs carry the source in a `<metadata>` element and PNGs in `d2-source` and
+`d2-source-meta` text chunks; the d2 CLI reads both (`d2 image.svg out.pdf`,
+`d2 extract image.png`). The embedded text includes comments and any boards the image
+does not show.
+
 ### `dispose(): Promise<void>`
 
 Terminates the worker backing this D2 instance and rejects any pending operations. Call
@@ -174,10 +200,33 @@ All [RenderOptions](#renderoptions) properties in addition to:
 
 - `layout`: Layout engine to use (`'dagre' | 'elk' | 'tala'`) [default: `'dagre'`]
 - `nestedEdgeRouting`: How to draw the connections that cross into or out of a grid, a `near` shape or a sequence diagram, and those between grid cells, which the layout engine does not route (`'around-shapes' | 'straight'`) [default: `'around-shapes'`]. `'around-shapes'` routes them around the other shapes with TALA's edge router; `'straight'` draws straight lines, which compiles much faster when a diagram has many such connections (routing can make compile several times slower, more so in WebAssembly, which routes on one thread) and suits callers that reroute connections themselves.
+- `elk`: ELK spacing and padding, used when `layout` is `'elk'`: `nodeSpacing`,
+  `edgeNodeSpacing`, `edgeEdgeSpacing`, `selfLoopSpacing`, `inLayerNodeSpacing`,
+  `inLayerEdgeSpacing`, `inLayerEdgeNodeSpacing` and `padding`.
+- `dagre`: dagre spacing and padding, used when `layout` is `'dagre'`: `nodeSep`, `edgeSep`,
+  `rankSep` and `padding`.
+- `tala`: TALA's `seeds`, used when `layout` is `'tala'`.
+
+  A diagram can set these itself under `vars.d2-config.data`, named like the CLI flags,
+  and values set there take precedence over compile options, so the diagram lays out the
+  same in D2.js and the CLI:
+
+  ```d2
+  vars: {
+    d2-config: {
+      data: {
+        elk-nodeNode: 30
+        dagre-ranksep: 60
+        dagre-padding: 10
+      }
+    }
+  }
+  ```
 - `fontRegular` A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used.
 - `fontItalic` A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used.
 - `fontBold` A byte array containing .ttf file to use for the bold font. If none provided, Source Sans Pro Bold is used.
 - `fontSemibold` A byte array containing .ttf file to use for the semibold font. If none provided, Source Sans Pro Semibold is used.
+- `embedSource`: Return the original D2 files and the options set here in `renderOptions.source`, so `render` embeds them in the SVG [default: false]. See [`extractSource`](#extractsourceimage-string--uint8array--arraybuffer-promiseextractedsource--null).
 
 ### `RenderOptions`
 
@@ -193,6 +242,7 @@ All [RenderOptions](#renderoptions) properties in addition to:
 - `animateInterval`: If given, multiple boards are packaged as 1 SVG which transitions through each board at the interval (in milliseconds).
 - `salt`: Add a salt value to ensure the output uses unique IDs. This is useful when generating multiple identical diagrams to be included in the same HTML doc, so that duplicate IDs do not cause invalid HTML. The salt value is a string that will be appended to IDs in the output.
 - `noXMLTag`: Omit XML tag `(<?xml ...?>)` from output SVG files. Useful when generating SVGs for direct HTML embedding.
+- `source`: D2 source to embed in the SVG, as `compile` returns it with `embedSource` set. ASCII output embeds nothing.
 
 ### `CompileRequest`
 
@@ -206,6 +256,12 @@ All [RenderOptions](#renderoptions) properties in addition to:
 - `renderOptions`: `RenderOptions`: Render options merged with configuration set in diagram
 - `fs`
 - `graph`
+
+Shapes and connections with an icon carry `icon` and `iconPosition`. When the source sets
+`icon.width` or `icon.height`, they also carry `iconWidth` and `iconHeight` in pixels
+(setting one of them gives a square icon). Without them the size is automatic: 32 to 64
+px for shapes, depending on their size, and 32 px for connections. Icons on `border-*`
+positions are centered on the edge of the shape's box, like border labels.
 
 ## Development
 

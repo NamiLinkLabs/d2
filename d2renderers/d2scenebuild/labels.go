@@ -56,15 +56,10 @@ func (b *builder) buildConnectionMask(viewBox d2scene.Box) (*d2scene.Mask, error
 			if topLeft == nil {
 				return nil, invalidField(fmt.Sprintf("connection %q", connection.ID), "labelPosition", connection.LabelPosition, "does not resolve on the route")
 			}
-			x := math.Round(topLeft.X) - 2
-			width := connection.LabelWidth + 4
-			if connection.Icon != nil {
-				x -= d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE
-				width += d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE
-			}
+			mask := connection.LabelMaskBox(geo.NewPoint(math.Round(topLeft.X), math.Round(topLeft.Y)))
 			holeBox = d2scene.Box{
-				X: x, Y: math.Round(topLeft.Y),
-				Width: float64(width), Height: float64(connection.LabelHeight),
+				X: mask.TopLeft.X, Y: mask.TopLeft.Y,
+				Width: mask.Width, Height: mask.Height,
 			}
 			position = connection.LabelPosition
 		} else {
@@ -72,9 +67,10 @@ func (b *builder) buildConnectionMask(viewBox d2scene.Box) (*d2scene.Mask, error
 			if topLeft == nil {
 				return nil, invalidField(fmt.Sprintf("connection %q", connection.ID), "iconPosition", connection.IconPosition, "does not resolve on the route")
 			}
+			iconWidth, iconHeight := connection.IconSize()
 			holeBox = d2scene.Box{
 				X: topLeft.X - 2, Y: topLeft.Y,
-				Width: d2target.DEFAULT_ICON_SIZE + 4, Height: d2target.DEFAULT_ICON_SIZE,
+				Width: iconWidth + 4, Height: iconHeight,
 			}
 		}
 		hole := d2scene.NewNode(d2scene.Rect{
@@ -174,6 +170,26 @@ func (b *builder) buildConnectionLabels(connection d2target.Connection) ([]*d2sc
 			}
 			nodes = append(nodes, latex)
 		} else if connection.Language == "markdown" {
+			if p := connection.LabelPadding; p > 0 && hasMarkdownBackground(connection.Fill) {
+				// The background covers the padding too, so it cannot sit in the
+				// Markdown viewport's clip.
+				fill, err := b.paint(connection.Fill, fmt.Sprintf("connection %q Markdown background", connection.ID))
+				if err != nil {
+					return nil, err
+				}
+				if fill != nil {
+					background := d2scene.NewNode(d2scene.Rect{
+						Box: d2scene.Box{
+							X: topLeft.X - float64(p), Y: topLeft.Y - float64(p),
+							Width: float64(connection.LabelWidth + 2*p), Height: float64(connection.LabelHeight + 2*p),
+						},
+						Fill: fill,
+					})
+					background.ID = connection.ID + ":markdown-background"
+					nodes = append(nodes, background)
+				}
+				connection.Fill = ""
+			}
 			markdown, err := b.buildConnectionMarkdown(connection, topLeft)
 			if err != nil {
 				return nil, err
@@ -199,10 +215,11 @@ func (b *builder) buildConnectionLabels(connection d2target.Connection) ([]*d2sc
 				if err != nil {
 					return nil, err
 				}
+				fillBox := connection.LabelFillBox(topLeft)
 				background := d2scene.NewNode(d2scene.Rect{
 					Box: d2scene.Box{
-						X: topLeft.X - 4, Y: topLeft.Y - 3,
-						Width: float64(connection.LabelWidth + 8), Height: float64(connection.LabelHeight + 6),
+						X: fillBox.TopLeft.X, Y: fillBox.TopLeft.Y,
+						Width: fillBox.Width, Height: fillBox.Height,
 					},
 					RadiusX: 10, RadiusY: 10, Fill: fill,
 				})

@@ -3,6 +3,33 @@
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
 - layouts: route the connections that cross into or out of grids, `near` shapes and sequence diagrams, and the connections between grid cells, around the other shapes with every layout engine, in the engine's style (curved with dagre) instead of straight lines through them. This changes how existing diagrams with such connections render, and compiles large ones more slowly (`nesting_power` with dagre: 0.07 s to 0.75 s). Connections to an invisible, unlabeled shape, often used as a relay to bend a chain of connections, stay straight. `--nested-edge-routing=straight` (D2.js: `nestedEdgeRouting: "straight"`) brings back the straight lines everywhere, and the old speed. [#1994](https://github.com/d2lang/d2/issues/1994), [#1285](https://github.com/d2lang/d2/issues/1285)
+- style: `fill`, `stroke` and `font-color` accept theme color codes (`N1`-`N7`,
+  `B1`-`B6`, `AA2`, `AA4`, `AA5`, `AB4`, `AB5`), e.g. `style.fill: B2`. They
+  follow the active theme and its `theme-overrides`, switch with the dark theme,
+  and are suggested by language-server completions. Gradient stops still need
+  concrete colors. [#896](https://github.com/d2lang/d2/issues/896)
+- layout: set ELK and dagre spacing and padding in the diagram itself, under
+  `vars.d2-config.data`, named like the command-line flags (e.g. `elk-nodeNode: 30`,
+  `dagre-padding: 10`). As with `tala-seeds`, the diagram's values take precedence over
+  flags and API options, so a diagram lays out the same in the CLI, D2.js and Go. Invalid
+  values and unknown `elk-*`/`dagre-*` keys are compile errors.
+  [#1740](https://github.com/d2lang/d2/issues/1740)
+  [#1221](https://github.com/d2lang/d2/issues/1221)
+  [#2236](https://github.com/d2lang/d2/issues/2236)
+- elk: configure the spacing within a layer with `--elk-nodeNode` (between nodes),
+  `--elk-edgeEdge` (between edges) and `--elk-edgeNode` (between edges and nodes, previously
+  fixed at 40). `--elk-padding` also takes one number for all four sides.
+- dagre: configure the space between ranks with `--dagre-ranksep` (previously at least 100) and
+  the padding containers are fitted to with `--dagre-padding` (previously fixed at 30), which
+  makes containers around a single image or shape as tight as wanted.
+- renders: leave an empty gap in a connection where another one drawn above it crosses with `--intersection-gaps`, `vars: {d2-config: {intersection-gaps: true}}` or the D2.js `intersectionGaps` option, in SVG and in native PNG, GIF, PDF and PPTX exports. Lines meeting at a shape, running together or crossing at a shallow angle keep their stroke, as do sequence diagram lifelines. [#1932](https://github.com/d2lang/d2/issues/1932)
+- connections: set the space kept free around a connection's label with
+  `label.padding`, e.g. `a -> b: hi {label.padding: 8}`, or
+  `(** -> **)[*].label.padding: 8` for every connection. Dagre, ELK, TALA and
+  sequence diagrams reserve the padded box, the line stops at it and
+  `style.fill` covers it. [#2097](https://github.com/d2lang/d2/issues/2097)
+- exports: `--embed-source` stores the D2 source, the files it imports and the render flags in SVG and PNG exports. Such an image is valid input, so `d2 diagram.svg diagram.pdf` renders it again and `d2 extract diagram.png` writes its source back out. D2.js gets the `embedSource` option and `extractSource`/`embedSource` functions. It is off by default because the embedded text includes comments and boards the image does not show. [#680](https://github.com/d2lang/d2/issues/680)
+- icons: set an explicit icon size with `icon.width` and `icon.height`, on shapes, containers and connections. Setting one of them gives a square icon. Layouts reserve the explicit size and leaf shapes grow to fit an inside icon. [#1331](https://github.com/d2lang/d2/issues/1331)
 
 #### Improvements 🧹
 
@@ -23,6 +50,7 @@
     policy for local imports and image assets. CLI and watch retain trusted
     local-file access. [#2901](https://github.com/d2lang/d2/pull/2901)
 - Remove the legacy `d2plugin` system; Dagre, ELK, and TALA remain built in. [#2920](https://github.com/d2lang/d2/pull/2920)
+- PNG, PDF and PPTX exports accept SVG icons that carry an embedded D2 source.
 - watch: authenticate HTTP and WebSocket access with a fresh per-process
   capability, exchanged for a token-free browser session. [#2910](https://github.com/d2lang/d2/pull/2910)
 - exports:
@@ -41,6 +69,7 @@
 - tala: Route many connections that cross into or out of grids, nears and
   sequence diagrams one pair of shapes at a time instead of failing with
   "TALA route-search work limit exceeded".
+- elk: an `--elk-padding` value without a `right=` side no longer panics; missing sides are 0, as in ELK.
 - compiler:
   - Limit combined map/array nesting to 128. [#2894](https://github.com/d2lang/d2/pull/2894)
   - Honor cancellation during parsing and IR compilation, and prevent `d2 fmt`
@@ -82,6 +111,10 @@
   - Reject external SVG paint URLs and unsafe fill-pattern or theme values in raw
     render targets. [#2916](https://github.com/d2lang/d2/pull/2916)
   - Apply the dangerous-link policy to legend shapes. [#2917](https://github.com/d2lang/d2/pull/2917)
+- icons:
+  - Place `border-*` icons on the shape's outer box like border labels, so corner and edge icons on circles, cylinders and other non-rectangular shapes sit on the shape's edge, and reserve the half that sticks out in dagre, ELK, grid and TALA layouts so neighbours don't overlap it. [#1653](https://github.com/d2lang/d2/issues/1653)
+  - Include every drawn icon in the diagram bounds: border icons, connection icons and the 5 px overhang of `outside-top-left` icons are no longer cut off with `--pad 0`, and `shape: image` objects no longer reserve space for an outside icon that is never drawn.
+  - d2oracle: setting `icon.near`, `icon.width`, `icon.height` or `icon.style.border-radius` edits the existing key, and deleting a nested `icon.*` or `label.near` field no longer deletes the object's own `near` or `width`.
 - d2svg:
   - Escape custom shape and connection classes. [#2895](https://github.com/d2lang/d2/pull/2895)
   - Sanitize bundled-image media types and escape serialized image URLs. [#2898](https://github.com/d2lang/d2/pull/2898)

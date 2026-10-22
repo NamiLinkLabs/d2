@@ -1,0 +1,27 @@
+{
+  "graph": null,
+  "err": {
+    "errs": [
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2,0:14:14-0:16:16",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:1:15: expected \"fill\" to be a valid named color (\"orange\"), a hex code (\"#f0ff3a\"), a theme color code (\"B2\"), or a gradient (\"linear-gradient(red, blue)\"); theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2,1:16:33-1:19:36",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:2:17: expected \"stroke\" to be a valid named color (\"orange\"), a hex code (\"#f0ff3a\"), a theme color code (\"B2\"), or a gradient (\"linear-gradient(red, blue)\"); theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2,2:20:57-2:22:59",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:3:21: expected \"font-color\" to be a valid named color (\"orange\"), a hex code (\"#f0ff3a\"), a theme color code (\"B2\"), or a gradient (\"linear-gradient(red, blue)\"); theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2,3:14:74-3:39:99",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:4:15: expected \"fill\" to be a valid named color (\"orange\"), a hex code (\"#f0ff3a\"), a theme color code (\"B2\"), or a gradient (\"linear-gradient(red, blue)\"); gradient color stops cannot be theme color codes"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2,4:14:114-4:23:123",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:5:15: expected \"fill\" to be a valid named color (\"orange\"), a hex code (\"#f0ff3a\"), a theme color code (\"B2\"), or a gradient (\"linear-gradient(red, blue)\")"
+      }
+    ]
+  }
+}

@@ -618,12 +618,15 @@ func (b *builder) buildLegendConnectionIcon(index int, connection d2target.Conne
 	target := legendConnectionIconTarget(index, connection)
 	connectionMask := b.connectionMask
 	idToShape := b.idToShape
+	connectionGaps := b.connectionGaps
 	b.connectionMask = nil
 	b.idToShape = nil
+	b.connectionGaps = nil
 	node, err := func() (*d2scene.Node, error) {
 		defer func() {
 			b.connectionMask = connectionMask
 			b.idToShape = idToShape
+			b.connectionGaps = connectionGaps
 		}()
 		return b.buildConnection(target)
 	}()
