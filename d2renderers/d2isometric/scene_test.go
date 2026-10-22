@@ -270,3 +270,33 @@ func TestAuthoredPaintAndThemeOverrides(t *testing.T) {
 		t.Fatal("override provenance not passed to runtime")
 	}
 }
+
+func TestExplicitThemeColorCodes(t *testing.T) {
+	d := d2target.NewDiagram()
+	d.Shapes = []d2target.Shape{testNode("default", 0, 0), testNode("themed", 0, 100)}
+	themed := &d.Shapes[1]
+	themed.Fill, themed.Stroke, themed.Color = "N1", "B2", "N7"
+	themed.ExplicitThemeFill, themed.ExplicitThemeStroke, themed.ExplicitThemeFontColor = true, true, true
+	c := testEdge("themed", "default", "themed")
+	c.Stroke, c.Color = "AA2", "B2"
+	c.ExplicitThemeStroke, c.ExplicitThemeFontColor = true, true
+	d.Connections = []d2target.Connection{c}
+	s, e := BuildScene(d, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if s.Nodes[0].FillExplicit || s.Nodes[0].StrokeExplicit || s.Nodes[0].FontExplicit {
+		t.Fatal("theme defaults must stay non-explicit")
+	}
+	n := s.Nodes[1]
+	if !n.FillExplicit || !n.StrokeExplicit || !n.FontExplicit {
+		t.Fatal("explicit theme color codes lost their provenance")
+	}
+	// Explicit theme color codes resolve through the active theme.
+	if n.Fill != "#0A0F25" || n.Stroke != "#0D32B2" || n.FontColor != "#FFFFFF" {
+		t.Fatalf("theme color codes resolved to fill %s, stroke %s, font %s", n.Fill, n.Stroke, n.FontColor)
+	}
+	if !s.Edges[0].StrokeExplicit || !s.Edges[0].FontExplicit || s.Edges[0].Stroke != "#4A6FF3" {
+		t.Fatalf("edge theme color codes: %+v", s.Edges[0])
+	}
+}

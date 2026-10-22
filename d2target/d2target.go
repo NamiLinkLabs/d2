@@ -829,11 +829,20 @@ type Shape struct {
 	PrimaryAccentColor   string `json:"primaryAccentColor,omitempty"`
 	SecondaryAccentColor string `json:"secondaryAccentColor,omitempty"`
 	NeutralAccentColor   string `json:"neutralAccentColor,omitempty"`
+
+	// Theme defaults are theme color codes too, so these mark the colors that
+	// hold a theme color code the user chose (style.fill: B2). sql_table and
+	// class headers otherwise read a theme color code in Color as unset and use
+	// Stroke for their text, and the isometric renderer swaps theme defaults for
+	// its own palette.
+	ExplicitThemeFill      bool `json:"explicitThemeFill,omitempty"`
+	ExplicitThemeStroke    bool `json:"explicitThemeStroke,omitempty"`
+	ExplicitThemeFontColor bool `json:"explicitThemeFontColor,omitempty"`
 }
 
 func (s Shape) GetFontColor() string {
 	if s.Type == ShapeClass || s.Type == ShapeSQLTable {
-		if !color.IsThemeColor(s.Color) {
+		if s.ExplicitThemeFontColor || !color.IsThemeColor(s.Color) {
 			return s.Color
 		}
 		return s.Stroke
@@ -949,6 +958,10 @@ type Connection struct {
 	IconHeight int `json:"iconHeight,omitempty"`
 
 	ZIndex int `json:"zIndex"`
+
+	// See Shape.ExplicitThemeStroke.
+	ExplicitThemeStroke    bool `json:"explicitThemeStroke,omitempty"`
+	ExplicitThemeFontColor bool `json:"explicitThemeFontColor,omitempty"`
 }
 
 // IconSize returns the size of the connection's icon.
