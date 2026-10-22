@@ -1,0 +1,6 @@
+A: {B: {c; d}; e}
+A.B.c -> A.e: {source-port: top; target-port: top}
+A.B -> A.e: {source-port: left; target-port: bottom}
+A.B.d -> X: {source-port: right; target-port: left}
+X -> A: {source-port: top; target-port: top}
+X -> A.B: {source-port: bottom; target-port: bottom}

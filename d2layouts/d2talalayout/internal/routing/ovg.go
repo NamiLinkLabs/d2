@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -184,6 +185,9 @@ func buildOVGFromGraphWithGuard(g *layoutgraph.Graph, nearbyNodes []*layoutgraph
 		return nil, err
 	}
 	if err := ovg.addTreeNodes(g, guard); err != nil {
+		return nil, err
+	}
+	if err := ovg.addPinnedStubLines(g, guard); err != nil {
 		return nil, err
 	}
 	tl, br, err := guard.tightBoundingBox(layoutgraph.Nodes(ovg.NodesInsideBoundingBox))
@@ -1747,6 +1751,132 @@ func (ovg *OVG) mergeNonPorts(other *OVG, guard *ovgBuildGuard) error {
 			if _, err := guard.addNode(ovg, n); err != nil {
 				return err
 			}
+		}
+	}
+	return guard.check()
+}
+
+// addPinnedStubLines adds a grid line just past MinRouteNodeClearance outside
+// each pinned side (D2's source-port / target-port). A pinned route leaves
+// through that side even when it faces away from the other end, so it may have
+// to run between its node and a node of another subgraph, where the port
+// coordinates alone give the grid no line, and where the usual candidate filter
+// (a point must see the ports of two shapes) drops the points it needs. Each
+// line crosses every existing grid coordinate, minus points too close to a
+// shape or a port. Graphs without pinned edges are unchanged.
+func (ovg *OVG) addPinnedStubLines(g *layoutgraph.Graph, guard *ovgBuildGuard) error {
+	if err := guard.check(); err != nil {
+		return err
+	}
+	stubXs := make(map[float64]struct{})
+	stubYs := make(map[float64]struct{})
+	add := func(n *layoutgraph.Node, side *geo.Orientation) {
+		if side == nil || n == nil || n.TopLeft == nil {
+			return
+		}
+		c := layoutgraph.MinRouteNodeClearance + 1
+		switch *side {
+		case geo.Top:
+			stubYs[math.Round(n.TopLeft.Y-c)] = struct{}{}
+		case geo.Bottom:
+			stubYs[math.Round(n.TopLeft.Y+n.Height+c)] = struct{}{}
+		case geo.Left:
+			stubXs[math.Round(n.TopLeft.X-c)] = struct{}{}
+		case geo.Right:
+			stubXs[math.Round(n.TopLeft.X+n.Width+c)] = struct{}{}
+		}
+	}
+	for _, edge := range g.Edges {
+		if err := guard.step(); err != nil {
+			return err
+		}
+		if !edge.HasPinnedSide() || edge.IsLoop() {
+			continue
+		}
+		add(edge.From, edge.FromSide)
+		add(edge.To, edge.ToSide)
+	}
+	if len(stubXs) == 0 && len(stubYs) == 0 {
+		return guard.check()
+	}
+	xs := make(map[float64]struct{})
+	ys := make(map[float64]struct{})
+	for _, node := range ovg.Nodes {
+		if err := guard.step(); err != nil {
+			return err
+		}
+		xs[node.X] = struct{}{}
+		ys[node.Y] = struct{}{}
+	}
+	for x := range stubXs {
+		xs[x] = struct{}{}
+	}
+	for y := range stubYs {
+		ys[y] = struct{}{}
+	}
+	var points []geo.Point
+	for x := range stubXs {
+		for y := range ys {
+			points = append(points, geo.Point{X: x, Y: y})
+		}
+	}
+	for y := range stubYs {
+		for x := range xs {
+			if _, isStub := stubXs[x]; !isStub {
+				points = append(points, geo.Point{X: x, Y: y})
+			}
+		}
+	}
+	portCount := 0
+	for _, ports := range ovg.Ports {
+		portCount += len(ports)
+	}
+	if err := guard.reserveWork(uint64(len(points)) * uint64(len(ovg.NodesInsideBoundingBox)+portCount+1)); err != nil {
+		return err
+	}
+	// Deterministic insertion order.
+	slices.SortFunc(points, func(a, b geo.Point) int {
+		if a.X != b.X {
+			return cmp.Compare(a.X, b.X)
+		}
+		return cmp.Compare(a.Y, b.Y)
+	})
+	for _, point := range points {
+		if err := guard.check(); err != nil {
+			return err
+		}
+		if _, exists := ovg.OccupiedPoints[point]; exists {
+			continue
+		}
+		blocked := false
+		for _, node := range ovg.NodesInsideBoundingBox {
+			if node.IsContainer() {
+				continue
+			}
+			if node.IsPointNear(&point) {
+				blocked = true
+				break
+			}
+		}
+		if !blocked {
+			for _, ports := range ovg.Ports {
+				for _, port := range ports {
+					if (port.Y == point.Y && math.Abs(port.X-point.X) <= layoutgraph.MinPortClearance) ||
+						(port.X == point.X && math.Abs(port.Y-point.Y) <= layoutgraph.MinPortClearance) {
+						blocked = true
+						break
+					}
+				}
+				if blocked {
+					break
+				}
+			}
+		}
+		if blocked {
+			continue
+		}
+		if _, err := guard.addNode(ovg, NewOVGNode(geo.NewPoint(point.X, point.Y))); err != nil {
+			return err
 		}
 	}
 	return guard.check()

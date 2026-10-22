@@ -407,6 +407,13 @@ func (router *ovgEdgeRouter) generateRoutes(ctx context.Context, straightLineFal
 					return resp
 				}
 			}
+			if err == nil {
+				ovgNodes, distance, err = router.improvePinnedRoute(edge, ovgNodes, distance)
+				if err != nil {
+					resp.Err = err
+					return resp
+				}
+			}
 			if len(ovgNodes) <= 1 {
 				message := fmt.Sprintf("Route '%s' has size %v", edge.DebugID(), len(ovgNodes))
 				resp.Err = invariant.New(message)

@@ -295,11 +295,27 @@ func CombineSubgraphs(ctx context.Context, masterGraph *layoutgraph.Graph, graph
 		return nil, err
 	}
 
+	// Expanded bounding boxes of the placed subgraphs that hold pinned routes.
+	var reservedBoxes []geo.Box
 	for _, graph := range sortedByArea {
 		if err := guard.Step(); err != nil {
 			return nil, err
 		}
 		graphTL, graphBR := graph.BoundingBox()
+		margin := 0.
+		if len(graphs) > 1 || len(candidatePoints) > 0 {
+			// A lone subgraph has nothing to keep clear of.
+			margin, err = pinnedRouteMargin(masterGraph, graph, guard)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if margin > 0 {
+			// Place and pack the subgraph by its expanded box, so the space its
+			// pinned routes detour through stays free of other subgraphs.
+			graphTL = geo.NewPoint(graphTL.X-margin, graphTL.Y-margin)
+			graphBR = geo.NewPoint(graphBR.X+margin, graphBR.Y+margin)
+		}
 
 		minCost := math.Inf(1)
 		minOverlaps := math.MaxInt
@@ -346,9 +362,36 @@ func CombineSubgraphs(ctx context.Context, masterGraph *layoutgraph.Graph, graph
 						}
 					}
 				}
+				if !collides {
+					for _, reserved := range reservedBoxes {
+						if err := guard.Step(); err != nil {
+							return nil, err
+						}
+						if node.Box.Overlaps(reserved) {
+							collides = true
+							break
+						}
+					}
+				}
 				node.MoveWithChildren(-offsetX, -offsetY)
 				if collides {
 					break
+				}
+			}
+			if !collides && margin > 0 {
+				expanded := geo.Box{
+					TopLeft: geo.NewPoint(candidatePoint.X, candidatePoint.Y),
+					Width:   graphBR.X - graphTL.X,
+					Height:  graphBR.Y - graphTL.Y,
+				}
+				for _, otherNode := range combined.Nodes {
+					if err := guard.Step(); err != nil {
+						return nil, err
+					}
+					if otherNode.TopLeft != nil && otherNode.Box.Overlaps(expanded) {
+						collides = true
+						break
+					}
 				}
 			}
 			if collides {
@@ -423,6 +466,13 @@ func CombineSubgraphs(ctx context.Context, masterGraph *layoutgraph.Graph, graph
 
 		combinedBR.X = math.Max(combinedBR.X, graphBR.X)
 		combinedBR.Y = math.Max(combinedBR.Y, graphBR.Y)
+		if margin > 0 {
+			reservedBoxes = append(reservedBoxes, geo.Box{
+				TopLeft: geo.NewPoint(graphTL.X, graphTL.Y),
+				Width:   graphBR.X - graphTL.X,
+				Height:  graphBR.Y - graphTL.Y,
+			})
+		}
 
 		// Add this graph's new candidate points (at 1,2,3 with and without subgraphPadding).
 		//  ┌───┐ 1
@@ -444,4 +494,39 @@ func CombineSubgraphs(ctx context.Context, masterGraph *layoutgraph.Graph, graph
 	}
 	complete = true
 	return combined, nil
+}
+
+// pinnedRouteMargin is how far the routes of graph may leave its bounding box.
+// A pinned edge (D2's source-port / target-port) leaves its node through the
+// pinned side even when that side faces away from the other end, so its route
+// detours around the outside of the subgraph. Subgraphs without pinned edges
+// need no margin and are packed exactly as before.
+func pinnedRouteMargin(masterGraph, graph *layoutgraph.Graph, guard *limits.WorkGuard) (float64, error) {
+	check := func(nodes []*layoutgraph.Node) (bool, error) {
+		for _, n := range nodes {
+			for _, e := range n.Edges {
+				if err := guard.Step(); err != nil {
+					return false, err
+				}
+				if e.HasPinnedSide() && !e.IsLoop() {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	}
+	for _, n := range graph.Nodes {
+		if err := guard.Step(); err != nil {
+			return 0, err
+		}
+		nodes := append([]*layoutgraph.Node{n}, masterGraph.AllDescendantNodes(n, true)...)
+		pinned, err := check(nodes)
+		if err != nil {
+			return 0, err
+		}
+		if pinned {
+			return pinnedRouteReach, nil
+		}
+	}
+	return 0, nil
 }

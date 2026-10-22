@@ -36,8 +36,10 @@ func (router *ovgEdgeRouter) pinnedFallbackRoute(edge *layoutgraph.Edge) ([]*OVG
 	}
 	c := layoutgraph.MinRouteNodeClearance
 	fromNormal, toNormal := sideNormal(fromSide), sideNormal(toSide)
-	a := geo.NewPoint(fromPort.X+fromNormal.X*c, fromPort.Y+fromNormal.Y*c)
-	b := geo.NewPoint(toPort.X+toNormal.X*c, toPort.Y+toNormal.Y*c)
+	fromStub := router.pinnedStubLength(edge, fromPort, fromNormal)
+	toStub := router.pinnedStubLength(edge, toPort, toNormal)
+	a := geo.NewPoint(fromPort.X+fromNormal.X*fromStub, fromPort.Y+fromNormal.Y*fromStub)
+	b := geo.NewPoint(toPort.X+toNormal.X*toStub, toPort.Y+toNormal.Y*toStub)
 
 	top := math.Min(edge.From.TopLeft.Y, edge.To.TopLeft.Y) - c
 	bottom := math.Max(edge.From.TopLeft.Y+edge.From.Height, edge.To.TopLeft.Y+edge.To.Height) + c
@@ -109,20 +111,137 @@ func (router *ovgEdgeRouter) pinnedFallbackCost(edge *layoutgraph.Edge, path []*
 		if i >= 2 {
 			cost += router.turnCost
 		}
-		for _, node := range router.graph.Nodes {
+		for _, node := range router.pinnedObstacles(edge) {
 			if err := router.work.step(); err != nil {
 				return 0, false, err
 			}
-			if node == edge.From || node == edge.To || node.TopLeft == nil ||
-				edge.From.IsDescendantOf(node) || edge.To.IsDescendantOf(node) {
-				continue
-			}
 			if segmentEntersNode(node, path[i-1], path[i]) {
-				cost += basicallyInfinity / 1e6
+				cost += pinnedCrossingCost
 			}
 		}
 	}
 	return cost, true, nil
+}
+
+// pinnedCrossingCost is what pinnedFallbackCost charges for each node a
+// segment passes through.
+const pinnedCrossingCost = basicallyInfinity / 1e6
+
+// pinnedObstacles returns the nodes a route of edge must not pass through:
+// every node the OVG was built around, including the nodes of other
+// subgraphs near this one, except the edge's endpoints and their ancestors.
+func (router *ovgEdgeRouter) pinnedObstacles(edge *layoutgraph.Edge) []*layoutgraph.Node {
+	nodes := router.graph.Nodes
+	if router.ovg != nil && len(router.ovg.NodesInsideBoundingBox) > 0 {
+		nodes = router.ovg.NodesInsideBoundingBox
+	}
+	out := make([]*layoutgraph.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if node == edge.From || node == edge.To || node.TopLeft == nil ||
+			edge.From.IsDescendantOf(node) || edge.To.IsDescendantOf(node) {
+			continue
+		}
+		out = append(out, node)
+	}
+	return out
+}
+
+// pinnedStubLength is how far a pinned fallback route runs straight out of
+// port before it turns: MinRouteNodeClearance, or half the way to the nearest
+// node in front of the port when that is closer, so the turn falls in the gap
+// rather than inside that node.
+func (router *ovgEdgeRouter) pinnedStubLength(edge *layoutgraph.Edge, port *geo.Point, normal geo.Point) float64 {
+	c := layoutgraph.MinRouteNodeClearance
+	nearest := math.Inf(1)
+	for _, node := range router.pinnedObstacles(edge) {
+		minX, maxX := node.TopLeft.X, node.TopLeft.X+node.Width
+		minY, maxY := node.TopLeft.Y, node.TopLeft.Y+node.Height
+		var dist float64
+		switch {
+		case normal.X > 0 && port.Y > minY && port.Y < maxY:
+			dist = minX - port.X
+		case normal.X < 0 && port.Y > minY && port.Y < maxY:
+			dist = port.X - maxX
+		case normal.Y > 0 && port.X > minX && port.X < maxX:
+			dist = minY - port.Y
+		case normal.Y < 0 && port.X > minX && port.X < maxX:
+			dist = port.Y - maxY
+		default:
+			continue
+		}
+		if dist > 0 && dist < nearest {
+			nearest = dist
+		}
+	}
+	if nearest < 2*c {
+		return math.Max(nearest/2, 1)
+	}
+	return c
+}
+
+// pinnedRouteBadness counts how badly the searched route points (centers
+// excluded) treat a pinned edge: each node it passes through, plus each
+// return into one of its own endpoints after leaving it.
+func (router *ovgEdgeRouter) pinnedRouteBadness(edge *layoutgraph.Edge, points []*geo.Point) (int, error) {
+	bad := 0
+	obstacles := router.pinnedObstacles(edge)
+	for i := 1; i < len(points); i++ {
+		a, b := points[i-1], points[i]
+		for _, end := range []*layoutgraph.Node{edge.From, edge.To} {
+			if end.TopLeft == nil || (edge.From != edge.To && (edge.From.IsDescendantOf(edge.To) || edge.To.IsDescendantOf(edge.From))) {
+				continue
+			}
+			if segmentEntersNode(end, a, b) {
+				bad++
+			}
+		}
+		for _, node := range obstacles {
+			if err := router.work.step(); err != nil {
+				return 0, err
+			}
+			if segmentEntersNode(node, a, b) {
+				bad++
+			}
+		}
+	}
+	return bad, nil
+}
+
+// improvePinnedRoute swaps a searched route of a pinned edge for the pinned
+// fallback when the search could only find a route through other nodes or
+// back through the edge's own endpoints (it charges those but does not forbid
+// them) and the fallback does better.
+func (router *ovgEdgeRouter) improvePinnedRoute(edge *layoutgraph.Edge, ovgNodes []*OVGNode, distance float64) ([]*OVGNode, float64, error) {
+	if !edge.HasPinnedSide() || edge.IsLoop() || len(ovgNodes) < 4 {
+		return ovgNodes, distance, nil
+	}
+	points := make([]*geo.Point, 0, len(ovgNodes)-2)
+	for _, n := range ovgNodes[1 : len(ovgNodes)-1] {
+		points = append(points, n.Point)
+	}
+	bad, err := router.pinnedRouteBadness(edge, points)
+	if err != nil || bad == 0 {
+		return ovgNodes, distance, err
+	}
+	fallback, fallbackDistance, err := router.pinnedFallbackRoute(edge)
+	if err != nil {
+		if isContextTermination(err) {
+			return nil, 0, err
+		}
+		return ovgNodes, distance, nil
+	}
+	fallbackPoints := make([]*geo.Point, 0, len(fallback)-2)
+	for _, n := range fallback[1 : len(fallback)-1] {
+		fallbackPoints = append(fallbackPoints, n.Point)
+	}
+	fallbackBad, err := router.pinnedRouteBadness(edge, fallbackPoints)
+	if err != nil {
+		return nil, 0, err
+	}
+	if fallbackBad < bad {
+		return fallback, fallbackDistance, nil
+	}
+	return ovgNodes, distance, nil
 }
 
 func pinnedOrFacingSide(pinned *geo.Orientation, node, other *layoutgraph.Node) geo.Orientation {

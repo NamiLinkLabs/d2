@@ -16,6 +16,9 @@ import (
 const (
 	subgraphPadding        = 20.0
 	subgraphSquareDampener = 0.5
+	// pinnedRouteReach is the space kept free outside a subgraph that holds
+	// pinned routes, so a route can run around it clear of other subgraphs.
+	pinnedRouteReach = 2 * layoutgraph.MinRouteNodeClearance
 )
 
 // Pack recursively arranges disconnected subgraphs into compact containers.
