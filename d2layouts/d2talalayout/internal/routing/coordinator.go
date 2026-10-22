@@ -540,11 +540,18 @@ func routeAdditionalEdgesWithResourceLimits(
 		newEdges[e] = struct{}{}
 	}
 
-	ovg, err := buildOVGFromGraphWithLimits(ctx, g, nil, limits)
+	budget := attemptBudgetFromContext(ctx)
+	guard, err := newOVGBuildGuard(ctx, budget.ovgLimit(limits))
+	if err != nil {
+		return nil, err
+	}
+	if telemetry := routeSearchTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.recordOVG(guard.work) }()
+	}
+	ovg, err := buildOVGFromGraphWithGuard(g, nil, guard)
 	if err != nil {
 		return ovg, err
 	}
-	guard := ovg.buildGuard
 
 	existingRoutes := make([]*Route, 0)
 	for _, e := range g.Edges {
@@ -641,6 +648,7 @@ func routeAdditionalEdgesWithResourceLimits(
 		router.considerNodeLabels = true
 		routers = append(routers, router)
 	}
+	budget.limitSearch(guard.work, routers)
 	responses, err := generateRouteFlavorResponses(ctx, routers, true)
 	if err != nil {
 		return ovg, err
