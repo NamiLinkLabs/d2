@@ -486,7 +486,9 @@ func fixClusterEdgeBranchingGuarded(g *layoutgraph.Graph, guard *routeWorkGuard)
 			if err := guard.step(); err != nil {
 				return err
 			}
-			if len(e.Points) != 4 {
+			// The shared bend moves a route's first or last leg, which would
+			// pull a pinned end (source-port / target-port) off its side.
+			if len(e.Points) != 4 || e.HasPinnedSide() {
 				continue
 			}
 			adj := n.Adjacent(e)

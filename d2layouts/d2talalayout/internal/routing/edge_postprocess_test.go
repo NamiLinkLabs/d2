@@ -94,6 +94,55 @@ func TestFixClusterEdgeBranchingChoosesLowestCostPoint(t *testing.T) {
 	}
 }
 
+// A pinned edge keeps its own bends: moving its first leg onto a sibling's
+// branch point would pull it off its pinned side.
+func TestFixClusterEdgeBranchingSkipsPinnedEdges(t *testing.T) {
+	g := layoutgraph.NewGraph()
+	external := layoutgraph.NewNode(1, 10, 10)
+	left := layoutgraph.NewNode(2, 10, 10)
+	right := layoutgraph.NewNode(3, 10, 10)
+	external.TopLeft = geo.NewPoint(10_000, 10_000)
+	left.TopLeft = geo.NewPoint(11_000, 11_000)
+	right.TopLeft = geo.NewPoint(12_000, 12_000)
+	for _, n := range []*layoutgraph.Node{external, left, right} {
+		g.AddNewNodeToContainer(nil, n)
+	}
+
+	cluster := &layoutgraph.Cluster{
+		Vessel:             layoutgraph.NewNode(4, 10, 10),
+		Nodes:              []*layoutgraph.Node{left, right},
+		Arrangement:        layoutgraph.Row,
+		DesiredArrangement: layoutgraph.Row,
+		Graph:              g,
+	}
+	left.Cluster = cluster
+	right.Cluster = cluster
+
+	leftEdge := g.Connect(external, left)
+	bottom := geo.Bottom
+	leftEdge.FromSide = &bottom
+	leftEdge.Points = []*geo.Point{
+		geo.NewPoint(0, 0),
+		geo.NewPoint(0, -10),
+		geo.NewPoint(-100, -10),
+		geo.NewPoint(-100, 100),
+	}
+	rightEdge := g.Connect(external, right)
+	rightEdge.Points = []*geo.Point{
+		geo.NewPoint(0, 0),
+		geo.NewPoint(0, 10),
+		geo.NewPoint(100, 10),
+		geo.NewPoint(100, -5),
+	}
+
+	if err := FixClusterEdgeBranching(context.Background(), g); err != nil {
+		t.Fatal(err)
+	}
+	if leftEdge.Points[1].Y != -10 || leftEdge.Points[2].Y != -10 {
+		t.Fatalf("pinned edge moved: %v %v", leftEdge.Points[1], leftEdge.Points[2])
+	}
+}
+
 func TestBounds(t *testing.T) {
 	type testCase struct {
 		line       *geo.Segment
