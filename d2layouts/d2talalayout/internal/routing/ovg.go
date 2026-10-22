@@ -877,6 +877,17 @@ func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br 
 	}
 	// Don't count containers for children obstruction
 	// Pad boundaries with points to allow edges to reach around
+	//
+	// Every rectangle lies inside tl-br and each boundary point lies outside
+	// it, so whether the line from a port to its boundary point is blocked
+	// does not depend on the layer: work it out once, on the first layer.
+	type boundaryRay struct {
+		node      *layoutgraph.Node
+		port      *OVGNode
+		direction geo.Orientation
+		side      int
+	}
+	blockedRays := make(map[boundaryRay]bool)
 	for i := 0.0; i < extraInterestingPointLayers; i++ {
 		if err := guard.step(); err != nil {
 			return err
@@ -907,13 +918,18 @@ func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br 
 					leftPoint := geo.NewPoint(tl.X-(ovgPadding*(i+1)), portNode.Point.Y)
 					rightPoint := geo.NewPoint(br.X+(ovgPadding*(i+1)), portNode.Point.Y)
 
-					for _, boundaryPoint := range []*geo.Point{topPoint, bottomPoint, leftPoint, rightPoint} {
+					for side, boundaryPoint := range []*geo.Point{topPoint, bottomPoint, leftPoint, rightPoint} {
 						if err := guard.step(); err != nil {
 							directionErr = err
 							return true
 						}
-						passesThroughARectangle := false
-						for _, rectangle := range ovg.NodesInsideBoundingBox {
+						ray := boundaryRay{node, portNode, portDirection, side}
+						passesThroughARectangle, known := blockedRays[ray]
+						rectangles := ovg.NodesInsideBoundingBox
+						if known {
+							rectangles = nil
+						}
+						for _, rectangle := range rectangles {
 							if err := guard.step(); err != nil {
 								directionErr = err
 								return true
@@ -942,6 +958,7 @@ func (ovg *OVG) addPortConnectionNodesAtBoundaries(g *layoutgraph.Graph, tl, br 
 								}
 							}
 						}
+						blockedRays[ray] = passesThroughARectangle
 						if passesThroughARectangle {
 							continue
 						}
