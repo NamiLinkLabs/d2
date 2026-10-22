@@ -1,0 +1,17 @@
+title: Pins near stuff {near: top-center; shape: text}
+legendy: {near: bottom-right; a -> b: {source-port: right; target-port: top}}
+seq: {
+  shape: sequence_diagram
+  alice -> bob: hi
+  bob -> alice: yo
+}
+a -> b: {source-port: right; target-port: left}
+b -> seq: {source-port: bottom; target-port: top}
+seq -> c: {source-port: right; target-port: left}
+a -> c: {source-port: bottom; target-port: bottom}
+c -> a: {source-port: top; target-port: top}
+t: {shape: sql_table; id: int; name: string}
+t -> a: {source-port: left; target-port: right}
+g: {grid-columns: 2; p; q; r; s}
+g.p -> g.s: {source-port: right; target-port: right}
+g.q -> c: {source-port: bottom; target-port: left}

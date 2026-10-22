@@ -138,3 +138,30 @@ func TestEdgePortsLeaveOtherEdgesAlone(t *testing.T) {
 		}
 	}
 }
+
+// TestEdgePortsAvoidOtherShapes checks that a pinned route the stubs cannot
+// join with an L or a Z goes around the shapes in the way instead of through
+// them: hub -> m4 leaves hub's bottom, where dagre puts hub2 right below.
+func TestEdgePortsAvoidOtherShapes(t *testing.T) {
+	g := layoutForPorts(t, `hub -> m4: {source-port: bottom; target-port: bottom}
+hub -> m5: {source-port: left; target-port: left}
+hub -> hub2: {source-port: top; target-port: bottom}
+hub2 -> hub: {source-port: right; target-port: right}
+m1 -> m2
+x -> hub
+hub -> y
+`)
+	for _, e := range g.Edges {
+		if !e.HasPort() {
+			continue
+		}
+		if err := e.PortsHonored(); err != nil {
+			t.Errorf("%v\n%s", err, dagreRouteString(e))
+		}
+		for _, obj := range g.Objects {
+			if obj != e.Src && obj != e.Dst {
+				requireOutside(t, e, obj)
+			}
+		}
+	}
+}

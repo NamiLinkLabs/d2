@@ -153,7 +153,7 @@ func (e *Edge) RouteClear() error {
 			if i == end.skip {
 				continue
 			}
-			if segmentCrossesBox(end.obj.Box, e.Route[i-1], e.Route[i]) {
+			if segmentCrossesObject(end.obj, e.Route[i-1], e.Route[i]) {
 				return fmt.Errorf("%s: segment %v -> %v runs back through %s", e.AbsID(), e.Route[i-1], e.Route[i], end.obj.AbsID())
 			}
 		}
@@ -294,8 +294,12 @@ const (
 // that end alone) and run straight out of their side for a short stub.
 // Interior points behind a stub were planned for a different attachment and
 // are dropped; when the next leg would cut through the shape, the route goes
-// around its nearer corner instead. It is a best-effort fallback for engines
-// without port support.
+// around its nearer corner instead. When the result still runs through a
+// shape (one the engine routed around for a different attachment, or one in
+// the way of every L and Z joining the stubs), the route is replaced by an
+// orthogonal path around the shapes in the way; if there is none, the
+// blocked route is kept. It is a best-effort fallback for engines without
+// port support.
 func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*geo.Point {
 	if len(route) < 2 || (srcAnchor == nil && dstAnchor == nil) {
 		return route
@@ -358,7 +362,10 @@ func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*
 	}
 	out = append(out, tail...)
 	// Stubs that meet (see facingStubLens) leave the same point twice.
-	return slices.CompactFunc(out, func(p, q *geo.Point) bool { return *p == *q })
+	out = slices.CompactFunc(out, func(p, q *geo.Point) bool { return *p == *q })
+	// Keeping the engine's interior points, or joining the stubs with an L or
+	// a Z, can run through a shape the engine never planned the route around.
+	return e.rerouteBlocked(out, srcSide, srcOK, dstSide, dstOK)
 }
 
 // touchingPortRoute returns the route between two pinned sides that face each
@@ -438,16 +445,7 @@ func portConnector(e *Edge, prev, h, t, next *geo.Point) []*geo.Point {
 		{geo.NewPoint(h.X, my), geo.NewPoint(t.X, my)},
 		nil,
 	}
-	var obstacles []*Object
-	if e.Src.Graph != nil {
-		for _, obj := range e.Src.Graph.Objects {
-			if obj == e.Src || obj == e.Dst || obj.Box == nil || obj.TopLeft == nil ||
-				e.Src.IsDescendantOf(obj) || e.Dst.IsDescendantOf(obj) {
-				continue
-			}
-			obstacles = append(obstacles, obj)
-		}
-	}
+	obstacles := e.RouteObstacles()
 	var best []*geo.Point
 	bestCost := math.Inf(1)
 	for _, corners := range candidates {
@@ -528,6 +526,69 @@ func portDetour(obj *Object, side geo.Orientation, stub, next *geo.Point) []*geo
 	depth := reach(c, back)
 	d := geo.NewPoint(c.X+back[0]*depth, c.Y+back[1]*depth)
 	return []*geo.Point{c, d}
+}
+
+// segmentCrossesObject reports whether the segment a-b runs through obj's
+// shape. Rectangular shapes are their bounding box, as in segmentCrossesBox;
+// other shapes (hexagons, circles, ...) are their own outline, so that a
+// segment in a corner of the bounding box outside the outline is clear.
+func segmentCrossesObject(obj *Object, a, b *geo.Point) bool {
+	if !segmentCrossesBox(obj.Box, a, b) {
+		return false
+	}
+	s := obj.ToShape()
+	if s.Is("") || s.IsRectangular() {
+		return true
+	}
+	perimeter := s.Perimeter()
+	// A point is inside when it and its neighbours 1.5px away are all inside
+	// the outline, so points on (or within a pixel of) the outline are not.
+	deepInside := func(p *geo.Point) bool {
+		for _, d := range [][2]float64{{0, 0}, {1.5, 0}, {-1.5, 0}, {0, 1.5}, {0, -1.5}} {
+			if !insideOutline(perimeter, obj.Box, geo.NewPoint(p.X+d[0], p.Y+d[1])) {
+				return false
+			}
+		}
+		return true
+	}
+	l := geo.EuclideanDistance(a.X, a.Y, b.X, b.Y)
+	steps := int(math.Ceil(l)) + 1
+	for k := 0; k <= steps; k++ {
+		t := float64(k) / float64(steps)
+		if deepInside(geo.NewPoint(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)) {
+			return true
+		}
+	}
+	return false
+}
+
+// insideOutline reports whether p is inside the outline made of perimeter,
+// by the parity of the outline crossings on a ray from p out of box. The ray
+// is slanted so that it is unlikely to pass exactly through a vertex.
+func insideOutline(perimeter []geo.Intersectable, box *geo.Box, p *geo.Point) bool {
+	if !box.Contains(p) {
+		return false
+	}
+	far := box.Width + box.Height + 10
+	ray := *geo.NewSegment(p, geo.NewPoint(p.X+far, p.Y+far*0.3183))
+	var hits []*geo.Point
+	for _, part := range perimeter {
+		for _, q := range part.Intersections(ray) {
+			// Neighbouring perimeter parts share their ends.
+			if !slices.ContainsFunc(hits, func(h *geo.Point) bool {
+				return math.Abs(h.X-q.X) < 1e-6 && math.Abs(h.Y-q.Y) < 1e-6
+			}) {
+				hits = append(hits, q)
+			}
+		}
+	}
+	return len(hits)%2 == 1
+}
+
+// SegmentCrossesBox reports whether the segment a-b runs through the
+// interior of box, ignoring its outermost pixel.
+func SegmentCrossesBox(box *geo.Box, a, b *geo.Point) bool {
+	return segmentCrossesBox(box, a, b)
 }
 
 func segmentCrossesBox(box *geo.Box, a, b *geo.Point) bool {

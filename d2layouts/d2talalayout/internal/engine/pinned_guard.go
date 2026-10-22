@@ -29,7 +29,10 @@ type nodeRect struct{ x, y, w, h float64 }
 func newPinnedRouteGuard(g *layoutgraph.Graph) *pinnedRouteGuard {
 	var guard *pinnedRouteGuard
 	for _, e := range g.Edges {
-		if e == nil || !e.HasPinnedSide() || !pinnedRouteSound(e) {
+		// A route with fewer than two points (before the first edge routing
+		// stage) is not a route: snapshotting it would let restore put an
+		// empty route back over a real one.
+		if e == nil || !e.HasPinnedSide() || len(e.Points) < 2 || !pinnedRouteSound(e) {
 			continue
 		}
 		if guard == nil {
@@ -57,7 +60,7 @@ func (guard *pinnedRouteGuard) restore() {
 	}
 	for _, r := range guard.routes {
 		e := r.edge
-		if pinnedRouteSound(e) || nodeBox(e.From) != r.from || nodeBox(e.To) != r.to {
+		if len(r.points) < 2 || pinnedRouteSound(e) || nodeBox(e.From) != r.from || nodeBox(e.To) != r.to {
 			continue
 		}
 		e.Points = r.points

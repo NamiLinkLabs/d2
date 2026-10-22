@@ -284,3 +284,83 @@ func TestPinRouteTouchingSides(t *testing.T) {
 		})
 	}
 }
+
+func TestPinRouteAroundShapes(t *testing.T) {
+	// hub's bottom stub and m4's bottom stub cannot be joined by an L or a Z:
+	// hub2 sits right below hub, m5 between hub2 and m4, and m4's stub is
+	// under m4.
+	g := portGraph(t, "hub -> m4: {source-port: bottom; target-port: bottom}\nhub2\nm5")
+	hub, m4, hub2, m5 := g.Objects[0], g.Objects[1], g.Objects[2], g.Objects[3]
+	hub.TopLeft = geo.NewPoint(0, 0)
+	m4.TopLeft = geo.NewPoint(600, 200)
+	hub2.TopLeft = geo.NewPoint(0, 200)
+	m5.TopLeft = geo.NewPoint(300, 200)
+	e := g.Edges[0]
+	anchors := d2graph.PortAnchors(g.Edges)
+	e.Route = e.PinRoute([]*geo.Point{hub.Center(), m4.Center()}, anchors[d2graph.PortEnd{Edge: e, Src: true}], anchors[d2graph.PortEnd{Edge: e, Src: false}])
+	if err := e.PortsHonored(); err != nil {
+		t.Fatalf("%v: %v", err, e.Route)
+	}
+	if err := e.RouteClear(); err != nil {
+		t.Fatalf("%v: %v", err, e.Route)
+	}
+	assertNoHairpin(t, e.Route)
+	for i := 1; i < len(e.Route); i++ {
+		p, q := e.Route[i-1], e.Route[i]
+		if p.X != q.X && p.Y != q.Y {
+			t.Errorf("segment %v -> %v is diagonal: %v", p, q, e.Route)
+		}
+	}
+}
+
+func TestPinRouteKeepsUnpinnedEnd(t *testing.T) {
+	// a -> b runs straight through c; only a's end is pinned. The rerouted
+	// route still ends where the engine attached it to b.
+	g := portGraph(t, "a -> b: {source-port: right}\nc")
+	a, b, c := g.Objects[0], g.Objects[1], g.Objects[2]
+	a.TopLeft = geo.NewPoint(0, 0)
+	c.TopLeft = geo.NewPoint(200, 0)
+	b.TopLeft = geo.NewPoint(400, 0)
+	e := g.Edges[0]
+	anchors := d2graph.PortAnchors(g.Edges)
+	end := geo.NewPoint(400, 30)
+	e.Route = e.PinRoute([]*geo.Point{geo.NewPoint(100, 30), end}, anchors[d2graph.PortEnd{Edge: e, Src: true}], nil)
+	if err := e.PortsHonored(); err != nil {
+		t.Fatalf("%v: %v", err, e.Route)
+	}
+	if err := e.RouteClear(); err != nil {
+		t.Fatalf("%v: %v", err, e.Route)
+	}
+	if got := e.Route[len(e.Route)-1]; *got != *end {
+		t.Errorf("route ends at %v, want %v", got, end)
+	}
+}
+
+func TestRouteClearShapeOutline(t *testing.T) {
+	// hub is a hexagon in a 100x60 box: an anchor on its right side away from
+	// the middle is on a slanted edge, inside the bounding box.
+	g := portGraph(t, "hub: {shape: hexagon}\nhub -> b: {source-port: right}")
+	hub := g.Objects[0]
+	e := g.Edges[0]
+	anchor := hub.PortAnchor(geo.Right, 0.25)
+	if anchor.X >= 100 {
+		t.Fatalf("anchor %v is not inside the bounding box", anchor)
+	}
+	// A stub drawn in pieces, all outside the hexagon but inside its box.
+	e.Route = []*geo.Point{anchor, geo.NewPoint(anchor.X+2, anchor.Y), geo.NewPoint(anchor.X+4, anchor.Y), geo.NewPoint(115, anchor.Y), geo.NewPoint(115, 30), geo.NewPoint(200, 30)}
+	if err := e.RouteClear(); err != nil {
+		t.Fatal(err)
+	}
+	// Back through the hexagon's middle.
+	e.Route = []*geo.Point{anchor, geo.NewPoint(115, anchor.Y), geo.NewPoint(115, -20), geo.NewPoint(50, -20), geo.NewPoint(50, 80), geo.NewPoint(250, 80), geo.NewPoint(250, 60)}
+	if err := e.RouteClear(); err == nil || !strings.Contains(err.Error(), "back through hub") {
+		t.Fatalf("got %v, want back through hub", err)
+	}
+	// Rectangles keep the strict bounding box check.
+	g = portGraph(t, "hub\nhub -> b: {source-port: right}")
+	e = g.Edges[0]
+	e.Route = []*geo.Point{geo.NewPoint(100, 15), geo.NewPoint(102, 15), geo.NewPoint(98, 15), geo.NewPoint(120, 15), geo.NewPoint(120, 30), geo.NewPoint(200, 30)}
+	if err := e.RouteClear(); err == nil || !strings.Contains(err.Error(), "back through hub") {
+		t.Fatalf("got %v, want back through hub", err)
+	}
+}

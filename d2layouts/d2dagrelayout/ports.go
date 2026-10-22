@@ -27,6 +27,7 @@ func pinnedCurve(edge *d2graph.Edge, points []*geo.Point) []*geo.Point {
 		pinned = append(pinned, edge.Dst.Box)
 	}
 	near := float64(d2graph.PortStubLen + d2graph.PortClearance + 1)
+	obstacles := edge.RouteObstacles()
 
 	type corner struct{ in, at, out *geo.Point }
 	corners := make([]corner, 0, len(points))
@@ -43,11 +44,18 @@ func pinnedCurve(edge *d2graph.Edge, points []*geo.Point) []*geo.Point {
 				r = math.Min(r, d2graph.PortClearance*3/4)
 			}
 		}
-		corners = append(corners, corner{
-			in:  at.AddVector(at.VectorTo(prev).Unit().Multiply(r)),
-			at:  at,
-			out: at.AddVector(at.VectorTo(next).Unit().Multiply(r)),
-		})
+		c := corner{at: at}
+		for {
+			c.in = at.AddVector(at.VectorTo(prev).Unit().Multiply(r))
+			c.out = at.AddVector(at.VectorTo(next).Unit().Multiply(r))
+			// A wide bend cuts the inside of the corner: tighten it while it
+			// would clip a shape the route goes around.
+			if r <= d2graph.PortClearance*3/4 || !bendCrosses(c.in, at, c.out, obstacles) {
+				break
+			}
+			r = math.Max(r/2, d2graph.PortClearance*3/4)
+		}
+		corners = append(corners, c)
 	}
 
 	path := []*geo.Point{points[0].Copy()}
@@ -75,6 +83,27 @@ func pinnedCurve(edge *d2graph.Edge, points []*geo.Point) []*geo.Point {
 		path = append(path, path[0].Copy(), end.Copy(), end.Copy())
 	}
 	return path
+}
+
+// bendCrosses reports whether the quadratic bend from in to out with control
+// point at runs through one of the obstacles.
+func bendCrosses(in, at, out *geo.Point, obstacles []*d2graph.Object) bool {
+	const steps = 8
+	prev := in
+	for k := 1; k <= steps; k++ {
+		t := float64(k) / steps
+		p := geo.NewPoint(
+			(1-t)*(1-t)*in.X+2*(1-t)*t*at.X+t*t*out.X,
+			(1-t)*(1-t)*in.Y+2*(1-t)*t*at.Y+t*t*out.Y,
+		)
+		for _, obj := range obstacles {
+			if d2graph.SegmentCrossesBox(obj.Box, prev, p) {
+				return true
+			}
+		}
+		prev = p
+	}
+	return false
 }
 
 func distanceToBox(box *geo.Box, p *geo.Point) float64 {
