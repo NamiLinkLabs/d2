@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -274,5 +275,151 @@ func TestRouteEdgesBestEffortLargeGraph(t *testing.T) {
 	}
 	if len(unrouted) == 0 || len(unrouted) == len(g.Edges) {
 		t.Fatalf("%d of %d edges unrouted, want some", len(unrouted), len(g.Edges))
+	}
+}
+
+const pairsSource = `
+a; b; c; d
+e; f; g; h
+a -> b: 1
+a -> b: 2
+b -> a: 3
+a -> f
+b -> g
+c -> h
+d -> e
+e -> c
+f -> d
+g -> a
+h -> b
+`
+
+// routeWithBudget routes every edge of source, placed on a grid of columns
+// columns, with opts and a budget of units, and returns the routes, the
+// edges left unrouted and what was spent.
+func routeWithBudget(t *testing.T, source string, columns int, units uint64, opts BestEffortOptions) ([]string, []string, uint64) {
+	t.Helper()
+	g := placedGraph(t, source, columns)
+	opts.Budget = NewWorkBudget(units)
+	unrouted, err := RouteEdgesBestEffort(t.Context(), g, g.Edges, &opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, e := range unrouted {
+		ids = append(ids, e.AbsID())
+	}
+	return routeStrings(g.Edges), ids, opts.Budget.Spent()
+}
+
+func TestRouteEdgesBestEffortWorkBudget(t *testing.T) {
+	t.Parallel()
+	for name, source := range map[string]string{"together": bestEffortSource, "pairs": pairsSource} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := placedGraph(t, source, 4)
+			if _, err := RouteEdgesBestEffort(t.Context(), g, g.Edges, nil); err != nil {
+				t.Fatal(err)
+			}
+			unbudgeted := routeStrings(g.Edges)
+
+			// Below the budget, the routes are those without one.
+			routes, unrouted, need := routeWithBudget(t, source, 4, 1<<50, BestEffortOptions{})
+			if len(unrouted) != 0 || !reflect.DeepEqual(routes, unbudgeted) {
+				t.Fatalf("with an ample budget, unrouted %v and routes\n%q\nwant\n%q", unrouted, routes, unbudgeted)
+			}
+			if need == 0 {
+				t.Fatal("routing spent nothing")
+			}
+			// Routing together may use three quarters of the budget, and its
+			// route flavors share what building the routing graph leaves equally,
+			// so twice what it spent is enough, every time, and gives the same
+			// routes for the same work.
+			for range 3 {
+				enough := 2 * need
+				routes, unrouted, spent := routeWithBudget(t, source, 4, enough, BestEffortOptions{})
+				if spent != need || len(unrouted) != 0 || !reflect.DeepEqual(routes, unbudgeted) {
+					t.Fatalf("budget %d: spent %d of %d, unrouted %v", enough, spent, need, unrouted)
+				}
+			}
+
+			// With less, the rest are left as they were, the same ones every time.
+			routes, unrouted, spent := routeWithBudget(t, source, 4, need/3, BestEffortOptions{})
+			if len(unrouted) == 0 {
+				t.Fatalf("a third of the budget routed every edge")
+			}
+			if spent < need/3 {
+				t.Fatalf("spent %d of a budget of %d and left %v unrouted", spent, need/3, unrouted)
+			}
+			for range 3 {
+				again, againUnrouted, againSpent := routeWithBudget(t, source, 4, need/3, BestEffortOptions{})
+				if !reflect.DeepEqual(again, routes) || !reflect.DeepEqual(againUnrouted, unrouted) || againSpent != spent {
+					t.Fatalf("a third of the budget is not deterministic:\n%q %v %d\n%q %v %d", routes, unrouted, spent, again, againUnrouted, againSpent)
+				}
+			}
+			for i, r := range routes {
+				if r != "" && name == "pairs" && r != unbudgeted[i] {
+					// Pairs are routed independently, so those that fit keep their routes.
+					t.Errorf("edge %d routed as %q within a smaller budget, %q without", i, r, unbudgeted[i])
+				}
+			}
+
+			// A spent budget routes nothing.
+			routes, unrouted, _ = routeWithBudget(t, source, 4, 0, BestEffortOptions{})
+			if len(unrouted) != len(routes) {
+				t.Fatalf("an empty budget left %d of %d edges unrouted", len(unrouted), len(routes))
+			}
+		})
+	}
+}
+
+func TestRouteEdgesBestEffortSharesWorkBudget(t *testing.T) {
+	t.Parallel()
+	g := placedGraph(t, bestEffortSource, 3)
+	budget := NewWorkBudget(1 << 50)
+	if _, err := RouteEdgesBestEffort(t.Context(), g, g.Edges[:2], &BestEffortOptions{Budget: budget}); err != nil {
+		t.Fatal(err)
+	}
+	first := budget.Spent()
+	if first == 0 || budget.Remaining() != 1<<50-first {
+		t.Fatalf("spent %d, %d left", first, budget.Remaining())
+	}
+	// A second call spends from what the first left, and none of it once it
+	// is gone.
+	empty := NewWorkBudget(first)
+	g = placedGraph(t, bestEffortSource, 3)
+	if _, err := RouteEdgesBestEffort(t.Context(), g, g.Edges[:2], &BestEffortOptions{Budget: empty}); err != nil {
+		t.Fatal(err)
+	}
+	if empty.Remaining() != 0 {
+		t.Fatalf("%d left after a call that spent the whole budget", empty.Remaining())
+	}
+	unrouted, err := RouteEdgesBestEffort(t.Context(), g, g.Edges[2:], &BestEffortOptions{Budget: empty})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unrouted) != len(g.Edges)-2 {
+		t.Fatalf("a spent budget left %d of %d edges unrouted", len(unrouted), len(g.Edges)-2)
+	}
+}
+
+func TestRouteEdgesBestEffortPrefer(t *testing.T) {
+	t.Parallel()
+	_, _, need := routeWithBudget(t, pairsSource, 4, 1<<50, BestEffortOptions{})
+	preferred := func(e *d2graph.Edge) bool {
+		return e.Dst.ID == "b" && e.Src.ID == "h" || e.Dst.ID == "a" && e.Src.ID == "g"
+	}
+	routes, unrouted, _ := routeWithBudget(t, pairsSource, 4, need/4, BestEffortOptions{Prefer: preferred})
+	if len(unrouted) == 0 {
+		t.Fatal("a quarter of the budget routed every edge")
+	}
+	for _, id := range unrouted {
+		if id == "(h -> b)[0]" || id == "(g -> a)[0]" {
+			t.Fatalf("preferred %s was left unrouted while %d other edges were routed: %v", id, len(routes)-len(unrouted), unrouted)
+		}
+	}
+	_, plain, _ := routeWithBudget(t, pairsSource, 4, need/4, BestEffortOptions{})
+	if !slices.Contains(plain, "(h -> b)[0]") {
+		t.Fatalf("without a preference, h -> b was routed too: unrouted %v", plain)
 	}
 }

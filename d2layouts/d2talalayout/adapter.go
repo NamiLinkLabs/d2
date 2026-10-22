@@ -560,7 +560,13 @@ func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) er
 }
 
 // routeEdges is RouteEdges with a route-search budget for each route flavor.
-func routeEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, searchWorkLimit uint64) (err error) {
+func routeEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, searchWorkLimit uint64) error {
+	return routeEdgesWithinBudget(ctx, g, edges, searchWorkLimit, 0)
+}
+
+// routeEdgesWithinBudget is routeEdges with a cap, budget, on the work of
+// the whole call as a WorkBudget counts it, unless budget is 0.
+func routeEdgesWithinBudget(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, searchWorkLimit, budget uint64) (err error) {
 	defer recoverAsError("edge routing", &err)
 	if ctx == nil {
 		return fmt.Errorf("TALA edge routing requires a context")
@@ -598,7 +604,11 @@ func routeEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, se
 		workCtx, cancelWork = context.WithCancel(ctx)
 	}
 	defer cancelWork()
-	err = routing.RouteEdgesWithSearchLimit(workCtx, talaGraph, talaEdges, searchWorkLimit)
+	if budget == 0 {
+		err = routing.RouteEdgesWithSearchLimit(workCtx, talaGraph, talaEdges, searchWorkLimit)
+	} else {
+		err = routing.RouteEdgesWithinBudget(workCtx, talaGraph, talaEdges, searchWorkLimit, budget, ovgWorkWeight)
+	}
 	if err != nil {
 		return preferContextError(ctx, "edge routing", err)
 	}
