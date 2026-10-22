@@ -2074,6 +2074,8 @@ user -> db: {style.stroke: B2; style.stroke-width: 3}
 vars: {
   d2-config: {
     intersection-gaps: true
+    # The grid edges should cross straight, to exercise the gaps.
+    nested-edge-routing: straight
   }
 }
 
@@ -2114,6 +2116,8 @@ sequence: {
 vars: {
   d2-config: {
     intersection-gaps: true
+    # The grid edges should cross straight, to exercise the gaps.
+    nested-edge-routing: straight
     sketch: true
   }
 }
