@@ -242,23 +242,45 @@ func TestRouteClear(t *testing.T) {
 }
 
 func TestPinRouteTouchingSides(t *testing.T) {
-	// Grid cells with grid-gap 0: a's right side is b's left side.
-	g := portGraph(t, "a -> b: {source-port: right; target-port: left}")
-	a, b := g.Objects[0], g.Objects[1]
-	a.TopLeft = geo.NewPoint(0, 0)
-	b.TopLeft = geo.NewPoint(100, 0)
-	e := g.Edges[0]
-	anchors := d2graph.PortAnchors(g.Edges)
-	e.Route = e.PinRoute([]*geo.Point{a.Center(), b.Center()}, anchors[d2graph.PortEnd{Edge: e, Src: true}], anchors[d2graph.PortEnd{Edge: e, Src: false}])
-	for _, p := range e.Route {
-		if p.X != 100 {
-			t.Fatalf("route leaves the shared side: %v", e.Route)
-		}
-	}
-	if err := e.PortsHonored(); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.RouteClear(); err != nil {
-		t.Fatal(err)
+	// Grid cells with grid-gap 0: a's right side is b's left side. The route
+	// must still have length, or it cannot be rendered.
+	for _, tc := range []struct {
+		name string
+		bY   float64
+		bH   int
+		want int
+	}{
+		{"aligned", 0, 66, 2},
+		{"offset", 0, 100, 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := portGraph(t, "a -> b: {source-port: right; target-port: left}")
+			a, b := g.Objects[0], g.Objects[1]
+			a.TopLeft = geo.NewPoint(0, 0)
+			b.TopLeft = geo.NewPoint(100, tc.bY)
+			a.Width, a.Height, b.Width = 100, 66, 100
+			b.Height = float64(tc.bH)
+			e := g.Edges[0]
+			anchors := d2graph.PortAnchors(g.Edges)
+			e.Route = e.PinRoute([]*geo.Point{a.Center(), b.Center()}, anchors[d2graph.PortEnd{Edge: e, Src: true}], anchors[d2graph.PortEnd{Edge: e, Src: false}])
+			if len(e.Route) != tc.want {
+				t.Fatalf("got %d points, want %d: %v", len(e.Route), tc.want, e.Route)
+			}
+			if e.Route[0].X != 99.5 || e.Route[len(e.Route)-1].X != 100.5 {
+				t.Fatalf("route does not cross the shared side: %v", e.Route)
+			}
+			for i := 1; i < len(e.Route); i++ {
+				p, q := e.Route[i-1], e.Route[i]
+				if (p.X != q.X) == (p.Y != q.Y) {
+					t.Fatalf("segment %v -> %v is empty or diagonal", p, q)
+				}
+			}
+			if err := e.PortsHonored(); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.RouteClear(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

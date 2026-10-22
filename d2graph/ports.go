@@ -109,20 +109,6 @@ func (e *Edge) PortsHonored() error {
 		}
 		return nil
 	}
-	if degenerateRoute(e.Route) {
-		// Touching pinned sides: the single point must lie on both.
-		if side, ok := e.SrcPortSide(); ok {
-			if err := portEndOnSide(e.Src, side, e.Route[0]); err != nil {
-				return fmt.Errorf("%s: source-port %s: %w", e.AbsID(), e.SrcPort.Value, err)
-			}
-		}
-		if side, ok := e.DstPortSide(); ok {
-			if err := portEndOnSide(e.Dst, side, e.Route[0]); err != nil {
-				return fmt.Errorf("%s: target-port %s: %w", e.AbsID(), e.DstPort.Value, err)
-			}
-		}
-		return nil
-	}
 	if side, ok := e.SrcPortSide(); ok {
 		if err := portEndHonored(e.Src, side, e.Route[0], e.Route[1]); err != nil {
 			return fmt.Errorf("%s: source-port %s: %w", e.AbsID(), e.SrcPort.Value, err)
@@ -143,7 +129,7 @@ func (e *Edge) PortsHonored() error {
 // last segments must also head away from their shapes. Layout tests use it
 // next to PortsHonored, which checks only the ends.
 func (e *Edge) RouteClear() error {
-	if len(e.Route) < 2 || e.Src.Graph == nil || degenerateRoute(e.Route) {
+	if len(e.Route) < 2 || e.Src.Graph == nil {
 		return nil
 	}
 	n := len(e.Route)
@@ -321,6 +307,9 @@ func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*
 
 	srcStub, dstStub := float64(PortStubLen), float64(PortStubLen)
 	if srcOK && dstOK {
+		if r := touchingPortRoute(srcAnchor, srcSide, dstAnchor, dstSide); r != nil {
+			return r
+		}
 		srcStub, dstStub = facingStubLens(srcAnchor, srcSide, dstAnchor, dstSide)
 	}
 
@@ -369,31 +358,43 @@ func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*
 	}
 	out = append(out, tail...)
 	// Stubs that meet (see facingStubLens) leave the same point twice.
-	out = slices.CompactFunc(out, func(p, q *geo.Point) bool { return *p == *q })
-	if len(out) == 1 {
-		// Touching sides: a direct connection of no length, as an unpinned
-		// connection between touching shapes gets.
-		out = append(out, out[0].Copy())
-	}
-	return out
+	return slices.CompactFunc(out, func(p, q *geo.Point) bool { return *p == *q })
 }
 
-// degenerateRoute reports whether every point of route is the same: the
-// direct connection between two touching pinned sides.
-func degenerateRoute(route []*geo.Point) bool {
-	for _, p := range route[1:] {
-		if *p != *route[0] {
-			return false
-		}
+// touchingPortRoute returns the route between two pinned sides that face each
+// other with (almost) no gap between them, as between the cells of a grid
+// with grid-gap 0, or nil when the sides are apart. There is no room for
+// stubs, so, like the unpinned connection between touching shapes, the route
+// is a 1px segment across the shared border, starting half a pixel inside the
+// source and ending half a pixel inside the target. Ends that do not line up
+// are joined square through the border. A zero-length route would not render.
+func touchingPortRoute(src *geo.Point, srcSide geo.Orientation, dst *geo.Point, dstSide geo.Orientation) []*geo.Point {
+	n, m := PortSideNormal(srcSide), PortSideNormal(dstSide)
+	if n[0] != -m[0] || n[1] != -m[1] {
+		return nil
 	}
-	return true
+	s := src.X*n[0] + src.Y*n[1]
+	d := dst.X*n[0] + dst.Y*n[1]
+	if gap := d - s; gap < -1 || gap >= 1 {
+		return nil
+	}
+	mid := (s + d) / 2
+	at := func(p *geo.Point, along float64) *geo.Point {
+		pa := p.X*n[0] + p.Y*n[1]
+		return geo.NewPoint(p.X+n[0]*(along-pa), p.Y+n[1]*(along-pa))
+	}
+	route := []*geo.Point{at(src, mid-0.5)}
+	if math.Abs((dst.X-src.X)*n[1]-(dst.Y-src.Y)*n[0]) > 1e-9 {
+		route = append(route, at(src, mid), at(dst, mid))
+	}
+	return append(route, at(dst, mid+0.5))
 }
 
 // facingStubLens returns the stub lengths for two pinned ends. When the
 // sides face each other across a gap too narrow for two full stubs (adjacent
 // grid cells, say), each stub takes half the gap so that they meet instead of
-// overlapping and the route doubling back on itself; sides that touch get no
-// stubs at all.
+// overlapping and the route doubling back on itself. Sides that touch are
+// handled by touchingPortRoute before this.
 func facingStubLens(src *geo.Point, srcSide geo.Orientation, dst *geo.Point, dstSide geo.Orientation) (float64, float64) {
 	n, m := PortSideNormal(srcSide), PortSideNormal(dstSide)
 	l := float64(PortStubLen)
@@ -404,8 +405,6 @@ func facingStubLens(src *geo.Point, srcSide geo.Orientation, dst *geo.Point, dst
 	if gap < -1 || gap >= 2*l {
 		return l, l
 	}
-	// Sides that touch (grid-gap: 0) are joined directly.
-	gap = math.Max(gap, 0)
 	return gap / 2, gap / 2
 }
 
