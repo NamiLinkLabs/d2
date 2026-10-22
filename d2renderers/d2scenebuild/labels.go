@@ -59,8 +59,9 @@ func (b *builder) buildConnectionMask(viewBox d2scene.Box) (*d2scene.Mask, error
 			x := math.Round(topLeft.X) - 2
 			width := connection.LabelWidth + 4
 			if connection.Icon != nil {
-				x -= d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE
-				width += d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE
+				iconWidth, _ := connection.IconSize()
+				x -= d2target.CONNECTION_ICON_LABEL_GAP + iconWidth
+				width += d2target.CONNECTION_ICON_LABEL_GAP + int(iconWidth)
 			}
 			holeBox = d2scene.Box{
 				X: x, Y: math.Round(topLeft.Y),
@@ -72,9 +73,10 @@ func (b *builder) buildConnectionMask(viewBox d2scene.Box) (*d2scene.Mask, error
 			if topLeft == nil {
 				return nil, invalidField(fmt.Sprintf("connection %q", connection.ID), "iconPosition", connection.IconPosition, "does not resolve on the route")
 			}
+			iconWidth, iconHeight := connection.IconSize()
 			holeBox = d2scene.Box{
 				X: topLeft.X - 2, Y: topLeft.Y,
-				Width: d2target.DEFAULT_ICON_SIZE + 4, Height: d2target.DEFAULT_ICON_SIZE,
+				Width: iconWidth + 4, Height: iconHeight,
 			}
 		}
 		hole := d2scene.NewNode(d2scene.Rect{

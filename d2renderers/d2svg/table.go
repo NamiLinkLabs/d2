@@ -170,17 +170,14 @@ func drawTable(writer io.Writer, diagramHash string, targetShape d2target.Shape,
 	}
 
 	if targetShape.Icon != nil && targetShape.Type != d2target.ShapeImage {
-		iconPosition := label.FromString(targetShape.IconPosition)
-		iconSize := d2target.GetIconSize(box, targetShape.IconPosition)
-
-		tl := iconPosition.GetPointOnBox(box, label.PADDING, float64(iconSize), float64(iconSize))
+		iconBox := d2target.IconBox(box, box, targetShape.IconPosition, targetShape.IconWidth, targetShape.IconHeight)
 
 		fmt.Fprint(writer, svg.EmptyElement("image",
 			svg.Attr("href", targetShape.Icon.String()),
-			svg.FloatAttr("x", tl.X),
-			svg.FloatAttr("y", tl.Y),
-			svg.IntAttr("width", iconSize),
-			svg.IntAttr("height", iconSize),
+			svg.FloatAttr("x", iconBox.TopLeft.X),
+			svg.FloatAttr("y", iconBox.TopLeft.Y),
+			svg.FloatAttr("width", iconBox.Width),
+			svg.FloatAttr("height", iconBox.Height),
 		))
 	}
 }

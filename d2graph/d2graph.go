@@ -227,6 +227,11 @@ type Attributes struct {
 	IconPosition    *Scalar `json:"iconPosition,omitempty"`
 	TooltipPosition *Scalar `json:"tooltipPosition,omitempty"`
 
+	// IconWidth and IconHeight are the explicit icon.width and icon.height.
+	// When unset, the icon size is automatic.
+	IconWidth  *Scalar `json:"iconWidth,omitempty"`
+	IconHeight *Scalar `json:"iconHeight,omitempty"`
+
 	// These names are attached to the rendered elements in SVG
 	// so that users can target them however they like outside of D2
 	Classes []string `json:"classes,omitempty"`
@@ -640,6 +645,83 @@ func (obj *Object) HasLabel() bool {
 
 func (obj *Object) HasIcon() bool {
 	return obj.Icon != nil && obj.Shape.Value != d2target.ShapeImage
+}
+
+// ExplicitIconSize returns the icon size set with icon.width and icon.height,
+// or 0, 0 when the size is automatic. When only one of them is set, the icon
+// box is square.
+func (attrs *Attributes) ExplicitIconSize() (width, height int) {
+	if attrs.IconWidth != nil {
+		width, _ = strconv.Atoi(attrs.IconWidth.Value)
+	}
+	if attrs.IconHeight != nil {
+		height, _ = strconv.Atoi(attrs.IconHeight.Value)
+	}
+	if width <= 0 {
+		width = height
+	}
+	if height <= 0 {
+		height = width
+	}
+	if width <= 0 || height <= 0 {
+		return 0, 0
+	}
+	return width, height
+}
+
+// IconSize returns the explicit icon size of a shape with a drawn icon, or
+// 0, 0 when it has no icon or the size is automatic. Explicit sizes do not
+// apply to image shapes, where the icon is the shape itself.
+func (obj *Object) IconSize() (width, height int) {
+	if !obj.HasIcon() {
+		return 0, 0
+	}
+	return obj.ExplicitIconSize()
+}
+
+// iconFitSize returns the inner box size a leaf shape needs so that its
+// explicitly sized inside icon fits. With an inside label there is room for a
+// label row above and below a centered icon. ok is false when the shape does
+// not grow for its icon: no explicit size, an outside or border icon, a
+// container, or a shape that sizes to its own content.
+func (obj *Object) iconFitSize(labelDims d2target.TextDimensions) (width, height float64, ok bool) {
+	iconWidth, iconHeight := obj.IconSize()
+	if iconWidth == 0 || len(obj.ChildrenArray) > 0 || obj.Language != "" {
+		return 0, 0, false
+	}
+	switch strings.ToLower(obj.Shape.Value) {
+	case d2target.ShapeSQLTable, d2target.ShapeClass, d2target.ShapeCode, d2target.ShapeText:
+		return 0, 0, false
+	}
+	if obj.Attributes.IconPosition != nil {
+		position := d2ast.LabelPositionsMapping[obj.Attributes.IconPosition.Value]
+		if position.IsOutside() || position.IsBorder() {
+			return 0, 0, false
+		}
+	}
+	width = float64(iconWidth + 2*label.PADDING)
+	height = float64(iconHeight + 2*label.PADDING)
+	if obj.HasLabel() && labelDims.Height > 0 {
+		labelInside := !obj.HasOutsideBottomLabel()
+		if obj.Attributes.LabelPosition != nil {
+			position := d2ast.LabelPositionsMapping[obj.Attributes.LabelPosition.Value]
+			labelInside = !position.IsOutside() && !position.IsBorder()
+		}
+		if labelInside {
+			width = math.Max(width, float64(labelDims.Width+2*label.PADDING))
+			height = float64(iconHeight + 2*(labelDims.Height+2*label.PADDING))
+		}
+	}
+	return width, height, true
+}
+
+// IconReservedSize is the icon size that layouts reserve before they know the
+// final size of the shape: the explicit size, or the largest automatic size.
+func (obj *Object) IconReservedSize() (width, height float64) {
+	if w, h := obj.IconSize(); w > 0 {
+		return float64(w), float64(h)
+	}
+	return d2target.MAX_ICON_SIZE, d2target.MAX_ICON_SIZE
 }
 
 func (obj *Object) AbsID() string {
@@ -1560,16 +1642,24 @@ func (g *Graph) SetDimensions(mtexts []*d2target.MText, ruler *textmeasure.Ruler
 			dslShape != d2target.ShapeSQLTable &&
 			dslShape != d2target.ShapeClass {
 
+			defaultWidth, defaultHeight := DEFAULT_SHAPE_SIZE, DEFAULT_SHAPE_SIZE
+			if iconFitWidth, iconFitHeight, ok := obj.iconFitSize(d2target.TextDimensions{}); ok {
+				// grow the default size so the inner box fits an explicitly sized icon
+				s := shape.NewShape(d2target.DSL_SHAPE_TO_SHAPE_TYPE[dslShape], geo.NewBox(geo.NewPoint(0, 0), iconFitWidth, iconFitHeight))
+				fitWidth, fitHeight := s.GetDimensionsToFit(iconFitWidth, iconFitHeight, 0, 0)
+				defaultWidth = math.Max(defaultWidth, fitWidth)
+				defaultHeight = math.Max(defaultHeight, fitHeight)
+			}
 			if dslShape == d2target.ShapeCircle || dslShape == d2target.ShapeSquare {
-				sideLength := DEFAULT_SHAPE_SIZE
+				sideLength := math.Max(defaultWidth, defaultHeight)
 				if desiredWidth != 0 || desiredHeight != 0 {
 					sideLength = float64(go2.Max(desiredWidth, desiredHeight))
 				}
 				obj.Width = sideLength
 				obj.Height = sideLength
 			} else {
-				obj.Width = DEFAULT_SHAPE_SIZE
-				obj.Height = DEFAULT_SHAPE_SIZE
+				obj.Width = defaultWidth
+				obj.Height = defaultHeight
 				if desiredWidth != 0 {
 					obj.Width = float64(desiredWidth)
 				}
@@ -1651,7 +1741,13 @@ func (g *Graph) SetDimensions(mtexts []*d2target.MText, ruler *textmeasure.Ruler
 			}
 		}
 
-		obj.SizeToContent(contentBox.Width, contentBox.Height, paddingX, paddingY)
+		contentWidth, contentHeight := contentBox.Width, contentBox.Height
+		if iconFitWidth, iconFitHeight, ok := obj.iconFitSize(*labelDims); ok {
+			// grow the content box so the inner box fits an explicitly sized icon
+			contentWidth = math.Max(contentWidth, iconFitWidth-paddingX)
+			contentHeight = math.Max(contentHeight, iconFitHeight-paddingY)
+		}
+		obj.SizeToContent(contentWidth, contentHeight, paddingX, paddingY)
 	}
 	for _, edge := range g.Edges {
 		usedFont := fontFamily
@@ -1895,6 +1991,42 @@ func (obj *Object) Spacing() (margin, padding geo.Spacing) {
 	return obj.SpacingOpt(2*label.PADDING, 2*label.PADDING, true)
 }
 
+// spacingIconSize is the icon size SpacingOpt reserves: the reserved size, or
+// with maxIconSize false the automatic size for the current box.
+func (obj *Object) spacingIconSize(position label.Position, maxIconSize bool) (width, height float64) {
+	width, height = obj.IconReservedSize()
+	if explicitWidth, _ := obj.IconSize(); explicitWidth == 0 && !maxIconSize {
+		size := float64(d2target.GetIconSize(obj.Box, position.String()))
+		width, height = size, size
+	}
+	return width, height
+}
+
+// BorderIconMargin is the margin a border-* icon needs on its side: it is
+// centered on the shape's edge, so half of it sticks out. It is zero on the
+// other sides and for icons that are not on a border.
+func (obj *Object) BorderIconMargin(iconPadding float64, maxIconSize bool) (margin geo.Spacing) {
+	if !obj.HasIcon() || obj.IconPosition == nil {
+		return margin
+	}
+	position := label.FromString(*obj.IconPosition)
+	if !position.IsBorder() {
+		return margin
+	}
+	width, height := obj.spacingIconSize(position, maxIconSize)
+	switch position {
+	case label.BorderTopLeft, label.BorderTopCenter, label.BorderTopRight:
+		margin.Top = height/2 + iconPadding
+	case label.BorderBottomLeft, label.BorderBottomCenter, label.BorderBottomRight:
+		margin.Bottom = height/2 + iconPadding
+	case label.BorderLeftTop, label.BorderLeftMiddle, label.BorderLeftBottom:
+		margin.Left = width/2 + iconPadding
+	case label.BorderRightTop, label.BorderRightMiddle, label.BorderRightBottom:
+		margin.Right = width/2 + iconPadding
+	}
+	return margin
+}
+
 func (obj *Object) SpacingOpt(labelPadding, iconPadding float64, maxIconSize bool) (margin, padding geo.Spacing) {
 	if obj.HasLabel() {
 		var position label.Position
@@ -1936,27 +2068,31 @@ func (obj *Object) SpacingOpt(labelPadding, iconPadding float64, maxIconSize boo
 			position = label.FromString(*obj.IconPosition)
 		}
 
-		iconSize := float64(d2target.MAX_ICON_SIZE + iconPadding)
-		if !maxIconSize {
-			iconSize = float64(d2target.GetIconSize(obj.Box, position.String())) + iconPadding
-		}
+		iconWidth, iconHeight := obj.spacingIconSize(position, maxIconSize)
+		borderMargin := obj.BorderIconMargin(iconPadding, maxIconSize)
+		margin.Top = math.Max(margin.Top, borderMargin.Top)
+		margin.Bottom = math.Max(margin.Bottom, borderMargin.Bottom)
+		margin.Left = math.Max(margin.Left, borderMargin.Left)
+		margin.Right = math.Max(margin.Right, borderMargin.Right)
+		iconWidth += iconPadding
+		iconHeight += iconPadding
 		switch position {
 		case label.OutsideTopLeft, label.OutsideTopCenter, label.OutsideTopRight:
-			margin.Top = math.Max(margin.Top, iconSize)
+			margin.Top = math.Max(margin.Top, iconHeight)
 		case label.OutsideBottomLeft, label.OutsideBottomCenter, label.OutsideBottomRight:
-			margin.Bottom = math.Max(margin.Bottom, iconSize)
+			margin.Bottom = math.Max(margin.Bottom, iconHeight)
 		case label.OutsideLeftTop, label.OutsideLeftMiddle, label.OutsideLeftBottom:
-			margin.Left = math.Max(margin.Left, iconSize)
+			margin.Left = math.Max(margin.Left, iconWidth)
 		case label.OutsideRightTop, label.OutsideRightMiddle, label.OutsideRightBottom:
-			margin.Right = math.Max(margin.Right, iconSize)
+			margin.Right = math.Max(margin.Right, iconWidth)
 		case label.InsideTopLeft, label.InsideTopCenter, label.InsideTopRight:
-			padding.Top = math.Max(padding.Top, iconSize)
+			padding.Top = math.Max(padding.Top, iconHeight)
 		case label.InsideBottomLeft, label.InsideBottomCenter, label.InsideBottomRight:
-			padding.Bottom = math.Max(padding.Bottom, iconSize)
+			padding.Bottom = math.Max(padding.Bottom, iconHeight)
 		case label.InsideMiddleLeft:
-			padding.Left = math.Max(padding.Left, iconSize)
+			padding.Left = math.Max(padding.Left, iconWidth)
 		case label.InsideMiddleRight:
-			padding.Right = math.Max(padding.Right, iconSize)
+			padding.Right = math.Max(padding.Right, iconWidth)
 		}
 	}
 

@@ -19,6 +19,9 @@
 .Ar play Ar file.d2
 .Nm d2
 .Ar validate Ar file.d2
+.Nm d2
+.Ar extract Ar image.svg
+.Op Ar file.d2 | directory | -
 .Sh DESCRIPTION
 .Nm
 compiles and renders
@@ -44,6 +47,16 @@ if no output path is passed.
 Pass - to have
 .Nm
 read from stdin or write to stdout.
+.Pp
+With
+.Fl -embed-source ,
+SVG and PNG exports also store the D2 source, the files it imports and the render flags.
+Such an image is valid input:
+.Nm d2
+renders its source again and
+.Nm d2 Ar extract
+writes it out.
+The embedded text includes comments and any boards the image does not show.
 .Pp
 PNG exports support up to 32768 pixels per dimension, subject to rendering resource limits.
 .Pp
@@ -202,6 +215,9 @@ Omit XML tag (<?xml ...?>) from output SVG files. Useful when generating SVGs fo
 .It Fl -omit-version Ar false
 omit D2 version from generated image
 .Ns .
+.It Fl -embed-source Ar false
+embed the D2 source and the files it imports in SVG and PNG exports, so that d2 can render the image again (d2 image.svg out.png) or extract its source (d2 extract image.svg). The embedded text includes comments and boards the image does not show. Rendering an image with an embedded source embeds it again unless --embed-source=false
+.Ns .
 .It Fl -ascii-mode Ar extended
 ASCII rendering mode for text outputs. Options: 'standard' (basic ASCII chars) or 'extended' (Unicode chars)
 .Ns .
@@ -223,6 +239,9 @@ Format all passed files
 Opens the file in playground, an online web viewer (https://play.d2lang.com)
 .It Ar validate Ar file.d2
 Validates file.d2
+.It Ar extract Ar image.svg Op Ar file.d2 | directory | -
+Writes the D2 source embedded in an image exported with --embed-source to stdout, to file.d2
+with its imports next to it, or into a directory under the embedded file names
 .El
 .Sh ENVIRONMENT VARIABLES
 Many flags can also be set with environment variables.
@@ -273,6 +292,8 @@ See --timeout flag.
 See --check flag.
 .It Ev Sy D2_ASCII_MODE
 See --ascii-mode flag.
+.It Ev Sy D2_EMBED_SOURCE
+See --embed-source flag.
 .El
 .Bl -tag -width Ds
 .It Ev Sy DEBUG

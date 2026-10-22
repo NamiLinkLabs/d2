@@ -152,6 +152,22 @@ scenarios: {
 	if calls != 2 {
 		t.Fatalf("custom-layout calls = %d, want 2", calls)
 	}
+
+	// A container's box is the same before layout, but its padding depends
+	// on the explicit icon size.
+	iconSize := `g: {
+  icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg
+  a -> b
+}
+scenarios: {
+  changed: {
+    g.icon.width: 120
+  }
+}`
+	_, calls = compileForLayoutReuseTest(t, iconSize, true)
+	if calls != 2 {
+		t.Fatalf("icon-size layout calls = %d, want 2", calls)
+	}
 }
 
 func TestCompileLayoutReuseRequiresExplicitStableResolver(t *testing.T) {

@@ -741,3 +741,49 @@ func childIDs(nodes []*d2scene.Node) []string {
 	}
 	return ids
 }
+
+func TestBuildExplicitIconSizes(t *testing.T) {
+	t.Parallel()
+	assetURL := testRasterAssetURL(t)
+	diagram := d2target.NewDiagram()
+	diagram.Shapes = []d2target.Shape{
+		{
+			ID: "card", Type: d2target.ShapeRectangle,
+			Pos: d2target.Point{X: 0, Y: 0}, Width: 200, Height: 100,
+			Icon: assetURL, IconPosition: "INSIDE_MIDDLE_CENTER", IconWidth: 80, IconHeight: 40,
+			Opacity: 1, Fill: "#fff", Stroke: "none",
+		},
+		{
+			// border icons sit on the outer box, centered on the edge
+			ID: "circle", Type: d2target.ShapeCircle,
+			Pos: d2target.Point{X: 300, Y: 0}, Width: 200, Height: 200,
+			Icon: assetURL, IconPosition: "BORDER_TOP_CENTER", IconWidth: 40, IconHeight: 40,
+			Opacity: 1, Fill: "#fff", Stroke: "none",
+		},
+	}
+	diagram.Connections = []d2target.Connection{{
+		ID: "edge", Route: []*geo.Point{{X: 0, Y: 300}, {X: 200, Y: 300}},
+		Stroke: "#000", StrokeWidth: 2, Opacity: 1,
+		SrcArrow: d2target.NoArrowhead, DstArrow: d2target.NoArrowhead,
+		Icon: assetURL, IconPosition: "INSIDE_MIDDLE_CENTER", IconWidth: 48, IconHeight: 24,
+	}}
+	document, err := Build(context.Background(), diagram, Options{Assets: testAssetOptions(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findSceneNode(t, document.Root, "card:icon").Primitive.(d2scene.Image).Box; got != (d2scene.Box{X: 60, Y: 30, Width: 80, Height: 40}) {
+		t.Fatalf("explicit inside icon box = %+v", got)
+	}
+	if got := findSceneNode(t, document.Root, "circle:icon").Primitive.(d2scene.Image).Box; got != (d2scene.Box{X: 380, Y: -20, Width: 40, Height: 40}) {
+		t.Fatalf("border icon box = %+v", got)
+	}
+	edge := findSceneNode(t, document.Root, "edge")
+	topLeft := diagram.Connections[0].GetIconPosition()
+	if got := edge.Children[0].Primitive.(d2scene.Image).Box; got != (d2scene.Box{X: topLeft.X, Y: topLeft.Y, Width: 48, Height: 24}) {
+		t.Fatalf("connection icon box = %+v", got)
+	}
+	hole := edge.Children[1].Mask.Root.Children[1].Primitive.(d2scene.Rect).Box
+	if hole.Width != 48+4 || hole.Height != 24 {
+		t.Fatalf("connection icon mask hole = %+v", hole)
+	}
+}

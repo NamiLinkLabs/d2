@@ -1468,7 +1468,8 @@ func fitPadding(obj *d2graph.Object, minPadding geo.Spacing) {
 			label.InsideMiddleLeft, label.InsideMiddleRight:
 			iconTL := obj.GetIconTopLeft()
 			if iconTL != nil {
-				iconBox = geo.NewBox(iconTL, d2target.MAX_ICON_SIZE, d2target.MAX_ICON_SIZE)
+				iconWidth, iconHeight := obj.IconReservedSize()
+				iconBox = geo.NewBox(iconTL, iconWidth, iconHeight)
 			}
 		}
 	}
@@ -1500,7 +1501,8 @@ func fitPadding(obj *d2graph.Object, minPadding geo.Spacing) {
 				if childIconPosition.IsOutside() {
 					childIconTL := child.GetIconTopLeft()
 
-					childIconBox := geo.NewBox(childIconTL, d2target.MAX_ICON_SIZE, d2target.MAX_ICON_SIZE)
+					childIconWidth, childIconHeight := child.IconReservedSize()
+					childIconBox := geo.NewBox(childIconTL, childIconWidth, childIconHeight)
 					innerBoxes = append(innerBoxes, *childIconBox)
 				}
 			}

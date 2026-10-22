@@ -450,26 +450,18 @@ func (b *builder) buildShapeIcon(targetShape d2target.Shape, structured bool) (*
 	if !position.IsShapePosition() {
 		return nil, invalidField(object, "iconPosition", targetShape.IconPosition, "must identify a supported icon position")
 	}
-	var box *geo.Box
+	var iconBox *geo.Box
 	if structured {
 		// Class and SQL table rendering uses the raw target box, including for
 		// positions that ordinary shapes place in an inner box.
-		box = geo.NewBox(
+		box := geo.NewBox(
 			geo.NewPoint(float64(targetShape.Pos.X), float64(targetShape.Pos.Y)),
 			float64(targetShape.Width), float64(targetShape.Height),
 		)
+		iconBox = d2target.IconBox(box, box, targetShape.IconPosition, targetShape.IconWidth, targetShape.IconHeight)
 	} else {
 		geometry := targetGeometry(targetShape)
-		if position.IsOutside() {
-			box = geometry.GetBox()
-		} else {
-			box = geometry.GetInnerBox()
-		}
-	}
-	size := d2target.GetIconSize(box, targetShape.IconPosition)
-	topLeft := position.GetPointOnBox(box, label.PADDING, float64(size), float64(size))
-	if topLeft == nil {
-		return nil, invalidField(object, "iconPosition", targetShape.IconPosition, "must identify a supported icon position")
+		iconBox = d2target.IconBox(geometry.GetBox(), geometry.GetInnerBox(), targetShape.IconPosition, targetShape.IconWidth, targetShape.IconHeight)
 	}
 	radius := float64(targetShape.IconBorderRadius)
 	if structured {
@@ -477,7 +469,7 @@ func (b *builder) buildShapeIcon(targetShape d2target.Shape, structured bool) (*
 		radius = 0
 	}
 	return b.buildImageNode(object, targetShape.ID+":icon", targetShape.Icon.String(), d2scene.Box{
-		X: topLeft.X, Y: topLeft.Y, Width: float64(size), Height: float64(size),
+		X: iconBox.TopLeft.X, Y: iconBox.TopLeft.Y, Width: iconBox.Width, Height: iconBox.Height,
 	}, radius, false)
 }
 
@@ -490,9 +482,10 @@ func (b *builder) buildConnectionIcon(connection d2target.Connection) (*d2scene.
 	if topLeft == nil {
 		return nil, invalidField(object, "iconPosition", connection.IconPosition, "does not resolve on the route")
 	}
+	width, height := connection.IconSize()
 	return b.buildImageNode(object, connection.ID+":icon", connection.Icon.String(), d2scene.Box{
 		X: topLeft.X, Y: topLeft.Y,
-		Width: d2target.DEFAULT_ICON_SIZE, Height: d2target.DEFAULT_ICON_SIZE,
+		Width: width, Height: height,
 	}, connection.IconBorderRadius, false)
 }
 
