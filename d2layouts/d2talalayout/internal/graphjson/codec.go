@@ -702,7 +702,35 @@ func serializeEdge(edge *layoutgraph.Edge, edgeIDs *edgeSerializationIDs, guard 
 		Label:                serializeLabel(edge.Label),
 		FromTableColumnIndex: fromIndex,
 		ToTableColumnIndex:   toIndex,
+		FromSide:             serializeSide(edge.FromSide),
+		ToSide:               serializeSide(edge.ToSide),
 	}, nil
+}
+
+var serializedSides = map[geo.Orientation]string{
+	geo.Top:    "top",
+	geo.Right:  "right",
+	geo.Bottom: "bottom",
+	geo.Left:   "left",
+}
+
+func serializeSide(side *geo.Orientation) string {
+	if side == nil {
+		return ""
+	}
+	return serializedSides[*side]
+}
+
+func deserializeSide(side string) (*geo.Orientation, error) {
+	if side == "" {
+		return nil, nil
+	}
+	for orientation, name := range serializedSides {
+		if name == side {
+			return new(orientation), nil
+		}
+	}
+	return nil, fmt.Errorf("invalid edge side %q", side)
 }
 
 func serializeTree(t *layoutgraph.Tree, edgeIDs *edgeSerializationIDs, guard *limits.WorkGuard) (SerializedTree, error) {
@@ -892,6 +920,12 @@ func deserializeEdge(edge SerializedEdge, nodesByID map[layoutgraph.EntityID]*la
 	}
 	if edge.ToTableColumnIndex != nil {
 		newedge.ToTableColumnIndex = new(*edge.ToTableColumnIndex)
+	}
+	if newedge.FromSide, err = deserializeSide(edge.FromSide); err != nil {
+		return nil, err
+	}
+	if newedge.ToSide, err = deserializeSide(edge.ToSide); err != nil {
+		return nil, err
 	}
 	for _, point := range edge.Points {
 		if err := guard.Step(); err != nil {

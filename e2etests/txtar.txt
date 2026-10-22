@@ -1773,6 +1773,79 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 
 a->b
 
+-- edge-ports --
+# source-port / target-port pin a connection end to a side.
+a -> b: {source-port: right; target-port: left}
+c -> d: {source-port: top; target-port: top}
+# source-port pins the endpoint written first, whichever way the arrow points.
+e <- f: {source-port: left; target-port: bottom}
+g -> h: {target-port: right}
+
+# Several pins on one side of a shape.
+hub -> s1: {source-port: right}
+hub -> s2: {source-port: right}
+hub -> s3: {source-port: right}
+
+circle: {shape: circle}
+hexagon: {shape: hexagon}
+circle -> hexagon: {source-port: left; target-port: top}
+
+-- edge-ports-flowchart --
+vars: {
+  d2-config: {
+    sketch: true
+  }
+}
+start: {shape: oval}
+check: Valid? {shape: diamond}
+save: Save
+fix: Ask again
+end: {shape: oval}
+
+start -> check
+check -> save: yes {source-port: right; target-port: top}
+check -> fix: no {source-port: bottom; target-port: top}
+fix -> check: {source-port: left; target-port: left}
+save -> end
+-- edge-ports-containers --
+cluster: {
+  api -> db: {source-port: bottom; target-port: top}
+}
+lb -> cluster.api: {source-port: right; target-port: left}
+lb -> cluster: {source-port: bottom; target-port: top}
+
+board: {
+  grid-columns: 2
+  one
+  two
+  one -> two: {source-port: bottom; target-port: bottom}
+}
+board.two -> lb: {source-port: right; target-port: left}
+-- edge-ports-grid-facing --
+g: {
+  grid-rows: 2
+  p
+  q
+  r
+  s
+}
+g.p -> g.s: {source-port: right; target-port: left}
+g.p -> g.r: {source-port: bottom; target-port: top}
+g.q -> g.s: {source-port: bottom; target-port: top}
+-- edge-ports-sql --
+users: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  name: string
+}
+orders: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  user_id: int {constraint: foreign_key}
+}
+orders.user_id -> users.id
+users -> audit: {source-port: bottom; target-port: top}
+audit -> orders: {source-port: right; target-port: left}
 
 -- near-edge-routing --
 # d2lang/d2#1994: the connection from the near shape is routed around the

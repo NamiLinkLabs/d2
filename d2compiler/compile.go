@@ -696,6 +696,9 @@ func (c *compiler) compileField(obj *d2graph.Object, f *d2ir.Field) {
 		c.errorf(f.LastRef().AST(), `%#v can only be used on connections`, f.Name.ScalarString())
 		return
 
+	} else if isEdgePortKeyword(keyword) && f.Name.IsUnquoted() {
+		c.errorf(f.LastRef().AST(), `%#v can only be used on connections`, keyword)
+		return
 	} else if isReserved {
 		c.compileReserved(&obj.Attributes, f)
 		return
@@ -1368,7 +1371,10 @@ func (c *compiler) compileEdgeField(edge *d2graph.Edge, f *d2ir.Field) {
 		return
 	}
 	_, isReserved := d2ast.SimpleReservedKeywords[keyword]
-	if isReserved {
+	if isEdgePortKeyword(keyword) {
+		c.compileEdgePort(edge, f)
+		return
+	} else if isReserved {
 		c.compileReserved(&edge.Attributes, f)
 		return
 	} else if f.Name.ScalarString() == "style" {
@@ -1413,7 +1419,10 @@ func (c *compiler) compileArrowheads(edge *d2graph.Edge, f *d2ir.Field) {
 			keyword := strings.ToLower(f2.Name.ScalarString())
 			_, isReserved := d2ast.SimpleReservedKeywords[keyword]
 			isReserved = isReserved && f2.Name.IsUnquoted()
-			if isReserved {
+			if isReserved && isEdgePortKeyword(keyword) {
+				c.errorf(f2.LastRef().AST(), `%#v must be set on the connection, not on its arrowhead`, keyword)
+				continue
+			} else if isReserved {
 				c.compileReserved(attrs, f2)
 				continue
 			} else if f2.Name.ScalarString() == "style" && f2.Name.IsUnquoted() {
@@ -1427,6 +1436,39 @@ func (c *compiler) compileArrowheads(edge *d2graph.Edge, f *d2ir.Field) {
 				continue
 			}
 		}
+	}
+}
+
+func isEdgePortKeyword(keyword string) bool {
+	return keyword == "source-port" || keyword == "target-port"
+}
+
+// compileEdgePort compiles source-port and target-port, which pin an end of
+// the connection to one side of its shape.
+func (c *compiler) compileEdgePort(edge *d2graph.Edge, f *d2ir.Field) {
+	keyword := strings.ToLower(f.Name.ScalarString())
+	if f.Primary() == nil {
+		if f.Composite != nil {
+			c.errorf(f.LastPrimaryKey(), "reserved field %v does not accept composite", keyword)
+		} else {
+			c.errorf(f.LastRef().AST(), `reserved field "%v" must have a value`, keyword)
+		}
+		return
+	}
+	scalar := f.Primary().Value
+	val := strings.ToLower(scalar.ScalarString())
+	if !go2.Contains(d2ast.PortSidesArray, val) {
+		c.errorf(scalar, `%s must be one of %v, got %q`, keyword, strings.Join(d2ast.PortSidesArray, ", "), scalar.ScalarString())
+		return
+	}
+	port := &d2graph.Scalar{
+		Value:  val,
+		MapKey: f.LastPrimaryKey(),
+	}
+	if keyword == "source-port" {
+		edge.SrcPort = port
+	} else {
+		edge.DstPort = port
 	}
 }
 
@@ -1780,7 +1822,35 @@ func (c *compiler) validateEdges(g *d2graph.Graph) {
 			c.errorf(edge.GetAstEdge(), "edge from sequence diagram %#v cannot enter itself", edge.Dst.AbsID())
 			continue
 		}
+		c.validateEdgePorts(edge)
 	}
+}
+
+func (c *compiler) validateEdgePorts(edge *d2graph.Edge) {
+	if edge.SrcPort == nil && edge.DstPort == nil {
+		return
+	}
+	if edge.Src.OuterSequenceDiagram() != nil || edge.Dst.OuterSequenceDiagram() != nil {
+		port := edge.SrcPort
+		if port == nil {
+			port = edge.DstPort
+		}
+		c.errorf(edgePortNode(edge, port), "source-port and target-port cannot be used in sequence diagrams")
+		return
+	}
+	if edge.SrcPort != nil && edge.SrcTableColumnIndex != nil {
+		c.errorf(edgePortNode(edge, edge.SrcPort), "source-port cannot be used on a connection from a sql_table column")
+	}
+	if edge.DstPort != nil && edge.DstTableColumnIndex != nil {
+		c.errorf(edgePortNode(edge, edge.DstPort), "target-port cannot be used on a connection to a sql_table column")
+	}
+}
+
+func edgePortNode(edge *d2graph.Edge, port *d2graph.Scalar) d2ast.Node {
+	if port.MapKey != nil {
+		return port.MapKey
+	}
+	return edge.GetAstEdge()
 }
 
 // validateLabelPadding rejects label.padding outside connection labels. Only

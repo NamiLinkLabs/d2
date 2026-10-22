@@ -118,6 +118,8 @@ func (b *layoutSignatureBuilder) writeEdge(edge *d2graph.Edge) error {
 	b.writeInt(edge.Index)
 	b.writeOptionalInt(edge.SrcTableColumnIndex)
 	b.writeOptionalInt(edge.DstTableColumnIndex)
+	b.writeOptionalScalar(edge.SrcPort)
+	b.writeOptionalScalar(edge.DstPort)
 	b.writeBool(edge.SrcArrow)
 	b.writeBool(edge.DstArrow)
 	b.writeBool(edge.IsCurve)

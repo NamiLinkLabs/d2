@@ -160,6 +160,8 @@ Invalid requests reject: unknown or repeated ids, shapes missing from `shapes`, 
 that are not finite numbers, and sizes that are not positive. Connections that could not be
 routed, in time or at all, are listed in `errors` with the reason; the others get routes.
 Connections from a shape to itself are always listed there; move their route with the shape.
+Connections pinned with `source-port` / `target-port` leave and enter their shapes through
+the pinned sides, which compiled connections report as `srcPort` / `dstPort`.
 Sequence diagram lifelines only exist after layout, so their ids are unknown.
 
 ### `extractSource(image: string | Uint8Array | ArrayBuffer): Promise<ExtractedSource | null>`

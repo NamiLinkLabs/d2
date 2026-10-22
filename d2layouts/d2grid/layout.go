@@ -142,6 +142,7 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 
 	// simple straight line edge routing between grid objects, which LayoutNested
 	// then replaces with the edge router's routes
+	var cellEdges []*d2graph.Edge
 	for _, e := range g.Edges {
 		if !e.Src.Parent.IsDescendantOf(obj) && !e.Dst.Parent.IsDescendantOf(obj) {
 			continue
@@ -153,8 +154,10 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 			continue
 		}
 		// if edge is grid child, use simple routing
-		e.Route = []*geo.Point{e.Src.Center(), e.Dst.Center()}
-		e.TraceToShape(e.Route, 0, 1)
+		cellEdges = append(cellEdges, e)
+	}
+	d2graph.RouteStraight(cellEdges)
+	for _, e := range cellEdges {
 		if e.Label.Value != "" {
 			e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
 		}

@@ -1308,6 +1308,12 @@ type Edge struct {
 	SrcTableColumnIndex *int `json:"srcTableColumnIndex,omitempty"`
 	DstTableColumnIndex *int `json:"dstTableColumnIndex,omitempty"`
 
+	// SrcPort and DstPort pin an end of the connection to one side of its shape
+	// (one of d2ast.PortSidesArray), as set by source-port and target-port.
+	// nil leaves the layout engine free to attach the end anywhere.
+	SrcPort *Scalar `json:"srcPort,omitempty"`
+	DstPort *Scalar `json:"dstPort,omitempty"`
+
 	LabelPosition   *string  `json:"labelPosition,omitempty"`
 	LabelPercentage *float64 `json:"labelPercentage,omitempty"`
 

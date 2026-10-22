@@ -582,7 +582,7 @@ func (router *ovgEdgeRouter) slingshot(ctx context.Context, gEdge *layoutgraph.E
 		// nolint: nilerr
 		return nil, 0.0, nil
 	}
-	if gEdge.HasTableColumn() {
+	if gEdge.HasTableColumn() || gEdge.HasPinnedSide() {
 		return nil, 0.0, nil
 	}
 	if !orientation.IsDiagonal() {

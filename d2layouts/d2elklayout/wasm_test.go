@@ -69,3 +69,36 @@ func TestConvertGraphPreservesCustomELKProfile(t *testing.T) {
 		t.Fatalf("container profile = %#v, want custom spacing and padding", containerOpts.ConfigurableOpts)
 	}
 }
+
+func TestConvertGraphPinsPorts(t *testing.T) {
+	g, _, err := d2compiler.Compile("", strings.NewReader("a -> b: {source-port: right; target-port: top}\nc -> b"), nil)
+	if err != nil {
+		t.Fatalf("compile fixture: %v", err)
+	}
+	for i, obj := range g.Objects {
+		obj.Box = geo.NewBox(geo.NewPoint(float64(i*100), float64(i*50)), 60, 40)
+	}
+	elkGraph, err := ConvertGraph(context.Background(), g, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes := map[string]*ELKNode{}
+	for _, n := range elkGraph.Children {
+		nodes[n.ID] = n
+	}
+	for id, side := range map[string]PortSide{"a": East, "b": North} {
+		n := nodes[id]
+		if n.LayoutOptions.PortConstraints != "FIXED_SIDE" || len(n.Ports) != 1 || n.Ports[0].LayoutOptions.PortSide != side {
+			t.Fatalf("%s: constraints %q ports %+v, want one %s port", id, n.LayoutOptions.PortConstraints, n.Ports, side)
+		}
+	}
+	if n := nodes["c"]; n.LayoutOptions.PortConstraints != "" || len(n.Ports) != 0 {
+		t.Fatalf("unpinned c got ports: %+v", n)
+	}
+	if got := elkGraph.Edges[0].Sources[0]; got != nodes["a"].Ports[0].ID {
+		t.Fatalf("pinned edge source = %q, want port %q", got, nodes["a"].Ports[0].ID)
+	}
+	if got := elkGraph.Edges[1].Sources[0]; got != "c" {
+		t.Fatalf("unpinned edge source = %q, want c", got)
+	}
+}

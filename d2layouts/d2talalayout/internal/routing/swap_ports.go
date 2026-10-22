@@ -38,7 +38,7 @@ func swapEdgePortsGuarded(n *layoutgraph.Node, guard *routeWorkGuard) (bool, err
 			return false, err
 		}
 		// TODO: remove `len(e.Points) < 3` and handle straight edges
-		if e.IsLoop() || len(e.Points) < 3 || e.HasTableColumn() {
+		if e.IsLoop() || len(e.Points) < 3 || e.HasTableColumn() || e.HasPinnedSide() {
 			continue
 		}
 		if e.HasLargeArrowheadLabel() {
@@ -249,7 +249,7 @@ func refineEdgeGuarded(g *layoutgraph.Graph, e *layoutgraph.Edge, guard *routeWo
 	if err := guard.step(); err != nil {
 		return false, err
 	}
-	if e.IsLoop() || len(e.Points) <= 2 || e.IsBetweenTableColumns() || e.IsTreeEdge() {
+	if e.IsLoop() || len(e.Points) <= 2 || e.IsBetweenTableColumns() || e.IsTreeEdge() || e.HasPinnedSide() {
 		return false, nil
 	}
 	occupiedPorts, err := occupiedPortsGuarded(e.From, guard)

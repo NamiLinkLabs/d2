@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
+	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
 )
 
@@ -72,6 +73,40 @@ func TestGraphJSONPreservesArrowheadLabelEndpoints(t *testing.T) {
 	}
 	if roundTrip.Edges[0].Label == nil || roundTrip.Edges[0].Label.Position != label.UnlockedMiddle {
 		t.Fatalf("edge label position = %+v, want %v", roundTrip.Edges[0].Label, label.UnlockedMiddle)
+	}
+}
+
+func TestGraphJSONPreservesPinnedSides(t *testing.T) {
+	graph := layoutgraph.NewGraph()
+	from := graph.AddNode(layoutgraph.NewNode(1, 10, 10))
+	to := graph.AddNode(layoutgraph.NewNode(2, 10, 10))
+	pinned := graph.Connect(from, to)
+	pinned.FromSide = new(geo.Right)
+	pinned.ToSide = new(geo.Top)
+	free := graph.Connect(to, from)
+
+	data, err := Marshal(t.Context(), graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(`"fromSide":"right"`)) || !bytes.Contains(data, []byte(`"toSide":"top"`)) {
+		t.Fatalf("graph JSON does not name the pinned sides: %s", data)
+	}
+	var roundTrip layoutgraph.Graph
+	if err := Unmarshal(t.Context(), data, &roundTrip); err != nil {
+		t.Fatal(err)
+	}
+	got := roundTrip.Edges[0]
+	if got.FromSide == nil || *got.FromSide != geo.Right || got.ToSide == nil || *got.ToSide != geo.Top {
+		t.Fatalf("pinned sides = %v, %v after round trip", got.FromSide, got.ToSide)
+	}
+	if roundTrip.Edges[1].HasPinnedSide() || free.HasPinnedSide() {
+		t.Fatal("unpinned edge gained a pinned side")
+	}
+
+	bad := bytes.Replace(data, []byte(`"fromSide":"right"`), []byte(`"fromSide":"middle"`), 1)
+	if err := Unmarshal(t.Context(), bad, &roundTrip); err == nil || !strings.Contains(err.Error(), "invalid edge side") {
+		t.Fatalf("Unmarshal(invalid side) error = %v", err)
 	}
 }
 

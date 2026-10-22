@@ -252,6 +252,10 @@ func validateLayoutResultMetadata(
 			!sameOptionalValue(input.ToTableColumnIndex, edge.ToTableColumnIndex) {
 			return fmt.Errorf("edge %d table column attachment metadata changed", edge.ID)
 		}
+		if !sameOptionalValue(input.FromSide, edge.FromSide) ||
+			!sameOptionalValue(input.ToSide, edge.ToSide) {
+			return fmt.Errorf("edge %d pinned side metadata changed", edge.ID)
+		}
 		if input.IsInvisible != edge.IsInvisible {
 			return fmt.Errorf("edge %d visibility metadata changed", edge.ID)
 		}

@@ -84,6 +84,7 @@ func ConvertGraph(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts)
 				}
 			}
 		}
+		growForPinnedPorts(obj, graphStats.pinnedPorts)
 
 		if obj.HasLabel() && obj.HasIcon() {
 			// this gives shapes extra height for their label if they also have an icon
@@ -176,17 +177,26 @@ func ConvertGraph(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts)
 		srcSide, dstSide = South, North
 	}
 
-	ports := map[struct {
-		obj  *d2graph.Object
-		side PortSide
-	}][]*ELKPort{}
+	// ports are the ports of FIXED_POS (sql_table) nodes that are not column
+	// rows, by side, so they can be spread along it.
+	ports := map[elkPortKey][]*ELKPort{}
 
 	for ei, edge := range g.Edges {
 		var src, dst string
+		srcPinSide, srcPinned := edge.SrcPortSide()
+		dstPinSide, dstPinned := edge.DstPortSide()
 
 		switch {
 		case edge.SrcTableColumnIndex != nil:
 			src = srcPortID(edge.Src, edge.Src.SQLTable.Columns[*edge.SrcTableColumnIndex].Name.Label)
+		case srcPinned:
+			n := elkNodes[edge.Src]
+			p := addPinnedPort(n, pinnedPortID(edge.Src, ei, true), elkPortSide(srcPinSide))
+			src = p.ID
+			if n.LayoutOptions.PortConstraints == "FIXED_POS" {
+				k := elkPortKey{edge.Src, p.LayoutOptions.PortSide}
+				ports[k] = append(ports[k], p)
+			}
 		case edge.Src.SQLTable != nil:
 			p := &ELKPort{
 				ID:            fmt.Sprintf("%s.%d", srcPortID(edge.Src, "__root__"), ei),
@@ -194,10 +204,7 @@ func ConvertGraph(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts)
 			}
 			src = p.ID
 			elkNodes[edge.Src].Ports = append(elkNodes[edge.Src].Ports, p)
-			k := struct {
-				obj  *d2graph.Object
-				side PortSide
-			}{edge.Src, srcSide}
+			k := elkPortKey{edge.Src, srcSide}
 			ports[k] = append(ports[k], p)
 		default:
 			src = edge.Src.AbsID()
@@ -206,6 +213,14 @@ func ConvertGraph(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts)
 		switch {
 		case edge.DstTableColumnIndex != nil:
 			dst = dstPortID(edge.Dst, edge.Dst.SQLTable.Columns[*edge.DstTableColumnIndex].Name.Label)
+		case dstPinned:
+			n := elkNodes[edge.Dst]
+			p := addPinnedPort(n, pinnedPortID(edge.Dst, ei, false), elkPortSide(dstPinSide))
+			dst = p.ID
+			if n.LayoutOptions.PortConstraints == "FIXED_POS" {
+				k := elkPortKey{edge.Dst, p.LayoutOptions.PortSide}
+				ports[k] = append(ports[k], p)
+			}
 		case edge.Dst.SQLTable != nil:
 			p := &ELKPort{
 				ID:            fmt.Sprintf("%s.%d", dstPortID(edge.Dst, "__root__"), ei),
@@ -213,10 +228,7 @@ func ConvertGraph(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts)
 			}
 			dst = p.ID
 			elkNodes[edge.Dst].Ports = append(elkNodes[edge.Dst].Ports, p)
-			k := struct {
-				obj  *d2graph.Object
-				side PortSide
-			}{edge.Dst, dstSide}
+			k := elkPortKey{edge.Dst, dstSide}
 			ports[k] = append(ports[k], p)
 		default:
 			dst = edge.Dst.AbsID()
@@ -241,12 +253,6 @@ func ConvertGraph(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts)
 		elkEdges[edge] = e
 	}
 
-	for k, ports := range ports {
-		width := elkNodes[k.obj].Width
-		spacing := width / float64(len(ports)+1)
-		for i, p := range ports {
-			p.X = float64(i+1) * spacing
-		}
-	}
+	spreadFixedPorts(elkNodes, ports)
 	return elkGraph, nil
 }

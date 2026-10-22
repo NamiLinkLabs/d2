@@ -1,0 +1,17 @@
+# Pinned connections between grid cells that are not neighbours, so the
+# straight line runs through the cells in between, and pinned parallel
+# connections between neighbours.
+g: {
+  grid-rows: 3
+  grid-columns: 3
+  a; b; c
+  d; e; f
+  h; i; j
+}
+g.a -> g.c: {source-port: top; target-port: top}
+g.a -> g.j: {source-port: bottom; target-port: right}
+g.h -> g.c: {source-port: right; target-port: bottom}
+g.d -> g.f: {source-port: right; target-port: left}
+g.b -> g.e: {source-port: bottom; target-port: top}
+g.b -> g.e: {source-port: left; target-port: left}
+g.e -> g.b

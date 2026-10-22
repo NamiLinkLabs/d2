@@ -3,6 +3,7 @@ package d2layouts
 import (
 	"context"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -75,7 +76,87 @@ func routeAroundShapes(ctx context.Context, g *d2graph.Graph, edges []*d2graph.E
 	if err != nil {
 		return err
 	}
-	return StraightRouter(ctx, g, append(straight, unrouted...))
+	straight = append(straight, unrouted...)
+	if len(straight) < len(edges) {
+		straight = append(straight, badPinnedRoutes(g, edges, straight)...)
+	}
+	return StraightRouter(ctx, g, straight)
+}
+
+// badPinnedRoutes tidies the routes the edge router gave the edges with
+// source-port or target-port, those of edges not in straight, and returns
+// the ones whose route still leaves a pinned side other than straight out of
+// it, runs through a shape, or runs along a shape's border, such as the
+// route between two touching sides, which leave the router no room.
+// StraightRouter then gives those the pinned route it gives every pinned
+// edge when the edges are not routed around shapes.
+func badPinnedRoutes(g *d2graph.Graph, edges, straight []*d2graph.Edge) []*d2graph.Edge {
+	var bad []*d2graph.Edge
+	for _, e := range edges {
+		if !e.HasPort() || e.Src == e.Dst || slices.Contains(straight, e) {
+			continue
+		}
+		e.Route = tidyRoute(e.Route)
+		if e.PortsHonored() != nil || e.RouteClear() != nil || runsAlongBorder(g, e) {
+			bad = append(bad, e)
+		}
+	}
+	return bad
+}
+
+// runsAlongBorder reports whether a segment of e's route runs along the
+// border of a shape other than e's ends, such as the grid or container they
+// are in, where it cannot be told apart from that border.
+func runsAlongBorder(g *d2graph.Graph, e *d2graph.Edge) bool {
+	const eps, minOverlap = 1., 10.
+	// g may be a nested diagram, such as a grid, whose root is a shape too.
+	for _, obj := range append([]*d2graph.Object{g.Root}, g.Objects...) {
+		if obj == nil || obj == e.Src || obj == e.Dst || obj.Box == nil || obj.TopLeft == nil {
+			continue
+		}
+		l, r := obj.TopLeft.X, obj.TopLeft.X+obj.Width
+		t, b := obj.TopLeft.Y, obj.TopLeft.Y+obj.Height
+		for i := 1; i < len(e.Route); i++ {
+			p, q := e.Route[i-1], e.Route[i]
+			if math.Abs(p.Y-q.Y) <= eps && (math.Abs(p.Y-t) <= eps || math.Abs(p.Y-b) <= eps) &&
+				math.Min(math.Max(p.X, q.X), r)-math.Max(math.Min(p.X, q.X), l) > minOverlap {
+				return true
+			}
+			if math.Abs(p.X-q.X) <= eps && (math.Abs(p.X-l) <= eps || math.Abs(p.X-r) <= eps) &&
+				math.Min(math.Max(p.Y, q.Y), b)-math.Max(math.Min(p.Y, q.Y), t) > minOverlap {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// tidyRoute drops the points of route that repeat the one before or lie on
+// the line through their neighbours, including the tip of a route that runs
+// out along a line and back.
+func tidyRoute(route []*geo.Point) []*geo.Point {
+	const eps = 1e-6
+	out := make([]*geo.Point, 0, len(route))
+	for _, p := range route {
+		if n := len(out); n > 0 && math.Abs(out[n-1].X-p.X) < eps && math.Abs(out[n-1].Y-p.Y) < eps {
+			continue
+		}
+		for n := len(out); n >= 2; n = len(out) {
+			a, b := out[n-2], out[n-1]
+			if math.Abs((b.X-a.X)*(p.Y-a.Y)-(b.Y-a.Y)*(p.X-a.X)) > eps {
+				break
+			}
+			out = out[:n-1]
+		}
+		if n := len(out); n > 0 && math.Abs(out[n-1].X-p.X) < eps && math.Abs(out[n-1].Y-p.Y) < eps {
+			continue
+		}
+		out = append(out, p)
+	}
+	if len(out) < 2 {
+		return route
+	}
+	return out
 }
 
 // isInvisibleRelay reports whether obj is a shape that cannot be seen, with
@@ -125,6 +206,10 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 			if e.IsCurve || len(e.Route) < 3 {
 				continue
 			}
+			if e.HasPort() {
+				curvePinned(g, e)
+				continue
+			}
 			curve := geo.Route(e.Route).Curve()
 			if curveEntersNewShape(g, e, curve) {
 				curve = geo.Route(e.Route).RoundCorners(curveCornerRadius)
@@ -142,6 +227,23 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 			}
 		}
 		return nil
+	}
+}
+
+// curvePinned curves the route of e, which has source-port or target-port,
+// as dagre curves its own pinned routes: every segment is kept and only the
+// corners are rounded, so the ends still leave their pinned sides straight.
+// The route keeps its corners where even that curve would enter a shape.
+func curvePinned(g *d2graph.Graph, e *d2graph.Edge) {
+	curve := geo.Route(e.PinnedCurve(e.Route))
+	if len(curve) < 4 || curveEntersNewShape(g, e, curve) {
+		return
+	}
+	e.Route = curve
+	e.IsCurve = true
+	if e.Label.Value != "" {
+		e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
+		e.LabelPercentage = nil
 	}
 }
 
@@ -222,11 +324,20 @@ const maxStraightEdgeSpacing = 20
 // StraightRouter draws each edge in a straight line between its shapes'
 // centers, cut at their borders, ignoring the other shapes. Edges between the
 // same two shapes are spread apart, side by side, so each one stays visible.
+//
+// An edge with source-port or target-port instead leaves and enters its
+// pinned sides, with the straight line moved onto them by
+// d2graph.Edge.PinRoute.
 func StraightRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
 	type endpoints struct{ a, b *d2graph.Object }
 	groups := make(map[endpoints][]*d2graph.Edge, len(edges))
 	var order []endpoints
+	var pinned []*d2graph.Edge
 	for _, e := range edges {
+		if e.HasPort() && e.Src != e.Dst {
+			pinned = append(pinned, e)
+			continue
+		}
 		key := endpoints{e.Src, e.Dst}
 		if _, ok := groups[endpoints{e.Dst, e.Src}]; ok {
 			key = endpoints{e.Dst, e.Src}
@@ -259,6 +370,18 @@ func StraightRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge
 				offset = normal.Multiply((float64(i) - float64(len(group)-1)/2) * spacing)
 			}
 			routeStraight(e, offset)
+		}
+	}
+	if len(pinned) > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		d2graph.RouteStraight(pinned)
+		for _, e := range pinned {
+			e.IsCurve = false
+			if e.Label.Value != "" {
+				e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
+			}
 		}
 	}
 	return nil

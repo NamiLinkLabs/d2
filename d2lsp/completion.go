@@ -94,6 +94,8 @@ func getCompletionItems(text string, line, column int, utf16Pos bool) ([]Complet
 		return getTooltipCompletions(), nil
 	case "direction:", "direction":
 		return getDirectionCompletions(), nil
+	case "source-port", "source-port:", "target-port", "target-port:":
+		return getPortSideCompletions(), nil
 	default:
 		return nil, nil
 	}
@@ -592,6 +594,19 @@ func getDirectionCompletions() []CompletionItem {
 			Kind:       KeywordCompletion,
 			Detail:     "direction",
 			InsertText: dir,
+		}
+	}
+	return items
+}
+
+func getPortSideCompletions() []CompletionItem {
+	items := make([]CompletionItem, len(d2ast.PortSidesArray))
+	for i, side := range d2ast.PortSidesArray {
+		items[i] = CompletionItem{
+			Label:      side,
+			Kind:       KeywordCompletion,
+			Detail:     "connection port side",
+			InsertText: side,
 		}
 	}
 	return items

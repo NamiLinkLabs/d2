@@ -344,6 +344,8 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 		edgeDst := e.Dst
 		srcColumnIndex := e.SrcTableColumnIndex
 		dstColumnIndex := e.DstTableColumnIndex
+		srcSide, srcPinned := e.SrcPortSide()
+		dstSide, dstPinned := e.DstPortSide()
 		if e.SrcArrow && !e.DstArrow {
 			edgeSrc, edgeDst = edgeDst, edgeSrc
 			talaEdge = talaGraph.Connect(toNode[edgeSrc], toNode[edgeDst])
@@ -375,6 +377,8 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 				talaEdge.TargetArrowhead = layoutgraph.Arrowhead(d2target.TriangleArrowhead)
 			}
 			srcColumnIndex, dstColumnIndex = dstColumnIndex, srcColumnIndex
+			srcSide, dstSide = dstSide, srcSide
+			srcPinned, dstPinned = dstPinned, srcPinned
 
 			if loadExistingLayout {
 				for _, v := range slices.Backward(e.Route) {
@@ -483,6 +487,12 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 			}
 		}
 
+		if srcPinned {
+			talaEdge.FromSide = new(srcSide)
+		}
+		if dstPinned {
+			talaEdge.ToSide = new(dstSide)
+		}
 		if edgeSrc.SQLTable != nil && srcColumnIndex != nil {
 			talaEdge.FromTableColumnIndex = new(*srcColumnIndex)
 		}

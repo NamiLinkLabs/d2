@@ -291,6 +291,8 @@ func (state *graphCloneState) copyEdge(source *Edge) (*Edge, error) {
 	cloned.LabelPercentage = source.LabelPercentage
 	cloned.FromTableColumnIndex = cloneValue(source.FromTableColumnIndex)
 	cloned.ToTableColumnIndex = cloneValue(source.ToTableColumnIndex)
+	cloned.FromSide = cloneValue(source.FromSide)
+	cloned.ToSide = cloneValue(source.ToSide)
 	cloned.IsInvisible = source.IsInvisible
 	cloned.Style = copyEdgeStyle(source.Style)
 	for _, point := range source.Points {
