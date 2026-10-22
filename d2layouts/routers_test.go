@@ -390,10 +390,10 @@ func TestCurvedRouter(t *testing.T) {
 	if err := CurvedRouter(base)(context.Background(), g, g.Edges); err != nil {
 		t.Fatal(err)
 	}
-	if !labeled.IsCurve || len(labeled.Route) != 4 {
+	if !labeled.IsCurve || len(labeled.Route) < 4 || (len(labeled.Route)-1)%3 != 0 {
 		t.Fatalf("route was not curved: %v", labeled.Route)
 	}
-	if !labeled.Route[0].Equals(geo.NewPoint(0, 0)) || !labeled.Route[3].Equals(geo.NewPoint(100, 100)) {
+	if !labeled.Route[0].Equals(geo.NewPoint(0, 0)) || !labeled.Route[len(labeled.Route)-1].Equals(geo.NewPoint(100, 100)) {
 		t.Fatalf("curve moved its ends: %v", labeled.Route)
 	}
 	if *labeled.LabelPosition != label.InsideMiddleCenter.String() || labeled.LabelPercentage != nil {
@@ -423,5 +423,121 @@ func TestRouterFor(t *testing.T) {
 		if curved := g.Edges[0].IsCurve; curved != strings.EqualFold(engine, "dagre") {
 			t.Errorf("%s: curve = %v", engine, curved)
 		}
+	}
+}
+
+// From the review of the dagre curves: edges into and out of a grid, a
+// sequence diagram and a near shape, whose plain curves cut through bob and e.
+const curvesAroundShapesSource = `
+g: {
+  grid-columns: 3
+  t: {shape: sql_table; id: int {constraint: primary_key}; name: string}
+  c: {x; y}
+  d
+  e
+  f
+  t -> d: label
+  d -> t
+  e -> f
+  c.x -> f
+}
+seq: {
+  shape: sequence_diagram
+  alice -> bob: hi
+}
+legend: {near: bottom-right; k: key}
+outside
+mid1; mid2
+outside -> mid1 -> mid2
+outside -> g.e
+seq.alice -> outside
+legend -> g.t
+seq.bob -> g.c.y
+`
+
+// shapesEntered returns the shapes, other than e's ends and their
+// containers, that a sampled point of e's route is inside, curve or not.
+func shapesEntered(g *d2graph.Graph, e *d2graph.Edge) map[string]bool {
+	var points []*geo.Point
+	if e.IsCurve {
+		for i := 0; i+3 < len(e.Route); i += 3 {
+			bezier := geo.NewBezierCurve(e.Route[i : i+4])
+			for s := 0; s <= 100; s++ {
+				points = append(points, bezier.At(float64(s)/100))
+			}
+		}
+	} else {
+		for i := 1; i < len(e.Route); i++ {
+			for s := 0; s <= 100; s++ {
+				points = append(points, e.Route[i-1].Interpolate(e.Route[i], float64(s)/100))
+			}
+		}
+	}
+	entered := map[string]bool{}
+	for _, obj := range g.Objects {
+		if e.Src.IsDescendantOf(obj) || e.Dst.IsDescendantOf(obj) {
+			continue
+		}
+		for _, p := range points {
+			if insideBox(p, obj.Box, 1) {
+				entered[obj.AbsID()] = true
+				break
+			}
+		}
+	}
+	return entered
+}
+
+func TestRouterForDagreCurvesEnterNoNewShape(t *testing.T) {
+	t.Parallel()
+	polylines := layOutForTest(t, curvesAroundShapesSource, "dagre", DefaultRouter)
+	curves := layOutForTest(t, curvesAroundShapesSource, "dagre", RouterFor("dagre"))
+	curved := 0
+	for _, id := range []string{"(outside -> g.e)[0]", "(seq.alice -> outside)[0]", "(legend -> g.t)[0]", "(seq.bob -> g.c.y)[0]"} {
+		polyline, curve := findEdge(t, polylines, id), findEdge(t, curves, id)
+		if curve.IsCurve {
+			curved++
+		}
+		allowed := shapesEntered(polylines, polyline)
+		for obj := range shapesEntered(curves, curve) {
+			if !allowed[obj] {
+				t.Errorf("the curve of %s enters %s, which its route went around: %v", id, obj, curve.Route)
+			}
+		}
+	}
+	if curved == 0 {
+		t.Fatal("no route was curved")
+	}
+}
+
+func TestCurvedRouterKeepsCornersNearShapes(t *testing.T) {
+	t.Parallel()
+	g := measuredGraph(t, "a; b; o\na -> b\n")
+	a, b, o := g.Objects[0], g.Objects[1], g.Objects[2]
+	a.TopLeft, a.Width, a.Height = geo.NewPoint(-100, 140), 100, 40
+	b.TopLeft, b.Width, b.Height = geo.NewPoint(140, -100), 40, 100
+	// o sits inside the route's corner at (160, 160), 2 px from both legs:
+	// a curve rounding that corner would cut through o.
+	o.TopLeft, o.Width, o.Height = geo.NewPoint(100, 100), 58, 58
+	e := g.Edges[0]
+	route := []*geo.Point{geo.NewPoint(0, 160), geo.NewPoint(160, 160), geo.NewPoint(160, 0)}
+	base := func(context.Context, *d2graph.Graph, []*d2graph.Edge) error {
+		e.Route = append([]*geo.Point(nil), route...)
+		e.IsCurve = false
+		return nil
+	}
+	if err := CurvedRouter(base)(context.Background(), g, g.Edges); err != nil {
+		t.Fatal(err)
+	}
+	if e.IsCurve || len(e.Route) != 3 {
+		t.Fatalf("the route was curved through o: %v", e.Route)
+	}
+	// Away from o, the same corner is rounded.
+	o.TopLeft = geo.NewPoint(-300, -300)
+	if err := CurvedRouter(base)(context.Background(), g, g.Edges); err != nil {
+		t.Fatal(err)
+	}
+	if !e.IsCurve {
+		t.Fatalf("the route was not curved: %v", e.Route)
 	}
 }

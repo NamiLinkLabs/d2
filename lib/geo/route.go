@@ -91,3 +91,38 @@ func (route Route) Curve() Route {
 	path = append(path, route[len(route)-1])
 	return path
 }
+
+// RoundCorners returns a smooth path that follows route and leaves it only
+// to round each corner, within radius of that corner, as cubic Bézier curves
+// in the form Curve returns. Curve alone cuts across a short route's corners
+// by up to half of each segment, so it can cross what the route went around;
+// RoundCorners adds points within radius of each corner first, so the curve
+// stays within radius/2 of the route. Consecutive equal points count as one.
+// A route of fewer than three distinct points is returned as it is.
+func (route Route) RoundCorners(radius float64) Route {
+	points := make(Route, 0, len(route))
+	for _, p := range route {
+		if len(points) == 0 || !points[len(points)-1].Equals(p) {
+			points = append(points, p)
+		}
+	}
+	if len(points) < 3 {
+		return route
+	}
+	dense := make(Route, 0, 3*len(points))
+	dense = append(dense, points[0])
+	for i := 1; i < len(points)-1; i++ {
+		prev, corner, next := points[i-1], points[i], points[i+1]
+		in := prev.VectorTo(corner)
+		out := corner.VectorTo(next)
+		rIn := math.Min(radius, in.Length()/2)
+		rOut := math.Min(radius, out.Length()/2)
+		dense = append(dense,
+			corner.AddVector(in.Unit().Multiply(-rIn)),
+			corner,
+			corner.AddVector(out.Unit().Multiply(rOut)),
+		)
+	}
+	dense = append(dense, points[len(points)-1])
+	return dense.Curve()
+}

@@ -61,8 +61,17 @@ func routeAroundShapes(ctx context.Context, g *d2graph.Graph, edges []*d2graph.E
 	return StraightRouter(ctx, g, unrouted)
 }
 
+// curveCornerRadius is how far from each corner of a route CurvedRouter
+// starts to round it.
+const curveCornerRadius = 40
+
+// curveSamples is how many points of each cubic of a curved route
+// CurvedRouter checks against the shapes.
+const curveSamples = 32
+
 // CurvedRouter returns a router that routes edges with router and then curves
-// every route that bends, as dagre curves its own routes.
+// every route that bends, rounding its corners as dagre's curves do. A route
+// whose curve would enter a shape its corners went around keeps its corners.
 func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 	return func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
 		if err := router(ctx, g, edges); err != nil {
@@ -72,7 +81,11 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 			if e.IsCurve || len(e.Route) < 3 {
 				continue
 			}
-			e.Route = geo.Route(e.Route).Curve()
+			curve := geo.Route(e.Route).RoundCorners(curveCornerRadius)
+			if len(curve) < 4 || curveEntersNewShape(g, e, curve) {
+				continue
+			}
+			e.Route = curve
 			e.IsCurve = true
 			if e.Label.Value != "" {
 				// The curve leaves the route's corners, where the router may have
@@ -83,6 +96,57 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 		}
 		return nil
 	}
+}
+
+// curveEntersNewShape reports whether curve, the curve of e's route, enters
+// a shape that the route itself does not, other than e's ends and the
+// containers they are in.
+func curveEntersNewShape(g *d2graph.Graph, e *d2graph.Edge, curve geo.Route) bool {
+	curveTL, curveBR := curve.GetBoundingBox()
+	for _, obj := range g.Objects {
+		if obj.Box == nil || obj.TopLeft == nil || e.Src.IsDescendantOf(obj) || e.Dst.IsDescendantOf(obj) {
+			continue
+		}
+		if obj.TopLeft.X > curveBR.X || obj.TopLeft.X+obj.Width < curveTL.X ||
+			obj.TopLeft.Y > curveBR.Y || obj.TopLeft.Y+obj.Height < curveTL.Y {
+			continue
+		}
+		if !curveEnters(curve, obj.Box) || routeEnters(e.Route, obj.Box) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// curveEnters reports whether a sampled point of curve is inside box.
+func curveEnters(curve geo.Route, box *geo.Box) bool {
+	for i := 0; i+3 < len(curve); i += 3 {
+		bezier := geo.NewBezierCurve(curve[i : i+4])
+		for s := 0; s <= curveSamples; s++ {
+			if strictlyInside(bezier.At(float64(s)/curveSamples), box) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// routeEnters reports whether a segment of route crosses box's border or has
+// an end inside it.
+func routeEnters(route []*geo.Point, box *geo.Box) bool {
+	for i := 0; i+1 < len(route); i++ {
+		if strictlyInside(route[i], box) || len(box.Intersections(geo.Segment{Start: route[i], End: route[i+1]})) > 0 {
+			return true
+		}
+	}
+	return len(route) > 0 && strictlyInside(route[len(route)-1], box)
+}
+
+// strictlyInside reports whether p is inside box and not on its border.
+func strictlyInside(p *geo.Point, box *geo.Box) bool {
+	return p.X > box.TopLeft.X && p.X < box.TopLeft.X+box.Width &&
+		p.Y > box.TopLeft.Y && p.Y < box.TopLeft.Y+box.Height
 }
 
 // maxStraightEdgeSpacing is the most space between two straight edges that
