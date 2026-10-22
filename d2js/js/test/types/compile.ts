@@ -39,6 +39,8 @@ configured.then((response) => {
   const renderOptions: RenderOptions = response.renderOptions;
   d2.render(response.diagram, renderOptions);
   d2.render(response.diagram, { ...renderOptions, isometric: false });
+  d2.render(response.diagram, { ...renderOptions, intersectionGaps: true });
+  const gaps: boolean | undefined = renderOptions.intersectionGaps;
 
   // @ts-expect-error The response exposes renderOptions, not options.
   response.options;

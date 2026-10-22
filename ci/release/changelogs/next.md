@@ -16,6 +16,7 @@
 - dagre: configure the space between ranks with `--dagre-ranksep` (previously at least 100) and
   the padding containers are fitted to with `--dagre-padding` (previously fixed at 30), which
   makes containers around a single image or shape as tight as wanted.
+- renders: leave an empty gap in a connection where another one drawn above it crosses with `--intersection-gaps`, `vars: {d2-config: {intersection-gaps: true}}` or the D2.js `intersectionGaps` option, in SVG and in native PNG, GIF, PDF and PPTX exports. Lines meeting at a shape, running together or crossing at a shallow angle keep their stroke, as do sequence diagram lifelines. [#1932](https://github.com/d2lang/d2/issues/1932)
 - connections: set the space kept free around a connection's label with
   `label.padding`, e.g. `a -> b: hi {label.padding: 8}`, or
   `(** -> **)[*].label.padding: 8` for every connection. Dagre, ELK, TALA and

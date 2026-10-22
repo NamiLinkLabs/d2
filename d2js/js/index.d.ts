@@ -57,6 +57,8 @@ export interface RenderOptions {
   darkThemeID?: number;
   /** Center the SVG in the containing viewbox [default: false] */
   center?: boolean;
+  /** Leave an empty gap in a connection where another one drawn above it crosses, as `vars: {d2-config: {intersection-gaps: true}}` does. Connections are drawn by z-index, then in declaration order; the later one stays whole. Ignored by isometric and ASCII output [default: false] */
+  intersectionGaps?: boolean;
   /** Pixels padded around the rendered diagram [default: 100] */
   pad?: number;
   /** Scale the output. E.g., 0.5 to halve the default size. The default will render SVG's that will fit to screen. Setting to 1 turns off SVG fitting to screen. */
