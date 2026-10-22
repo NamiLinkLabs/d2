@@ -208,6 +208,8 @@ func captureRouteMutations(g *layoutgraph.Graph, extraEdges []*layoutgraph.Edge,
 			targetArrowheadLabel: snapshotPointer(edge.TargetArrowheadLabel),
 			fromTableColumnIndex: snapshotPointer(edge.FromTableColumnIndex),
 			toTableColumnIndex:   snapshotPointer(edge.ToTableColumnIndex),
+			fromSide:             snapshotPointer(edge.FromSide),
+			toSide:               snapshotPointer(edge.ToSide),
 		}
 		if err := captureNode(edge.From); err != nil {
 			return err

@@ -112,6 +112,8 @@ type edgeSnapshot struct {
 	targetArrowheadLabel pointerSnapshot[Label]
 	fromTableColumnIndex pointerSnapshot[int]
 	toTableColumnIndex   pointerSnapshot[int]
+	fromSide             pointerSnapshot[geo.Orientation]
+	toSide               pointerSnapshot[geo.Orientation]
 }
 
 type clusterSnapshot struct {
@@ -229,6 +231,8 @@ func captureEdge(edge *Edge) edgeSnapshot {
 		targetArrowheadLabel: snapshotPointer(edge.TargetArrowheadLabel),
 		fromTableColumnIndex: snapshotPointer(edge.FromTableColumnIndex),
 		toTableColumnIndex:   snapshotPointer(edge.ToTableColumnIndex),
+		fromSide:             snapshotPointer(edge.FromSide),
+		toSide:               snapshotPointer(edge.ToSide),
 	}
 }
 
@@ -239,6 +243,8 @@ func (s edgeSnapshot) restore(edge *Edge) {
 	s.targetArrowheadLabel.restore()
 	s.fromTableColumnIndex.restore()
 	s.toTableColumnIndex.restore()
+	s.fromSide.restore()
+	s.toSide.restore()
 	// s.value.Points retains the original slice header. Repair that backing
 	// array before reattaching it so rollback preserves aliases to both the
 	// route slice and its point objects.

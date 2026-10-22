@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/d2/d2lib"
 	"github.com/d2lang/d2/d2renderers/d2fonts"
@@ -132,7 +133,7 @@ func runCase(ctx context.Context, tc caseInput, iteration int, font *d2fonts.Fon
 			return func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (err error) {
 				pprof.Do(ctx, pprof.Labels("phase", "routing"), func(ctx context.Context) {
 					start := time.Now()
-					err = d2talalayout.RouteEdges(ctx, g, edges)
+					err = d2layouts.RouterFor("tala")(ctx, g, edges)
 					r.RoutingNS += time.Since(start).Nanoseconds()
 					r.RoutingCalls++
 				})

@@ -11,6 +11,8 @@ type SerializedLabel struct {
 // SerializedIcon is the fixture representation of icon placement.
 type SerializedIcon struct {
 	Position string
+	Width    float64 `json:",omitempty"`
+	Height   float64 `json:",omitempty"`
 }
 
 // SerializedPoint is the fixed JSON representation of a geometric point.
@@ -89,7 +91,11 @@ type SerializedEdge struct {
 	Label                *SerializedLabel   `json:"label,omitempty"`
 	FromTableColumnIndex *int               `json:"fromTableColumnIndex,omitempty"`
 	ToTableColumnIndex   *int               `json:"toTableColumnIndex,omitempty"`
-	Style                SerializedStyle    `json:"style,omitempty"`
+	// FromSide and ToSide are the pinned sides ("top", "right", "bottom",
+	// "left"); empty means free.
+	FromSide string          `json:"fromSide,omitempty"`
+	ToSide   string          `json:"toSide,omitempty"`
+	Style    SerializedStyle `json:"style,omitempty"`
 
 	SourceArrowhead string `json:"sourceArrowhead"`
 	TargetArrowhead string `json:"targetArrowhead"`
@@ -145,6 +151,7 @@ type SerializedGraph struct {
 	CellSize float64
 
 	IsRootHierarchy bool                         `json:"isRootHierarchy,omitempty"`
+	SeparateEdges   bool                         `json:"separateEdges,omitempty"`
 	Containers      map[int64][]int64            `json:"containers"`
 	Hubs            map[int64][]int64            `json:"hubs,omitempty"`
 	Clusters        map[int64]SerializedCluster  `json:"clusters,omitempty"`

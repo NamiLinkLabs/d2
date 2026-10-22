@@ -274,6 +274,8 @@ func TestEvaluateSeedRejectsChangedImmutableGeometryMetadata(t *testing.T) {
 		{name: "edge minimum geometry", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].MinWidth++ }, want: "minimum geometry"},
 		{name: "edge source table column", mutate: func(graph *layoutgraph.Graph) { *graph.Edges[0].FromTableColumnIndex = 1 }, want: "table column attachment"},
 		{name: "edge target table column", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].ToTableColumnIndex = nil }, want: "table column attachment"},
+		{name: "edge source side", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].FromSide = new(geo.Top) }, want: "pinned side metadata"},
+		{name: "edge target side", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].ToSide = new(geo.Left) }, want: "pinned side metadata"},
 		{name: "edge visibility", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].IsInvisible = true }, want: "visibility metadata"},
 		{name: "edge style", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].Style.Stroke = &layoutgraph.StyleScalar{Value: "red"} }, want: "style metadata"},
 		{name: "edge label text", mutate: func(graph *layoutgraph.Graph) { graph.Edges[0].Label.Text = "replacement" }, want: "label identity"},
@@ -613,5 +615,35 @@ func TestRunSeedLeavesInputUnchanged(t *testing.T) {
 				t.Fatal("RunSeed mutated its input")
 			}
 		})
+	}
+}
+
+func TestLayoutScorePrefersHonouredPins(t *testing.T) {
+	honoured := layoutScore{pinViolations: 0, penalty: 100, area: 100}
+	broken := layoutScore{pinViolations: 1, penalty: 1, area: 1}
+	if honoured.compare(broken) != -1 || broken.compare(honoured) != 1 {
+		t.Fatal("a layout that breaks a pin must rank after one that honours all pins")
+	}
+	if (layoutScore{penalty: 1}).compare(layoutScore{penalty: 2}) != -1 {
+		t.Fatal("without pins, the penalty still decides")
+	}
+
+	g := layoutgraph.NewGraph()
+	a := g.AddNode(layoutgraph.NewNode(1, 100, 100))
+	a.TopLeft = geo.NewPoint(0, 0)
+	b := g.AddNode(layoutgraph.NewNode(2, 100, 100))
+	b.TopLeft = geo.NewPoint(200, 0)
+	e := g.Connect(a, b)
+	e.Points = []*geo.Point{geo.NewPoint(100, 50), geo.NewPoint(200, 50)}
+	if got := pinnedSideViolations(g); got != 0 {
+		t.Fatalf("unpinned violations = %d", got)
+	}
+	e.FromSide, e.ToSide = new(geo.Right), new(geo.Top)
+	if got := pinnedSideViolations(g); got != 1 {
+		t.Fatalf("violations = %d, want 1 (the target enters from the left)", got)
+	}
+	e.Points = []*geo.Point{geo.NewPoint(100, 50), geo.NewPoint(150, 50), geo.NewPoint(150, -20), geo.NewPoint(250, -20), geo.NewPoint(250, 0)}
+	if got := pinnedSideViolations(g); got != 0 {
+		t.Fatalf("violations = %d, want 0", got)
 	}
 }

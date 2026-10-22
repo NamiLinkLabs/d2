@@ -334,6 +334,8 @@ func buildSceneWithResourcesAndLinks(ctx context.Context, diagram *d2target.Diag
 		Fonts:      fontOptions,
 		LinkBudget: linkBudget,
 		Appendix:   true,
+
+		IntersectionGaps: opts.IntersectionGaps != nil && *opts.IntersectionGaps,
 	})
 	if err != nil {
 		return nil, err
@@ -899,6 +901,7 @@ func rasterRenderOptions(opts d2svg.RenderOpts) d2svg.RenderOpts {
 		ThemeOverrides:     opts.ThemeOverrides,
 		DarkThemeOverrides: opts.DarkThemeOverrides,
 		OmitVersion:        opts.OmitVersion,
+		IntersectionGaps:   opts.IntersectionGaps,
 	}
 }
 

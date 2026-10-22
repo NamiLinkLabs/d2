@@ -30,7 +30,7 @@ func chargeSkippedRouteWork(guard workBudget, amount int) error {
 		return nil
 	}
 	search, ok := guard.(*routeSearchWorkGuard)
-	if !ok || search.done == nil || search.aggregate != nil && !search.deferAggregate {
+	if !ok || !search.batchesSteps() {
 		for range amount {
 			if err := guard.step(); err != nil {
 				return err
@@ -49,4 +49,18 @@ func chargeSkippedRouteWork(guard workBudget, amount int) error {
 		return search.step()
 	}
 	return search.add(units)
+}
+
+// batchesSteps reports whether a run of single steps may be charged as one
+// bulk charge with identical accounting: a standard cancellable context (so
+// polling every step is not required) and no per-step aggregate budget.
+func (guard *routeSearchWorkGuard) batchesSteps() bool {
+	return guard.done != nil && (guard.aggregate == nil || guard.deferAggregate)
+}
+
+// batchesRouteSteps reports whether chargeSkippedRouteWork charges guard in
+// bulk rather than one step at a time.
+func batchesRouteSteps(guard workBudget) bool {
+	search, ok := guard.(*routeSearchWorkGuard)
+	return ok && search.batchesSteps()
 }

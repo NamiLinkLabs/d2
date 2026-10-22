@@ -1495,8 +1495,8 @@
       "underline": false,
       "labelWidth": 113,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
-      "labelPercentage": 0,
+      "labelPosition": "UNLOCKED_TOP",
+      "labelPercentage": 0.7749999761581421,
       "link": "",
       "route": [
         {
@@ -1505,7 +1505,7 @@
         },
         {
           "x": 458,
-          "y": 231
+          "y": 235
         }
       ],
       "animated": false,
@@ -1584,14 +1584,23 @@
       "link": "",
       "route": [
         {
-          "x": 166,
-          "y": 521.5
+          "x": 178,
+          "y": 498
         },
         {
-          "x": 744,
-          "y": 960.5
+          "x": 282,
+          "y": 498
+        },
+        {
+          "x": 338,
+          "y": 995
+        },
+        {
+          "x": 458,
+          "y": 995
         }
       ],
+      "isCurve": true,
       "animated": false,
       "tooltip": "",
       "icon": null,
@@ -1710,14 +1719,23 @@
       "link": "",
       "route": [
         {
+          "x": 603,
+          "y": 500
+        },
+        {
+          "x": 603,
+          "y": 480
+        },
+        {
           "x": 518,
-          "y": 538.5
+          "y": 475
         },
         {
           "x": 178,
-          "y": 494.5
+          "y": 475
         }
       ],
+      "isCurve": true,
       "animated": false,
       "tooltip": "",
       "icon": null,
@@ -1915,8 +1933,8 @@
       "underline": false,
       "labelWidth": 91,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
-      "labelPercentage": 0,
+      "labelPosition": "UNLOCKED_TOP",
+      "labelPercentage": 0.30000001192092896,
       "link": "",
       "route": [
         {
@@ -1962,14 +1980,23 @@
       "link": "",
       "route": [
         {
-          "x": 1039,
-          "y": 500.5
+          "x": 1064,
+          "y": 550
         },
         {
-          "x": 1404,
-          "y": 248.5
+          "x": 1184,
+          "y": 550
+        },
+        {
+          "x": 1246,
+          "y": 213
+        },
+        {
+          "x": 1374,
+          "y": 213
         }
       ],
+      "isCurve": true,
       "animated": false,
       "tooltip": "",
       "icon": null,
@@ -2088,14 +2115,23 @@
       "link": "",
       "route": [
         {
-          "x": 843,
-          "y": 960.5
+          "x": 1124,
+          "y": 995
         },
         {
-          "x": 1393,
-          "y": 587.5
+          "x": 1380.800048828125,
+          "y": 995
+        },
+        {
+          "x": 1445,
+          "y": 913.5999755859375
+        },
+        {
+          "x": 1445,
+          "y": 588
         }
       ],
+      "isCurve": true,
       "animated": false,
       "tooltip": "",
       "icon": null,

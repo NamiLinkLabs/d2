@@ -218,6 +218,9 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 			if obj.IconPosition != nil {
 				n.Icon.Position = label.FromString(*obj.IconPosition)
 			}
+			if width, height := obj.IconSize(); width > 0 {
+				n.Icon.Width, n.Icon.Height = float64(width), float64(height)
+			}
 		}
 		if obj.Direction.Value != "" {
 			talaGraph.Directions[n] = parseDirection(obj.Direction.Value)
@@ -341,6 +344,8 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 		edgeDst := e.Dst
 		srcColumnIndex := e.SrcTableColumnIndex
 		dstColumnIndex := e.DstTableColumnIndex
+		srcSide, srcPinned := e.SrcPortSide()
+		dstSide, dstPinned := e.DstPortSide()
 		if e.SrcArrow && !e.DstArrow {
 			edgeSrc, edgeDst = edgeDst, edgeSrc
 			talaEdge = talaGraph.Connect(toNode[edgeSrc], toNode[edgeDst])
@@ -372,6 +377,8 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 				talaEdge.TargetArrowhead = layoutgraph.Arrowhead(d2target.TriangleArrowhead)
 			}
 			srcColumnIndex, dstColumnIndex = dstColumnIndex, srcColumnIndex
+			srcSide, dstSide = dstSide, srcSide
+			srcPinned, dstPinned = dstPinned, srcPinned
 
 			if loadExistingLayout {
 				for _, v := range slices.Backward(e.Route) {
@@ -480,6 +487,12 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 			}
 		}
 
+		if srcPinned {
+			talaEdge.FromSide = new(srcSide)
+		}
+		if dstPinned {
+			talaEdge.ToSide = new(dstSide)
+		}
 		if edgeSrc.SQLTable != nil && srcColumnIndex != nil {
 			talaEdge.FromTableColumnIndex = new(*srcColumnIndex)
 		}
@@ -550,9 +563,38 @@ func parseDirection(direction string) geo.Orientation {
 	}
 }
 
-// RouteEdges reroutes edges in g. It mutates g and must not run concurrently
-// against the same graph.
-func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (err error) {
+// RouteEdges reroutes edges in g with the default options. It mutates g and
+// must not run concurrently against the same graph.
+func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+	return RouteEdgesWithOptions(ctx, g, edges, nil)
+}
+
+// RouteEdgesWithOptions reroutes edges in g like RouteEdges. Of opts, only
+// SeparateEdges applies; diagram data under tala-separate-edges takes
+// precedence, as it does for Layout. Nil opts uses the defaults.
+func RouteEdgesWithOptions(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *Options) error {
+	return routeEdgesWithinBudget(ctx, g, edges, talaSeparateEdges(opts), routing.MaxSearchWorkUnits, 0)
+}
+
+// routeEdges is RouteEdges with a route-search budget for each route flavor.
+func routeEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, searchWorkLimit uint64) error {
+	return routeEdgesWithinBudget(ctx, g, edges, talaSeparateEdges(nil), searchWorkLimit, 0)
+}
+
+// separateEdgesFunc decides, for a graph about to be routed, whether every
+// edge gets its own route. A nil one bundles edges, whatever the graph's data.
+type separateEdgesFunc func(*d2graph.Graph) (bool, error)
+
+// talaSeparateEdges resolves SeparateEdges as a TALA layout does: from the
+// diagram's tala-separate-edges data, then from opts.
+func talaSeparateEdges(opts *Options) separateEdgesFunc {
+	return func(g *d2graph.Graph) (bool, error) { return resolveSeparateEdges(g, opts) }
+}
+
+// routeEdgesWithinBudget is routeEdges with a cap, budget, on the work of
+// the whole call as a WorkBudget counts it, unless budget is 0, and with
+// separate deciding whether edges are bundled.
+func routeEdgesWithinBudget(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, separate separateEdgesFunc, searchWorkLimit, budget uint64) (err error) {
 	defer recoverAsError("edge routing", &err)
 	if ctx == nil {
 		return fmt.Errorf("TALA edge routing requires a context")
@@ -565,6 +607,12 @@ func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (e
 	bindings, err := translateGraph(ctx, g, talaGraph, true)
 	if err != nil {
 		return err
+	}
+	if separate != nil {
+		talaGraph.SeparateEdges, err = separate(g)
+		if err != nil {
+			return err
+		}
 	}
 
 	talaEdgeByID := make(map[layoutgraph.EntityID]*layoutgraph.Edge, len(talaGraph.Edges))
@@ -590,7 +638,11 @@ func RouteEdges(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) (e
 		workCtx, cancelWork = context.WithCancel(ctx)
 	}
 	defer cancelWork()
-	err = routing.RouteEdges(workCtx, talaGraph, talaEdges)
+	if budget == 0 {
+		err = routing.RouteEdgesWithSearchLimit(workCtx, talaGraph, talaEdges, searchWorkLimit)
+	} else {
+		err = routing.RouteEdgesWithinBudget(workCtx, talaGraph, talaEdges, searchWorkLimit, budget, ovgWorkWeight)
+	}
 	if err != nil {
 		return preferContextError(ctx, "edge routing", err)
 	}

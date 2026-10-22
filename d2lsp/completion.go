@@ -13,6 +13,7 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2parser"
 	"github.com/d2lang/d2/d2target"
+	"github.com/d2lang/d2/lib/color"
 )
 
 type CompletionKind int
@@ -82,17 +83,19 @@ func getCompletionItems(text string, line, column int, utf16Pos bool) ([]Complet
 	case "source-arrowhead.shape:", "target-arrowhead.shape:":
 		return getArrowheadShapeCompletions(), nil
 	case "label", "label.":
-		return getLabelCompletions(), nil
+		return getLabelCompletions(isPositionInConnection(ast, line, column, false)), nil
 	case "icon", "icon:":
 		return getIconCompletions(), nil
 	case "icon.":
-		return getLabelCompletions(), nil
+		return getIconFieldCompletions(), nil
 	case "near", "near:":
 		return getNearCompletions(), nil
 	case "tooltip:", "tooltip":
 		return getTooltipCompletions(), nil
 	case "direction:", "direction":
 		return getDirectionCompletions(), nil
+	case "source-port", "source-port:", "target-port", "target-port:":
+		return getPortSideCompletions(), nil
 	default:
 		return nil, nil
 	}
@@ -343,12 +346,13 @@ func getValueCompletions(property string) []CompletionItem {
 			InsertText: "",
 		}}
 	case "font-color", "stroke", "fill":
-		return []CompletionItem{{
-			Label:      "(color name or hex code)",
+		items := []CompletionItem{{
+			Label:      "(color name, hex code or theme color code)",
 			Kind:       KeywordCompletion,
-			Detail:     "e.g. blue, #ff0000",
+			Detail:     "e.g. blue, #ff0000, B2",
 			InsertText: "",
 		}}
+		return append(items, getThemeColorCompletions()...)
 	case "width", "height", "top", "left":
 		return []CompletionItem{{
 			Label:      "(pixels)",
@@ -358,6 +362,36 @@ func getValueCompletions(property string) []CompletionItem {
 		}}
 	}
 	return nil
+}
+
+// getThemeColorCompletions offers the theme color codes, which follow the
+// diagram's theme and dark theme.
+func getThemeColorCompletions() []CompletionItem {
+	items := make([]CompletionItem, 0, len(color.ThemeColorCodes))
+	for _, code := range color.ThemeColorCodes {
+		var detail string
+		switch {
+		case code == color.N1:
+			detail = "theme color (neutral, foreground)"
+		case code == color.N7:
+			detail = "theme color (neutral, background)"
+		case code[0] == 'N':
+			detail = "theme color (neutral)"
+		case code[0] == 'B':
+			detail = "theme color (base)"
+		case strings.HasPrefix(code, "AA"):
+			detail = "theme color (alternative A)"
+		default:
+			detail = "theme color (alternative B)"
+		}
+		items = append(items, CompletionItem{
+			Label:      code,
+			Kind:       KeywordCompletion,
+			Detail:     detail,
+			InsertText: code,
+		})
+	}
+	return items
 }
 
 func getStyleCompletions() []CompletionItem {
@@ -419,13 +453,63 @@ func getTextTransformCompletions() []CompletionItem {
 	return items
 }
 
-func getLabelCompletions() []CompletionItem {
-	return []CompletionItem{{
+// getLabelCompletions returns the fields of a label. padding is only offered
+// for connection labels, the only labels the compiler accepts it on.
+func getLabelCompletions(connection bool) []CompletionItem {
+	items := []CompletionItem{{
 		Label:      "near",
 		Kind:       StyleCompletion,
 		Detail:     "label position",
 		InsertText: "near: ",
 	}}
+	if connection {
+		items = append(items, CompletionItem{
+			Label:      "padding",
+			Kind:       StyleCompletion,
+			Detail:     "connection label padding in pixels (0-100)",
+			InsertText: "padding: ",
+		})
+	}
+	return items
+}
+
+// isPositionInConnection reports whether the position is on a connection's
+// key or inside a connection's map, and not inside one of its arrowheads
+// (arrowhead labels take no padding).
+func isPositionInConnection(m *d2ast.Map, line, column int, inEdge bool) bool {
+	if m == nil {
+		return false
+	}
+	for _, n := range m.Nodes {
+		if n.MapKey == nil {
+			continue
+		}
+		edge := inEdge || len(n.MapKey.Edges) > 0
+		if edge && n.MapKey.Key != nil && len(n.MapKey.Edges) == 0 && len(n.MapKey.Key.Path) > 0 {
+			switch n.MapKey.Key.Path[0].Unbox().ScalarString() {
+			case "source-arrowhead", "target-arrowhead":
+				edge = false
+			}
+		}
+		if n.MapKey.Value.Map != nil && isPositionInMap(line, column, n.MapKey.Value.Map) {
+			return isPositionInConnection(n.MapKey.Value.Map, line, column, edge)
+		}
+		r := n.MapKey.Range
+		if line < r.Start.Line || line > r.End.Line ||
+			(line == r.Start.Line && column < r.Start.Column) ||
+			(line == r.End.Line && column > r.End.Column+1) {
+			continue
+		}
+		if edge && len(n.MapKey.Edges) > 0 && n.MapKey.EdgeKey != nil && len(n.MapKey.EdgeKey.Path) > 0 {
+			switch n.MapKey.EdgeKey.Path[0].Unbox().ScalarString() {
+			case "source-arrowhead", "target-arrowhead":
+				return false
+			}
+		}
+		return edge
+	}
+	// On no key of this map, e.g. a blank line inside it.
+	return inEdge
 }
 
 func getNearCompletions() []CompletionItem {
@@ -472,6 +556,35 @@ func getIconCompletions() []CompletionItem {
 	}
 }
 
+func getIconFieldCompletions() []CompletionItem {
+	return []CompletionItem{
+		{
+			Label:      "near",
+			Kind:       StyleCompletion,
+			Detail:     "icon position",
+			InsertText: "near: ",
+		},
+		{
+			Label:      "width",
+			Kind:       StyleCompletion,
+			Detail:     "icon width in pixels",
+			InsertText: "width: ",
+		},
+		{
+			Label:      "height",
+			Kind:       StyleCompletion,
+			Detail:     "icon height in pixels",
+			InsertText: "height: ",
+		},
+		{
+			Label:      "style",
+			Kind:       StyleCompletion,
+			Detail:     "icon style",
+			InsertText: "style.",
+		},
+	}
+}
+
 func getDirectionCompletions() []CompletionItem {
 	directions := []string{"up", "down", "right", "left"}
 	items := make([]CompletionItem, len(directions))
@@ -481,6 +594,19 @@ func getDirectionCompletions() []CompletionItem {
 			Kind:       KeywordCompletion,
 			Detail:     "direction",
 			InsertText: dir,
+		}
+	}
+	return items
+}
+
+func getPortSideCompletions() []CompletionItem {
+	items := make([]CompletionItem, len(d2ast.PortSidesArray))
+	for i, side := range d2ast.PortSidesArray {
+		items[i] = CompletionItem{
+			Label:      side,
+			Kind:       KeywordCompletion,
+			Detail:     "connection port side",
+			InsertText: side,
 		}
 	}
 	return items

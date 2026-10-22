@@ -192,6 +192,7 @@ func (state *graphCloneState) copy() error {
 	state.clone.Nodes = filtered
 	state.clone.CellSize = state.source.CellSize
 	state.clone.IsRootHierarchy = state.source.IsRootHierarchy
+	state.clone.SeparateEdges = state.source.SeparateEdges
 	state.clone.CommonUncleSiblings = nil
 	state.clone.edgeLengthCache = make(map[uint64]float64)
 
@@ -291,6 +292,8 @@ func (state *graphCloneState) copyEdge(source *Edge) (*Edge, error) {
 	cloned.LabelPercentage = source.LabelPercentage
 	cloned.FromTableColumnIndex = cloneValue(source.FromTableColumnIndex)
 	cloned.ToTableColumnIndex = cloneValue(source.ToTableColumnIndex)
+	cloned.FromSide = cloneValue(source.FromSide)
+	cloned.ToSide = cloneValue(source.ToSide)
 	cloned.IsInvisible = source.IsInvisible
 	cloned.Style = copyEdgeStyle(source.Style)
 	for _, point := range source.Points {
@@ -721,7 +724,11 @@ func copyIconRecord(source *Icon) *Icon {
 	if source == nil {
 		return nil
 	}
-	return &Icon{Position: label.FromString(source.Position.String())}
+	return &Icon{
+		Position: label.FromString(source.Position.String()),
+		Width:    source.Width,
+		Height:   source.Height,
+	}
 }
 
 func copyEdgeStyle(source EdgeStyle) EdgeStyle {

@@ -1,8 +1,6 @@
 package routing
 
 import (
-	"math"
-
 	"github.com/d2lang/d2/lib/geo"
 )
 
@@ -10,12 +8,12 @@ func segmentIntersectsBox(first, second *geo.Point, box *geo.Box) bool {
 	if first == nil || second == nil || box == nil || box.TopLeft == nil {
 		return false
 	}
-	left := math.Min(box.TopLeft.X, box.TopLeft.X+box.Width)
-	right := math.Max(box.TopLeft.X, box.TopLeft.X+box.Width)
-	top := math.Min(box.TopLeft.Y, box.TopLeft.Y+box.Height)
-	bottom := math.Max(box.TopLeft.Y, box.TopLeft.Y+box.Height)
-	if math.Max(first.X, second.X) < left || right < math.Min(first.X, second.X) ||
-		math.Max(first.Y, second.Y) < top || bottom < math.Min(first.Y, second.Y) {
+	left := min(box.TopLeft.X, box.TopLeft.X+box.Width)
+	right := max(box.TopLeft.X, box.TopLeft.X+box.Width)
+	top := min(box.TopLeft.Y, box.TopLeft.Y+box.Height)
+	bottom := max(box.TopLeft.Y, box.TopLeft.Y+box.Height)
+	if max(first.X, second.X) < left || right < min(first.X, second.X) ||
+		max(first.Y, second.Y) < top || bottom < min(first.Y, second.Y) {
 		return false
 	}
 	contains := func(point *geo.Point) bool {
@@ -34,8 +32,8 @@ func segmentIntersectsBox(first, second *geo.Point, box *geo.Box) bool {
 		if one > two {
 			one, two = two, one
 		}
-		tEnter = math.Max(tEnter, one)
-		tExit = math.Min(tExit, two)
+		tEnter = max(tEnter, one)
+		tExit = min(tExit, two)
 		return tEnter <= tExit
 	}
 	if !clipAxis(first.X, second.X-first.X, left, right) ||
@@ -70,7 +68,7 @@ func straddlesLine(first, second float64) bool {
 }
 
 func closedIntervalsOverlap(firstStart, firstEnd, secondStart, secondEnd float64) bool {
-	firstMin, firstMax := math.Min(firstStart, firstEnd), math.Max(firstStart, firstEnd)
-	secondMin, secondMax := math.Min(secondStart, secondEnd), math.Max(secondStart, secondEnd)
+	firstMin, firstMax := min(firstStart, firstEnd), max(firstStart, firstEnd)
+	secondMin, secondMax := min(secondStart, secondEnd), max(secondStart, secondEnd)
 	return firstMin <= secondMax && secondMin <= firstMax
 }

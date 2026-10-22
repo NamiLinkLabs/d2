@@ -390,3 +390,44 @@ func TestAddSearchedRouteDegradesAfterOverrun(t *testing.T) {
 		t.Fatalf("degraded limit %d leaves less than one fallback allowance above %d", router.work.limit, router.work.used)
 	}
 }
+
+// A degraded flavor gives an edge with pinned sides the pinned fallback, so
+// the route still leaves and enters the pinned sides.
+func TestFallbackRouteHonoursPinnedSides(t *testing.T) {
+	route := func() *layoutgraph.Edge {
+		graph, edge := newRoutingTestGraph(200, 0)
+		top := geo.Top
+		edge.FromSide, edge.ToSide = &top, &top
+		limits := defaultOVGBuildLimits()
+		limits.intersectionCandidates = 1
+		if err := routeEdgesWithLimits(context.Background(), graph, []*layoutgraph.Edge{edge}, limits); err != nil {
+			t.Fatalf("route with an exhausted visibility graph: %v", err)
+		}
+		return edge
+	}
+	edge := route()
+	requireOrthogonalFallbackRoute(t, edge)
+	points := edge.Points
+	first, second := points[0], points[1]
+	last, beforeLast := points[len(points)-1], points[len(points)-2]
+	if first.Y != edge.From.TopLeft.Y || second.X != first.X || second.Y >= first.Y {
+		t.Fatalf("route %v does not leave the source's pinned top side", pointValues(points))
+	}
+	if last.Y != edge.To.TopLeft.Y || beforeLast.X != last.X || beforeLast.Y >= last.Y {
+		t.Fatalf("route %v does not enter the target's pinned top side", pointValues(points))
+	}
+	requireSameRoute(t, edge, route())
+}
+
+// The fail-fast standalone API keeps failing at its search limit, so that
+// callers with a fallback of their own (RouteEdgesBestEffort, the WASM
+// router) still take it.
+func TestRouteEdgesWithSearchLimitFailsAtLimit(t *testing.T) {
+	graph, edge := newRoutingTestGraph(200, 100)
+	if err := RouteEdgesWithSearchLimit(context.Background(), graph, []*layoutgraph.Edge{edge}, 1); !errors.Is(err, errRouteSearchWorkLimit) {
+		t.Fatalf("RouteEdgesWithSearchLimit at an exhausted limit = %v, want the route-search work limit", err)
+	}
+	if len(edge.Points) != 0 {
+		t.Fatalf("failed routing left route %v", pointValues(edge.Points))
+	}
+}

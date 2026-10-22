@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/d2/lib/geo"
 )
 
@@ -29,8 +30,19 @@ func routeShapes(boxes map[string]testBox) []RouteShape {
 	return shapes
 }
 
+// functionalTimeoutMs is the budget for tests that check what gets routed, not how
+// fast. The default budget is wall-clock time, and a busy CI machine (make runs
+// builds and tests in parallel) can need more than it. Tests about the budget
+// itself set TimeoutMs explicitly.
+const functionalTimeoutMs = 60000.0
+
 func invokeRouteEdges(t *testing.T, request any) (*RouteEdgesResponse, *WASMError) {
 	t.Helper()
+	if r, ok := request.(RouteEdgesRequest); ok && r.TimeoutMs == nil {
+		v := functionalTimeoutMs
+		r.TimeoutMs = &v
+		request = r
+	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
@@ -314,7 +326,9 @@ func TestRouteEdgesRejectsInvalidRequests(t *testing.T) {
 func withTALARouter(t *testing.T, router func(context.Context, *d2graph.Graph, []*d2graph.Edge) error) {
 	t.Helper()
 	original := routeWithTALA
-	routeWithTALA = router
+	routeWithTALA = func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, _ *d2talalayout.Options) error {
+		return router(ctx, g, edges)
+	}
 	t.Cleanup(func() { routeWithTALA = original })
 }
 
@@ -400,7 +414,9 @@ func TestSimplifyRoute(t *testing.T) {
 }
 
 // realTALARouter is the real router; tests that stub routeWithTALA call through it.
-var realTALARouter = routeWithTALA
+func realTALARouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
+	return d2talalayout.RouteEdges(ctx, g, edges)
+}
 
 func TestRouteEdgesReportsTimeoutPerEdge(t *testing.T) {
 	withTALARouter(t, func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
@@ -491,4 +507,46 @@ func TestRouteEdgesReportsSelfLoops(t *testing.T) {
 		t.Fatalf("errors = %v, want only the self-loop to fail", response.Errors)
 	}
 	assertEnds(t, "(a -> b)[0]", response.Routes["(a -> b)[0]"], boxes["a"], boxes["b"])
+}
+
+func TestRouteEdgesSeparateEdges(t *testing.T) {
+	// More connections leave a toward the column on its right than its right
+	// side has ports for, so TALA bundles some of them by default.
+	source := "a -> b1\na -> b2\na -> b3\na -> b4\na -> b5\n"
+	boxes := map[string]testBox{"a": {0, 200, 60, 120}}
+	edges := make([]string, 0, 5)
+	for i := 1; i <= 5; i++ {
+		id := fmt.Sprintf("b%d", i)
+		boxes[id] = testBox{400, float64(100 * (i - 1)), 60, 60}
+		edges = append(edges, fmt.Sprintf("(a -> %s)[0]", id))
+	}
+	route := func(options *CompileOptions) string {
+		t.Helper()
+		response, werr := invokeRouteEdges(t, RouteEdgesRequest{
+			FS:     map[string]string{"index": source},
+			Opts:   options,
+			Shapes: routeShapes(boxes),
+			Edges:  edges,
+		})
+		if werr != nil {
+			t.Fatalf("routeEdges() error = %d %s", werr.Code, werr.Message)
+		}
+		if len(response.Errors) > 0 {
+			t.Fatalf("routeEdges() left edges unrouted: %v", response.Errors)
+		}
+		routes := ""
+		for _, id := range edges {
+			routes += fmt.Sprint(id, response.Routes[id], " ")
+		}
+		return routes
+	}
+	tala := "tala"
+	separate := true
+	bundled := route(nil)
+	if again := route(&CompileOptions{Layout: &tala}); again != bundled {
+		t.Fatal("routeEdges is not deterministic")
+	}
+	if got := route(&CompileOptions{Layout: &tala, TALA: &TALAOptions{SeparateEdges: &separate}}); got == bundled {
+		t.Fatal("tala.separateEdges had no effect on routeEdges")
+	}
 }

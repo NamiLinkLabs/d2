@@ -159,12 +159,25 @@ the layout instead of failing it:
   searched every edge is always preferred; among degraded flavors the one with
   the fewest fallback routes wins. When the visibility graph itself exceeds
   its size or work limits, routing uses a graph of ports and centers only and
-  every edge gets a fallback route.
+  every edge gets a fallback route. A fallback route for an edge with a pinned
+  side (`source-port` / `target-port`) is the pinned fallback the search uses
+  when it finds no path, so pins hold; the pinned-route guard still undoes any
+  later stage that breaks one. Degradation composes with the quality levels:
+  `Effort.SingleRouteFlavor` only shrinks the set of flavors that may degrade,
+  and the refinement budget meters whichever refinement stages the effort
+  keeps.
 - The optional, atomic route post-processing stages (`Crosshatch`,
   `SimplifyEdgeRoutes`, `SwapEdgePorts`, `BalanceEdgeSegments`,
   `FixClusterEdgeBranching`, `NudgeEdgeChannels`, `ShortcutEdgeRoutes`) restore
   every route they changed when they reach their work limit and count as
   having changed nothing.
+
+Standalone routing degrades the same way only through `routing.RouteEdges`.
+`RouteEdgesWithSearchLimit` and `RouteEdgesWithinBudget`, which the adapter's
+`RouteEdges`, `RouteEdgesBestEffort` and the WASM router use, still fail at
+their limits: their callers route the edges another way then (one pair of
+shapes at a time, one edge at a time, or straight), and their output stays as
+it was.
 
 A degradation decision is taken only on a deterministic count. Refinement is
 metered in commit units fixed by the deterministic sequence of transaction
@@ -179,8 +192,11 @@ tests force every degradation path with small budgets.
 
 ## Determinism
 
-A graph, options, and seed define a layout attempt. Any map iteration that
-affects a decision must be converted to a stable ordering.
+A graph, options, and seed define a layout attempt. The engine options include
+an `Effort` (set by the adapter's quality level) that trims iteration counts
+and optional stages; it is a fixed amount of work, never a time budget, so it
+is part of the deterministic input. Any map iteration that affects a decision
+must be converted to a stable ordering.
 Concurrency may change execution time, but it must not change the result.
 Completed attempts are ordered by exact penalty, then area; exact ties favor
 the later configured seed. Approximate pairwise ties would make that ordering

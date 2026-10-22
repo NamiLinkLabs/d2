@@ -23,6 +23,23 @@ The adapter exposes local, in-process entry points:
   order, and one layout is capped at 16 attempts. Inputs are capped at 64 raw
   seed entries so duplicate-heavy data cannot consume unbounded work.
   `Options.MaxConcurrency` separately bounds the number of live graph clones.
+- `Options.Quality` trades layout quality for speed: `full` (the default,
+  unchanged layouts), `balanced` (every seed, reduced pipeline) or `fast`
+  (first seed only, reduced pipeline; for interactive previews). Levels are
+  fixed amounts of work, never time budgets, so they stay deterministic.
+  Diagram data under `tala-quality` (`vars: {d2-config: {data:
+  {tala-quality: fast}}}`) takes precedence over the option, like
+  `tala-seeds`. Precedence for both settings is diagram data, then `Options`,
+  then the package defaults; seeds are resolved and validated first, then the
+  level keeps the ones it runs. See `bench/QUALITY.md` for measurements.
+- `Options.SeparateEdges` gives every connection its own route. By default
+  TALA bundles connections that share an endpoint: they may share segments and
+  a port, tree edges form an S-shaped bus and cluster fans merge into one
+  trunk. With the option, sharing a segment costs as much as any forbidden
+  overlap, tree edges are routed like other edges and cluster fans are not
+  merged; a crowded side can still force an overlap. Diagram data under
+  `tala-separate-edges` (`true` or `false`) takes precedence, and
+  `RouteEdgesWithOptions` honours both. See `bench/SEPARATE-EDGES.md`.
 - Layout and routing honor the caller's context; timeout policy belongs to the
   embedding application.
 - Large graphs degrade instead of failing at TALA's deterministic work

@@ -265,6 +265,7 @@ func richLabelDocumentWithResources(ctx context.Context, original d2target.Shape
 		// Stroke for their body background. Keep this native contract and
 		// theme tokens; never recolor every row with a generic caption ink.
 		s.Fill, s.Stroke, s.Color = original.Fill, original.Stroke, original.Color
+		s.ExplicitThemeFontColor = original.ExplicitThemeFontColor
 		if s.Fill == "" {
 			s.Fill = ink
 		}

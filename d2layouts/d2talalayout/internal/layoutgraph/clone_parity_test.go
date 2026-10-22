@@ -331,6 +331,7 @@ func newCloneParityGraph() *layoutgraph.Graph {
 	graph := layoutgraph.NewGraph()
 	graph.CellSize = 40
 	graph.IsRootHierarchy = true
+	graph.SeparateEdges = true
 
 	container := layoutgraph.NewNode(1, 300, 200)
 	container.TopLeft = geo.NewPoint(0, 0)

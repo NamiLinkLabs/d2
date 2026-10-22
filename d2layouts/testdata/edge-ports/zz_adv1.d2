@@ -1,0 +1,19 @@
+cl: {
+  a
+  b
+  c
+  d
+  inner: {x; y; z}
+  a -> b
+  inner.x -> inner.y
+}
+cl.a -> cl.inner.x: {source-port: bottom; target-port: top}
+cl.b -> cl.inner.z: {source-port: left; target-port: right}
+cl.c -> cl.inner.y: {source-port: top; target-port: bottom}
+out -> cl.inner: {source-port: right; target-port: left}
+out -> cl.d: {source-port: bottom; target-port: bottom}
+cl.inner.y -> out2: {source-port: right; target-port: top}
+cl.d -> cl.c
+sib1 -> cl.a
+sib2 -> cl.b
+sib1 -> sib2

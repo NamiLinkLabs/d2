@@ -49,6 +49,8 @@ type edgeSnapshot struct {
 	targetArrowheadLabel pointerSnapshot[layoutgraph.Label]
 	fromTableColumnIndex pointerSnapshot[int]
 	toTableColumnIndex   pointerSnapshot[int]
+	fromSide             pointerSnapshot[geo.Orientation]
+	toSide               pointerSnapshot[geo.Orientation]
 }
 
 func (snapshot edgeSnapshot) restore(edge *layoutgraph.Edge) {
@@ -58,6 +60,8 @@ func (snapshot edgeSnapshot) restore(edge *layoutgraph.Edge) {
 	snapshot.targetArrowheadLabel.restore()
 	snapshot.fromTableColumnIndex.restore()
 	snapshot.toTableColumnIndex.restore()
+	snapshot.fromSide.restore()
+	snapshot.toSide.restore()
 	for _, point := range snapshot.pointValues {
 		point.restore()
 	}
@@ -71,4 +75,6 @@ func (snapshot edgeSnapshot) restore(edge *layoutgraph.Edge) {
 	edge.TargetArrowheadLabel = snapshot.targetArrowheadLabel.pointer
 	edge.FromTableColumnIndex = snapshot.fromTableColumnIndex.pointer
 	edge.ToTableColumnIndex = snapshot.toTableColumnIndex.pointer
+	edge.FromSide = snapshot.fromSide.pointer
+	edge.ToSide = snapshot.toSide.pointer
 }

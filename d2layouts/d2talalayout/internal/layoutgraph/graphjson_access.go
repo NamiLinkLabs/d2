@@ -83,6 +83,7 @@ func BuildNodeToTreeForDeserialization(trees map[*Node][]*Tree, guard *limits.Wo
 // retaining the destination graph's mutex identity.
 func PublishDeserializedGraph(destination, staged *Graph, crossing, turn, nonCenterPort float64) {
 	destination.IsRootHierarchy = staged.IsRootHierarchy
+	destination.SeparateEdges = staged.SeparateEdges
 	destination.Nodes = staged.Nodes
 	destination.Edges = staged.Edges
 	destination.CellSize = staged.CellSize

@@ -119,6 +119,20 @@ func balanceRegularEdgesGuarded(g *layoutgraph.Graph, specialEdges, regularEdges
 	eq := func(a, b float64) bool {
 		return math.Abs(a-b) <= 1
 	}
+	// sameRoute reports whether two segments of a batch lie on one shared
+	// route, which balancing keeps together. Segments of different edges
+	// within 1px count as shared, except that separate edges share no route
+	// on purpose: there only an edge's own segments stay together, so routes
+	// that nearly coincide are spread apart instead.
+	sameRoute := func(a, b *layoutgraph.EdgeSegment, isHorizontal bool) bool {
+		if g.SeparateEdges && a.Owner() != b.Owner() {
+			return false
+		}
+		if isHorizontal {
+			return eq(a.Start.X, b.Start.X)
+		}
+		return eq(a.Start.Y, b.Start.Y)
+	}
 
 	for _, isHorizontal := range []bool{true, false} {
 		lockedSegments, err := nodeSegmentsGuarded(layoutgraph.Nodes(g.Nodes), !isHorizontal, guard)
@@ -357,8 +371,21 @@ func balanceRegularEdgesGuarded(g *layoutgraph.Graph, specialEdges, regularEdges
 					}
 				}
 
+				distinctCount := len(distincts)
+				if g.SeparateEdges {
+					// Count the groups exactly as they are assigned below.
+					distinctCount = 0
+					for i := 0; i < len(balanceBatch); distinctCount++ {
+						j := i + 1
+						for j < len(balanceBatch) && sameRoute(balanceBatch[i], balanceBatch[j], isHorizontal) {
+							j++
+						}
+						i = j
+					}
+				}
+
 				// Now we take the overlapping segments with the same range of movement, and rebalance them
-				distributionVals, err := evenlyDistributeGuarded(minRange.start, minRange.end, len(distincts), guard)
+				distributionVals, err := evenlyDistributeGuarded(minRange.start, minRange.end, distinctCount, guard)
 				if err != nil {
 					return err
 				}
@@ -382,19 +409,10 @@ func balanceRegularEdgesGuarded(g *layoutgraph.Graph, specialEdges, regularEdges
 						if err := guard.step(); err != nil {
 							return err
 						}
-						if isHorizontal {
-							if eq(balanceBatch[segmentIndex].Start.X, balanceBatch[segmentIndex+sharedCount].Start.X) {
-								sharedCount++
-							} else {
-								break
-							}
-						} else {
-							if eq(balanceBatch[segmentIndex].Start.Y, balanceBatch[segmentIndex+sharedCount].Start.Y) {
-								sharedCount++
-							} else {
-								break
-							}
+						if !sameRoute(balanceBatch[segmentIndex], balanceBatch[segmentIndex+sharedCount], isHorizontal) {
+							break
 						}
+						sharedCount++
 					}
 
 					val := distributionVals[valIndex]
@@ -470,6 +488,10 @@ func fixClusterEdgeBranchingWithLimit(ctx context.Context, g *layoutgraph.Graph,
 }
 
 func fixClusterEdgeBranchingGuarded(g *layoutgraph.Graph, guard *routeWorkGuard) error {
+	if g.SeparateEdges {
+		// This stage merges the routes of a cluster fan into one trunk.
+		return nil
+	}
 	for _, n := range g.Nodes {
 		if err := guard.step(); err != nil {
 			return err
@@ -486,7 +508,9 @@ func fixClusterEdgeBranchingGuarded(g *layoutgraph.Graph, guard *routeWorkGuard)
 			if err := guard.step(); err != nil {
 				return err
 			}
-			if len(e.Points) != 4 {
+			// The shared bend moves a route's first or last leg, which would
+			// pull a pinned end (source-port / target-port) off its side.
+			if len(e.Points) != 4 || e.HasPinnedSide() {
 				continue
 			}
 			adj := n.Adjacent(e)

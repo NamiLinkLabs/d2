@@ -416,8 +416,8 @@ func (ovg *OVG) transpose() {
 func (ovg *OVG) transformHierarchyOVGNodes(transformPoint func(*OVGNode), transformDirection func(geo.Orientation) geo.Orientation) {
 	for _, node := range ovg.Nodes {
 		transformPoint(node)
-		for owner, metadata := range node.portOwners() {
-			node.setPortDirections(owner, metadata.directions.transformed(transformDirection))
+		for _, entry := range node.portOwners() {
+			node.setPortDirections(entry.owner, entry.metadata.directions.transformed(transformDirection))
 		}
 	}
 	ovg.reindexOccupiedPoints()

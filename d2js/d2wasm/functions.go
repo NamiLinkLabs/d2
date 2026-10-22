@@ -13,9 +13,7 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2compiler"
 	"github.com/d2lang/d2/d2format"
-	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
-	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/d2/d2lib"
 	"github.com/d2lang/d2/d2lsp"
 	"github.com/d2lang/d2/d2oracle"
@@ -29,6 +27,7 @@ import (
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/log"
 	"github.com/d2lang/d2/lib/memfs"
+	"github.com/d2lang/d2/lib/sourcemeta"
 	"github.com/d2lang/d2/lib/textmeasure"
 	"github.com/d2lang/d2/lib/urlenc"
 	"github.com/d2lang/d2/lib/version"
@@ -227,17 +226,27 @@ func Compile(args []js.Value) (interface{}, error) {
 		return nil, err
 	}
 	compileOpts.LayoutResolver = resolver
-	compileOpts.RouterResolver = func(engine string) (d2graph.RouteEdges, error) {
-		if engine == "tala" {
-			return d2talalayout.RouteEdges, nil
-		}
-		return nil, nil
+	compileOpts.RouterResolver, err = routerResolver(input.Opts)
+	if err != nil {
+		return nil, err
+	}
+	compileOpts.NestedEdgeRouting, err = nestedEdgeRouting(input.Opts)
+	if err != nil {
+		return nil, err
 	}
 
 	compileOpts.FS, err = memfs.New(input.FS)
 	if err != nil {
 		return nil, &WASMError{Message: fmt.Sprintf("invalid fs input: %s", err.Error()), Code: 400}
 	}
+	embedSource := input.Opts != nil && input.Opts.EmbedSource != nil && *input.Opts.EmbedSource
+	var recorder *sourcemeta.Recorder
+	if embedSource {
+		recorder = sourcemeta.NewRecorder(compileOpts.FS)
+		compileOpts.FS = recorder
+	}
+	// The original text, before formatting replaces it below.
+	originalInput := input.FS[inputPath]
 
 	var fontRegular []byte
 	var fontItalic []byte
@@ -291,6 +300,9 @@ func Compile(args []js.Value) (interface{}, error) {
 	if input.Opts != nil && input.Opts.Center != nil {
 		renderOpts.Center = input.Opts.Center
 	}
+	if input.Opts != nil && input.Opts.IntersectionGaps != nil {
+		renderOpts.IntersectionGaps = input.Opts.IntersectionGaps
+	}
 	if input.Opts != nil && input.Opts.ThemeID != nil {
 		renderOpts.ThemeID = input.Opts.ThemeID
 	}
@@ -313,6 +325,16 @@ func Compile(args []js.Value) (interface{}, error) {
 
 	input.FS[inputPath] = d2format.Format(g.AST)
 
+	var source *sourcemeta.Bundle
+	if embedSource {
+		source = sourcemeta.NewBundle(inputPath, originalInput, recorder.Files())
+		source.Settings = embeddedSettings(input.Opts)
+		source.Version = version.Version
+		if err := source.Validate(); err != nil {
+			return nil, &WASMError{Message: fmt.Sprintf("embedSource: %s", err.Error()), Code: 400}
+		}
+	}
+
 	return CompileResponse{
 		FS:        input.FS,
 		InputPath: inputPath,
@@ -327,6 +349,7 @@ func Compile(args []js.Value) (interface{}, error) {
 			Isometric:          renderOpts.Isometric,
 			Pad:                renderOpts.Pad,
 			Center:             renderOpts.Center,
+			IntersectionGaps:   renderOpts.IntersectionGaps,
 			Scale:              renderOpts.Scale,
 			ForceAppendix:      input.Opts.ForceAppendix,
 			Target:             input.Opts.Target,
@@ -335,6 +358,7 @@ func Compile(args []js.Value) (interface{}, error) {
 			NoXMLTag:           input.Opts.NoXMLTag,
 			ASCII:              input.Opts.ASCII,
 			ASCIIMode:          input.Opts.ASCIIMode,
+			Source:             source,
 		},
 	}, nil
 }
@@ -386,6 +410,12 @@ func Render(args []js.Value) (interface{}, error) {
 		}
 	}
 
+	// Settle what the image embeds before the boards are trimmed below.
+	var source *sourcemeta.Bundle
+	if input.Opts != nil && input.Opts.Source != nil {
+		source = renderedSource(input.Opts.Source, input.Diagram, boardPath, input.Opts.Target, animateInterval > 0)
+	}
+
 	diagram := input.Diagram.GetBoard(boardPath)
 	if diagram == nil {
 		return nil, &WASMError{Message: fmt.Sprintf("render target '%s' not found", strings.Join(boardPath, ".")), Code: 400}
@@ -426,6 +456,9 @@ func Render(args []js.Value) (interface{}, error) {
 	}
 	if input.Opts != nil && input.Opts.Center != nil {
 		renderOpts.Center = input.Opts.Center
+	}
+	if input.Opts != nil && input.Opts.IntersectionGaps != nil {
+		renderOpts.IntersectionGaps = input.Opts.IntersectionGaps
 	}
 	if input.Opts != nil && input.Opts.ThemeID != nil {
 		renderOpts.ThemeID = input.Opts.ThemeID
@@ -517,6 +550,14 @@ func Render(args []js.Value) (interface{}, error) {
 			if err != nil {
 				return nil, &WASMError{Message: fmt.Sprintf("animation failed: %s", err.Error()), Code: 500}
 			}
+		}
+	}
+	if source != nil && len(out) > 0 {
+		// Embed last: the appendix edits the SVG text with patterns that
+		// embedded source text could match.
+		out, err = sourcemeta.EmbedSVG(out, source)
+		if err != nil {
+			return nil, &WASMError{Message: fmt.Sprintf("embedding the source failed: %s", err.Error()), Code: 400}
 		}
 	}
 	return out, nil

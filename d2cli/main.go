@@ -42,6 +42,7 @@ import (
 	"github.com/d2lang/d2/lib/pdf"
 	"github.com/d2lang/d2/lib/pptx"
 	"github.com/d2lang/d2/lib/simplelog"
+	"github.com/d2lang/d2/lib/sourcemeta"
 	"github.com/d2lang/d2/lib/textmeasure"
 	timelib "github.com/d2lang/d2/lib/time"
 	"github.com/d2lang/d2/lib/version"
@@ -94,6 +95,7 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 		return err
 	}
 	layoutFlag := ms.Opts.String("D2_LAYOUT", "layout", "l", "dagre", `the layout engine used`)
+	ms.Opts.String("D2_NESTED_EDGE_ROUTING", "nested-edge-routing", "", nestedEdgeRoutingAroundShapes, "how to draw the connections that cross into or out of grids, constant nears and sequence diagrams, and those between grid cells, which the layout engine does not route: 'around-shapes' routes them around the other shapes, 'straight' draws straight lines, which is faster on very large diagrams; also configurable through vars.d2-config.nested-edge-routing")
 	themeFlag, err := ms.Opts.Int64("D2_THEME", "theme", "t", 0, "the diagram theme ID")
 	if err != nil {
 		return err
@@ -137,6 +139,10 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 	if err != nil {
 		return err
 	}
+	intersectionGapsFlag, err := ms.Opts.Bool("D2_INTERSECTION_GAPS", "intersection-gaps", "", false, "leave an empty gap in a connection where another one drawn above it crosses; also configurable through vars.d2-config.intersection-gaps")
+	if err != nil {
+		return err
+	}
 	scaleFlag, err := ms.Opts.Float64("SCALE", "scale", "", -1, "scale the output. E.g., 0.5 to halve the default size. Default -1 means that SVG's will fit to screen and all others will use their default render size. Setting to 1 turns off SVG fitting to screen.")
 	if err != nil {
 		return err
@@ -169,6 +175,11 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 		return err
 	}
 
+	embedSourceFlag, err := ms.Opts.Bool("D2_EMBED_SOURCE", "embed-source", "", false, "embed the D2 source and the files it imports in SVG and PNG exports, so that d2 can render the image again (d2 image.svg out.png) or extract its source (d2 extract image.svg). The embedded text includes comments and boards the image does not show. Rendering an image with an embedded source embeds it again unless --embed-source=false")
+	if err != nil {
+		return err
+	}
+
 	asciiModeFlag := ms.Opts.String("D2_ASCII_MODE", "ascii-mode", "", "extended", "ASCII rendering mode for text outputs. Options: 'standard' (basic ASCII chars) or 'extended' (Unicode chars)")
 	if err != nil {
 		return err
@@ -189,6 +200,9 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 	isometricFlag, err = resolveIsometricFlag(ms)
 	if err != nil {
 		return xmain.UsageErrorf("%v", err)
+	}
+	if _, err := nestedEdgeRoutingOption(ms); err != nil {
+		return err
 	}
 
 	fontFamily, monoFontFamily, err := loadFonts(ms, *fontRegularFlag, *fontItalicFlag, *fontBoldFlag, *fontSemiboldFlag, *fontMonoFlag, *fontMonoBoldFlag, *fontMonoItalicFlag, *fontMonoSemiboldFlag)
@@ -212,6 +226,8 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 			return playCmd(ctx, ms)
 		case "validate":
 			return validateCmd(ctx, ms)
+		case "extract":
+			return extractCmd(ctx, ms)
 		case "version":
 			if len(ms.Opts.Flags.Args()) > 1 {
 				return xmain.UsageErrorf("version subcommand accepts no arguments")
@@ -268,6 +284,37 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 			inputPath = filepath.Join(inputPath, "index.d2")
 		}
 	}
+	// An image exported with --embed-source is input too: d2 renders its
+	// embedded source again.
+	var embedding *sourceEmbedding
+	if inputPath != "-" && isImageInputPath(inputPath) {
+		if len(ms.Opts.Flags.Args()) < 2 {
+			return xmain.UsageErrorf("rendering the D2 source embedded in %[1]s needs an output path, such as: d2 %[1]s out.png\nTo print the source, run: d2 extract %[1]s", ms.HumanPath(inputPath))
+		}
+		if *watchFlag {
+			return xmain.UsageErrorf("-w[atch] cannot render an image; get its source with d2 extract first")
+		}
+		data, err := os.ReadFile(inputPath)
+		if err != nil {
+			return err
+		}
+		embedding, err = readImageInput(ms, inputPath, data)
+		if err != nil {
+			return err
+		}
+	} else if inputPath == "-" && !*watchFlag {
+		data, err := ms.ReadPath(inputPath)
+		if err != nil {
+			return err
+		}
+		ms.Stdin = bytes.NewReader(data)
+		if sourcemeta.IsImage(data) {
+			embedding, err = readImageInput(ms, inputPath, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	if filepath.Ext(outputPath) == ".ppt" {
 		return xmain.UsageErrorf("D2 does not support ppt exports, did you mean \"pptx\"?")
 	}
@@ -275,6 +322,21 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 	outputFormat, err := getOutputFormat(stdoutFormatFlag, outputPath)
 	if err != nil {
 		return xmain.UsageErrorf("%v", err)
+	}
+	// Settings embedded in an image apply unless a flag or environment
+	// variable sets them; they in turn win over vars.d2-config, just as the
+	// flags they were recorded from did.
+	if embedding != nil {
+		embedded := embedding.image.Settings
+		if isometricFlag == nil && embedded.Isometric != nil && outputFormat != TXT {
+			isometricFlag = embedded.Isometric
+		}
+		if !flagOrEnvSet(ms, "animate-interval", "D2_ANIMATE_INTERVAL") && embedded.AnimateInterval != nil && outputFormat.supportsAnimation() {
+			*animateIntervalFlag = *embedded.AnimateInterval
+		}
+		if !flagOrEnvSet(ms, "target", "") && embedding.image.Target != nil {
+			*targetFlag = *embedding.image.Target
+		}
 	}
 	if isometricFlag != nil && *isometricFlag {
 		if outputPath != "-" && *stdoutFormatFlag == "" && outputFormat == SVG && filepath.Ext(outputPath) != ".svg" {
@@ -348,9 +410,35 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 			centerFlag = nil
 		}
 	}
+	if ms.Env.Getenv("D2_INTERSECTION_GAPS") == "" {
+		if _, ok := flagSet["intersection-gaps"]; !ok {
+			intersectionGapsFlag = nil
+		}
+	}
 
 	if *darkThemeFlag == -1 {
 		darkThemeFlag = nil // TODO this is a temporary solution: https://github.com/d2lang/util-go/issues/7
+	}
+	if embedding != nil {
+		embedded := embedding.image.Settings
+		if layoutFlag == nil {
+			layoutFlag = clonePtr(embedded.Layout)
+		}
+		if themeFlag == nil {
+			themeFlag = embeddedTheme(ms, embedded.ThemeID, "theme")
+		}
+		if darkThemeFlag == nil && outputFormat.supportsDarkTheme() {
+			darkThemeFlag = embeddedTheme(ms, embedded.DarkThemeID, "dark theme")
+		}
+		if sketchFlag == nil {
+			sketchFlag = clonePtr(embedded.Sketch)
+		}
+		if padFlag == nil {
+			padFlag = clonePtr(embedded.Pad)
+		}
+		if centerFlag == nil {
+			centerFlag = clonePtr(embedded.Center)
+		}
 	}
 	if darkThemeFlag != nil {
 		match = d2themescatalog.Find(*darkThemeFlag)
@@ -381,6 +469,45 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 		NoXMLTag:    noXMLTagFlag,
 		Salt:        saltFlag,
 		OmitVersion: omitVersionFlag,
+
+		IntersectionGaps: intersectionGapsFlag,
+	}
+
+	// Embedding is sticky: rendering an image with an embedded source embeds
+	// it again unless --embed-source=false.
+	embedSource := *embedSourceFlag || embedding != nil && !flagOrEnvSet(ms, "embed-source", "D2_EMBED_SOURCE")
+	if embedSource {
+		if embedding == nil {
+			embedding = &sourceEmbedding{}
+		}
+		embedding.write = true
+		embedding.requested = *embedSourceFlag
+		embedding.omitVersion = *omitVersionFlag
+		embedding.target = *targetFlag
+		// Record what flags and environment variables set, before
+		// vars.d2-config fills the rest: the config is in the source already.
+		embedding.settings = sourcemeta.Settings{
+			Layout:      clonePtr(layoutFlag),
+			ThemeID:     clonePtr(themeFlag),
+			DarkThemeID: clonePtr(darkThemeFlag),
+			Sketch:      clonePtr(sketchFlag),
+			Pad:         clonePtr(padFlag),
+			Center:      clonePtr(centerFlag),
+			Isometric:   clonePtr(isometricFlag),
+		}
+		if *animateIntervalFlag > 0 {
+			embedding.settings.AnimateInterval = clonePtr(animateIntervalFlag)
+		}
+	}
+	if embedding != nil {
+		ctx = withSourceEmbedding(ctx, embedding)
+	}
+	if embedding != nil && embedding.image != nil {
+		policy, err := embedding.openImageFS()
+		if err != nil {
+			return err
+		}
+		defer policy.Close()
 	}
 
 	if *watchFlag {
@@ -465,9 +592,25 @@ func compile(ctx context.Context, ms *xmain.State, fs fs.FS, layout *string, ren
 	}
 
 	start := time.Now()
-	input, err := ms.ReadPath(inputPath)
-	if err != nil {
-		return nil, false, err
+	embedding := sourceEmbeddingFrom(ctx)
+	compilerInputPath := inputPath
+	var input []byte
+	var err error
+	if embedding != nil && embedding.image != nil {
+		// The image's entry file sits next to it, its imports around it.
+		input = []byte(embedding.image.Entry.Content)
+		compilerInputPath = embedding.imageEntryPath
+		fs = embedding.imageFS
+	} else {
+		input, err = ms.ReadPath(inputPath)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	var recorder *sourcemeta.Recorder
+	if embedding != nil && embedding.write {
+		recorder = sourcemeta.NewRecorder(fs)
+		fs = recorder
 	}
 
 	ruler, err := textmeasure.NewRuler()
@@ -475,16 +618,21 @@ func compile(ctx context.Context, ms *xmain.State, fs fs.FS, layout *string, ren
 		return nil, false, err
 	}
 
+	nestedEdgeRouting, err := nestedEdgeRoutingOption(ms)
+	if err != nil {
+		return nil, false, err
+	}
 	opts := &d2lib.CompileOptions{
-		Ruler:          ruler,
-		FontFamily:     fontFamily,
-		MonoFontFamily: monoFontFamily,
-		InputPath:      inputPath,
-		LayoutResolver: LayoutResolver(ctx, ms),
-		Layout:         layout,
-		RouterResolver: RouterResolver(ctx, ms),
-		FS:             fs,
-		LayoutReuse:    true,
+		NestedEdgeRouting: nestedEdgeRouting,
+		Ruler:             ruler,
+		FontFamily:        fontFamily,
+		MonoFontFamily:    monoFontFamily,
+		InputPath:         compilerInputPath,
+		LayoutResolver:    LayoutResolver(ctx, ms),
+		Layout:            layout,
+		RouterResolver:    RouterResolver(ctx, ms),
+		FS:                fs,
+		LayoutReuse:       true,
 	}
 
 	if os.Getenv("D2_LSP_MODE") == "1" {
@@ -544,6 +692,18 @@ func compile(ctx context.Context, ms *xmain.State, fs fs.FS, layout *string, ren
 	}
 	if ext.isIsometric() && renderOpts.Sketch != nil && *renderOpts.Sketch {
 		return nil, false, fmt.Errorf("sketch cannot be combined with isometric output")
+	}
+	if recorder != nil {
+		if embedsSource(ext) {
+			ctx, err = embedding.prepareEmbeddedOutput(ctx, ms.PWD, compilerInputPath, input, recorder, rootDiagram, animateInterval > 0)
+			if err != nil {
+				return nil, false, err
+			}
+			ctx = withEmbeddedBoard(ctx, boardPath)
+		} else if ext != TXT && embedding.requested {
+			format := strings.TrimPrefix(strings.TrimPrefix(string(ext), "isometric-"), ".")
+			ms.Log.Warn.Printf("--embed-source applies to SVG and PNG exports; the %s export does not embed the source", strings.ToUpper(format))
+		}
 	}
 	cancel()
 
@@ -760,9 +920,14 @@ func compile(ctx context.Context, ms *xmain.State, fs fs.FS, layout *string, ren
 				if err != nil {
 					return nil, false, err
 				}
+				// The watch preview stays without the embedded source.
+				embedded, err := embedSVGOutput(ctx, out)
+				if err != nil {
+					return nil, outputWritten, err
+				}
 				var finalWritten bool
 				finalWritten, err = runStatusFinalizer(ctx, func() (bool, error) {
-					return writeWithStatus(ms, outputPath, out)
+					return writeWithStatus(ms, outputPath, embedded)
 				})
 				outputWritten = outputWritten || finalWritten
 				if err != nil {
@@ -906,7 +1071,7 @@ func renderWithPNGEncoderToPaths(ctx context.Context, ms *xmain.State, compileDu
 	var boards [][]byte
 	for _, dl := range diagram.Layers {
 		childPreview := wantPreview && diagram.IsFolderOnly && len(boards) == 0
-		childrenBoards, childWritten, err := renderWithPNGEncoderToPaths(ctx, ms, compileDur, opts, inputPath, plan.layers, bundle, forceAppendix, ruler, dl, ext, asciiMode, childPreview, pngEncoder)
+		childrenBoards, childWritten, err := renderWithPNGEncoderToPaths(withEmbeddedChildBoard(ctx, "layers", dl.Name), ms, compileDur, opts, inputPath, plan.layers, bundle, forceAppendix, ruler, dl, ext, asciiMode, childPreview, pngEncoder)
 		written = written || childWritten
 		if err != nil {
 			return boards, written, err
@@ -915,7 +1080,7 @@ func renderWithPNGEncoderToPaths(ctx context.Context, ms *xmain.State, compileDu
 	}
 	for _, dl := range diagram.Scenarios {
 		childPreview := wantPreview && diagram.IsFolderOnly && len(boards) == 0
-		childrenBoards, childWritten, err := renderWithPNGEncoderToPaths(ctx, ms, compileDur, opts, inputPath, plan.scenarios, bundle, forceAppendix, ruler, dl, ext, asciiMode, childPreview, pngEncoder)
+		childrenBoards, childWritten, err := renderWithPNGEncoderToPaths(withEmbeddedChildBoard(ctx, "scenarios", dl.Name), ms, compileDur, opts, inputPath, plan.scenarios, bundle, forceAppendix, ruler, dl, ext, asciiMode, childPreview, pngEncoder)
 		written = written || childWritten
 		if err != nil {
 			return boards, written, err
@@ -924,7 +1089,7 @@ func renderWithPNGEncoderToPaths(ctx context.Context, ms *xmain.State, compileDu
 	}
 	for _, dl := range diagram.Steps {
 		childPreview := wantPreview && diagram.IsFolderOnly && len(boards) == 0
-		childrenBoards, childWritten, err := renderWithPNGEncoderToPaths(ctx, ms, compileDur, opts, inputPath, plan.steps, bundle, forceAppendix, ruler, dl, ext, asciiMode, childPreview, pngEncoder)
+		childrenBoards, childWritten, err := renderWithPNGEncoderToPaths(withEmbeddedChildBoard(ctx, "steps", dl.Name), ms, compileDur, opts, inputPath, plan.steps, bundle, forceAppendix, ruler, dl, ext, asciiMode, childPreview, pngEncoder)
 		written = written || childWritten
 		if err != nil {
 			return boards, written, err
@@ -1009,6 +1174,7 @@ func _renderWithPNGEncoder(ctx context.Context, ms *xmain.State, opts d2svg.Rend
 		Salt:               opts.Salt,
 		Scale:              scale,
 		OmitVersion:        opts.OmitVersion,
+		IntersectionGaps:   opts.IntersectionGaps,
 	}
 	if toPNG {
 		returnSVG := wantPreview || opts.MasterID != ""
@@ -1018,8 +1184,12 @@ func _renderWithPNGEncoder(ctx context.Context, ms *xmain.State, opts d2svg.Rend
 		}
 		cacheImages := ms.Env.Getenv("IMG_CACHE") == "1"
 		if opts.MasterID == "" {
+			sourceChunks, err := pngSourceChunks(ctx)
+			if err != nil {
+				return svg, false, err
+			}
 			written, err := writePNGWithStatus(ctx, ms, outputPath, func(output io.Writer) error {
-				return renderPNGToWriter(ctx, inputPath, cacheImages, diagram, *renderOpts, pngEncoder, output)
+				return renderPNGToWriter(ctx, inputPath, cacheImages, diagram, *renderOpts, pngEncoder, sourceChunks, output)
 			})
 			if err != nil {
 				return svg, written, err
@@ -1027,7 +1197,7 @@ func _renderWithPNGEncoder(ctx context.Context, ms *xmain.State, opts d2svg.Rend
 			return svg, written, nil
 		}
 		// Animated SVG composition only needs validation, not retained PNG bytes.
-		err = renderPNGToWriter(ctx, inputPath, cacheImages, diagram, *renderOpts, pngEncoder, io.Discard)
+		err = renderPNGToWriter(ctx, inputPath, cacheImages, diagram, *renderOpts, pngEncoder, nil, io.Discard)
 		return svg, false, err
 	}
 
@@ -1058,6 +1228,12 @@ func _renderWithPNGEncoder(ctx context.Context, ms *xmain.State, opts d2svg.Rend
 
 	var written bool
 	if opts.MasterID == "" {
+		// Embed last: the steps above edit the SVG text with patterns that
+		// embedded source text could match. The watch preview stays without.
+		out, err = embedSVGOutput(ctx, out)
+		if err != nil {
+			return svg, false, err
+		}
 		err = os.MkdirAll(filepath.Dir(outputPath), 0755)
 		if err != nil {
 			return svg, false, err

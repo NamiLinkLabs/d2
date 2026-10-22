@@ -45,6 +45,9 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
 	if err != nil {
 		return err
 	}
+	if telemetry := workTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.record(guard.used) }()
+	}
 	checkCanceled := guard.step
 
 	var placedFakeNodes []*layoutgraph.Node
@@ -146,13 +149,8 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
 					if err := checkCanceled(); err != nil {
 						return err
 					}
-					iconSize := node.IconSize(iconPosition)
 					fakeIconNode := &layoutgraph.Node{
-						Box: geo.Box{
-							TopLeft: node.LabelTopLeft(iconPosition, iconSize, iconSize),
-							Width:   iconSize,
-							Height:  iconSize,
-						},
+						Box:   node.IconBox(iconPosition),
 						Graph: g,
 					}
 					fakeIconNode.SetShape(shape.SQUARE_TYPE)
@@ -196,13 +194,8 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
 					}
 				}
 			} else {
-				iconSize := node.IconSize(node.Icon.Position)
 				fakeIconNode := &layoutgraph.Node{
-					Box: geo.Box{
-						TopLeft: node.LabelTopLeft(node.Icon.Position, iconSize, iconSize),
-						Width:   iconSize,
-						Height:  iconSize,
-					},
+					Box:   node.IconBox(node.Icon.Position),
 					Graph: g,
 				}
 				fakeIconNode.SetShape(shape.SQUARE_TYPE)
@@ -221,13 +214,8 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
 		}
 
 		if node.Icon != nil && !node.IsImage() {
-			iconSize := node.IconSize(node.Icon.Position)
 			fakeIconNode := &layoutgraph.Node{
-				Box: geo.Box{
-					TopLeft: node.LabelTopLeft(node.Icon.Position, iconSize, iconSize),
-					Width:   iconSize,
-					Height:  iconSize,
-				},
+				Box:   node.IconBox(node.Icon.Position),
 				Graph: g,
 			}
 			fakeIconNode.SetShape(shape.SQUARE_TYPE)
@@ -479,6 +467,9 @@ func placeNewEdges(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgra
 	if err != nil {
 		return err
 	}
+	if telemetry := workTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.record(guard.used) }()
+	}
 	checkCanceled := guard.step
 
 	var placedFakeNodes []*layoutgraph.Node
@@ -576,13 +567,8 @@ func placeNewEdges(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgra
 			return err
 		}
 		if node.Icon != nil && !node.IsImage() {
-			iconSize := node.IconSize(node.Icon.Position)
 			fakeIconNode := &layoutgraph.Node{
-				Box: geo.Box{
-					TopLeft: node.LabelTopLeft(node.Icon.Position, iconSize, iconSize),
-					Width:   iconSize,
-					Height:  iconSize,
-				},
+				Box:   node.IconBox(node.Icon.Position),
 				Graph: g,
 			}
 			fakeIconNode.SetShape(shape.SQUARE_TYPE)

@@ -1,0 +1,8 @@
+g: {grid-rows: 1; grid-gap: 10; a; b}
+g.a -> g.b: {source-port: right; target-port: left}
+g.b -> g.a: {source-port: left; target-port: right}
+h: {grid-rows: 1; grid-gap: 0; a; b}
+h.a -> h.b: {source-port: right; target-port: left}
+k: {grid-columns: 1; vertical-gap: 4; a; bbbbbbbbbbbbbbb}
+k.a -> k.bbbbbbbbbbbbbbb: {source-port: bottom; target-port: top}
+k.bbbbbbbbbbbbbbb -> k.a: {source-port: top; target-port: bottom}

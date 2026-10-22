@@ -27,6 +27,9 @@ const maxGraphSize = limits.MaxGraphSize
 // LayoutOptions configures one deterministic layout attempt.
 type LayoutOptions struct {
 	Seed int64
+	// Effort trims optional and iterative work. The zero value runs the full
+	// pipeline.
+	Effort Effort
 }
 
 type pipelineStage struct {
@@ -76,6 +79,7 @@ type pipeline struct {
 	forceReroute             bool
 	edgeRoutingComplete      bool
 	alignAxesNeeded          bool
+	effort                   Effort
 	limits                   WorkLimits
 	// refinement meters the optional placement passes of the current run.
 	refinement *layoutgraph.RefinementBudget
@@ -202,13 +206,18 @@ func (p *pipeline) preprocessTreesStage(ctx context.Context) error {
 }
 
 func (p *pipeline) gapNormalizationStage(ctx context.Context) error {
+	if p.effort.SkipGapNormalization {
+		return nil
+	}
 	changed, err := placement.NormalizeGaps(ctx, p.graph)
 	p.alignAxesNeeded = changed
 	return err
 }
 
 func (p *pipeline) nodePlacementStage(ctx context.Context) error {
-	return placement.Place(ctx, p.graph, p.seed)
+	return placement.PlaceWithOptions(ctx, p.graph, p.seed, placement.Options{
+		Iterations: p.effort.PlacementIterations,
+	})
 }
 
 func (p *pipeline) optimizeClustersStage(ctx context.Context) error {
@@ -227,6 +236,9 @@ func (p *pipeline) binPack(ctx context.Context) error {
 }
 
 func (p *pipeline) swapNodesStage(ctx context.Context) error {
+	if p.effort.SkipSwap {
+		return nil
+	}
 	return placement.Swap(ctx, p.graph)
 }
 
@@ -308,6 +320,7 @@ func (p *pipeline) runGraphRouting(ctx context.Context, workLimit *uint64) (err 
 		RoutesPreviouslyCompleted: p.edgeRoutingComplete,
 		Observer:                  p.routeObserver(ctx),
 		CompletionObserver:        p,
+		SingleFlavor:              p.effort.SingleRouteFlavor,
 		SearchWorkLimit:           p.limits.RouteSearch,
 		OVGCandidateLimit:         p.limits.OVGCandidates,
 		Diagnostics:               &p.routeDiagnostics,
@@ -458,9 +471,11 @@ func (p *pipeline) runAllStages(ctx context.Context) error {
 		if timed {
 			start = time.Now()
 		}
+		pinned := newPinnedRouteGuard(p.graph)
 		if err := stage.run(p, stageCtx); err != nil {
 			return err
 		}
+		pinned.restore()
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("%s: %w", stage.name, err)
 		}
@@ -540,6 +555,7 @@ func runLayout(ctx context.Context, graph *layoutgraph.Graph, options LayoutOpti
 	}
 	defer cancelWork()
 	pipeline := newPipeline(graph, options.Seed, instrumentation.storeSnapshots)
+	pipeline.effort = options.Effort
 	pipeline.limits = workLimitsFromContext(ctx)
 	if instrumentation.measureStageDurations {
 		pipeline.enableStageTiming()

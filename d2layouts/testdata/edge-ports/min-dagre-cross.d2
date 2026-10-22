@@ -1,0 +1,7 @@
+hub -> m4: {source-port: bottom; target-port: bottom}
+hub -> m5: {source-port: left; target-port: left}
+hub -> hub2: {source-port: top; target-port: bottom}
+hub2 -> hub: {source-port: right; target-port: right}
+m1 -> m2
+x -> hub
+hub -> y

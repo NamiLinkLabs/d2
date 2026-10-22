@@ -30,6 +30,10 @@ type GraphRouteOptions struct {
 	RoutesPreviouslyCompleted bool
 	Observer                  SubgraphRouteObserver
 	CompletionObserver        RouteCompletionObserver
+	// SingleFlavor routes each subgraph with one edge ordering instead of
+	// comparing every route-generation flavor. It trades route quality for
+	// speed and stays deterministic.
+	SingleFlavor bool
 	// SearchWorkLimit overrides the per-flavor route-search budget. Zero
 	// selects the calibrated default; TALA's tests use small values to force
 	// degraded routing.
@@ -192,7 +196,7 @@ func RouteGraphWithWorkLimit(ctx context.Context, graph *layoutgraph.Graph, opti
 			if searchWorkLimit == 0 {
 				searchWorkLimit = maxRouteSearchWorkUnits
 			}
-			ovg, routeErr := routeEdgesWithResourceGuards(routingCtx, subgraph, nodesInBoundingBox, ovgGuard, searchWorkLimit, options.Diagnostics)
+			ovg, routeErr := routeEdgesWithFlavors(routingCtx, subgraph, nodesInBoundingBox, ovgGuard, searchWorkLimit, options.SingleFlavor, options.Diagnostics)
 			if routeErr != nil {
 				return routeErr
 			}

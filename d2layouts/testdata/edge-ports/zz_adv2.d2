@@ -1,0 +1,18 @@
+hub: {shape: hexagon}
+n1 -> hub: {source-port: right; target-port: left}
+n2 -> hub: {source-port: right; target-port: left}
+n3 -> hub: {source-port: bottom; target-port: left}
+n4 -> hub: {source-port: left; target-port: top}
+n5 -> hub: {source-port: top; target-port: top}
+hub -> m1: {source-port: right; target-port: left}
+hub -> m2: {source-port: right; target-port: right}
+hub -> m3: {source-port: bottom; target-port: top}
+hub -> m4: {source-port: bottom; target-port: bottom}
+hub -> m5: {source-port: left; target-port: left}
+hub -> hub2: {source-port: top; target-port: bottom}
+hub -> hub2: {source-port: top; target-port: bottom}
+hub2 -> hub: {source-port: right; target-port: right}
+n1 -> n2 -> n3
+m1 -> m2
+x -> hub
+hub -> y

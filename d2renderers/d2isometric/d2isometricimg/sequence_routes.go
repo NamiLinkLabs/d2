@@ -154,7 +154,8 @@ func nativeSequenceCaptionData(edge d2isometric.Edge, scale float64) ([]nativeSe
 	}
 	var icon labelSurface
 	if original.Icon != nil {
-		icon = surface(original.GetIconPosition(), d2target.DEFAULT_ICON_SIZE, d2target.DEFAULT_ICON_SIZE)
+		width, height := original.IconSize()
+		icon = surface(original.GetIconPosition(), int(width), int(height))
 	}
 	return captions, icon
 }

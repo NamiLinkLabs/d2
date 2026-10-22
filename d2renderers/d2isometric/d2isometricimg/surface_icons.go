@@ -304,6 +304,23 @@ func (p *surfaceIconPainter) reserveImport(m d2svgimport.Metrics) {
 // corresponding face edge: icon artwork never floats beyond its parent mesh.
 // The returned rectangles are disjoint and inherit the real surface angle.
 func surfaceIconLayout(s labelSurface, original d2target.Shape, scale float64, kind string) (icon, text labelSurface) {
+	icon, text = surfaceIconLanes(s, original, scale, kind)
+	return capExplicitIconSize(icon, original, scale), text
+}
+
+// capExplicitIconSize limits an icon surface to the explicit icon.width and
+// icon.height, keeping its center. This renderer lays out its own icon lanes,
+// so an explicit size is an upper bound here rather than an exact size.
+func capExplicitIconSize(icon labelSurface, original d2target.Shape, scale float64) labelSurface {
+	if original.IconWidth <= 0 || original.IconHeight <= 0 || original.Type == d2target.ShapeImage || icon.width <= 0 || icon.depth <= 0 {
+		return icon
+	}
+	icon.width = min(icon.width, float64(original.IconWidth)*scale)
+	icon.depth = min(icon.depth, float64(original.IconHeight)*scale)
+	return icon
+}
+
+func surfaceIconLanes(s labelSurface, original d2target.Shape, scale float64, kind string) (icon, text labelSurface) {
 	text = s
 	if original.Icon == nil || !captionFinite(s.width, s.depth, s.angle, s.center.X, s.center.Y, s.center.Z) || s.width <= 0 || s.depth <= 0 {
 		return labelSurface{}, text

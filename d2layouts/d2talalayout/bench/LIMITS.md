@@ -88,7 +88,18 @@ Routing, seed 1:
 
 ## Measurements
 
-RESULTS_PLACEHOLDER
+`d2 --layout tala` (default 3 seeds), measured after merging `master`
+(quality levels, connection ports, separate edges), wall time on a shared
+4-core container:
+
+| case | `master` | this branch | two runs identical |
+|---|---|---|---|
+| `arch_010`, `arch_060`, `big150` and 20 e2e diagrams | completes | byte-identical SVG | yes |
+| `arch_200` | fails after 14.1 s: route-search work limit exceeded (every seed) | completes in 14.3-15.0 s | yes (SVG `4a5dd7429d00…`) |
+| `arch_500` | fails after 55.3 s: `AutolayoutTransactions` limit 1e9 (every seed) | completes in 44.9-53.7 s | yes (SVG `245b48e002f8…`) |
+
+`tala-balanced`, `tala-fast` and `tala-separate` on `arch_010/060/100` dump
+the same geometry hashes as `master`.
 
 ## Remaining limits
 

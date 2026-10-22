@@ -1,0 +1,7 @@
+# Pinned connections with label.padding and icons, and a shape right in
+# front of a pinned side.
+a -> b: a fairly long label here {label.padding: 30; source-port: left; target-port: left}
+a -> c: {source-port: bottom; target-port: top; icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg; icon.width: 64}
+b -> c: lbl {label.padding: 10; source-port: right; target-port: right; icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg; icon.width: 40}
+c -> d: plain
+d -> a: back {source-port: top; target-port: bottom}

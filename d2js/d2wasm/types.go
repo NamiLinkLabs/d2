@@ -6,6 +6,7 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2target"
+	"github.com/d2lang/d2/lib/sourcemeta"
 )
 
 type WASMResponse struct {
@@ -55,6 +56,10 @@ type RenderOptions struct {
 	NoXMLTag           *bool                    `json:"noXMLTag"`
 	ASCII              *bool                    `json:"ascii"`
 	ASCIIMode          *string                  `json:"asciiMode"`
+	IntersectionGaps   *bool                    `json:"intersectionGaps"`
+	// Source is embedded in the rendered SVG. Compile sets it when
+	// CompileOptions.EmbedSource is set.
+	Source *sourcemeta.Bundle `json:"source,omitempty"`
 }
 
 type CompileOptions struct {
@@ -68,6 +73,50 @@ type CompileOptions struct {
 	FontItalic   *[]byte       `json:"FontItalic"`
 	FontBold     *[]byte       `json:"FontBold"`
 	FontSemibold *[]byte       `json:"FontSemibold"`
+
+	// NestedEdgeRouting picks how to draw the connections that cross into or
+	// out of a grid, a constant near or a sequence diagram, and those between
+	// grid cells: "around-shapes" [default] routes them around the other
+	// shapes, and "straight" draws straight lines, which is faster.
+	NestedEdgeRouting *string `json:"nestedEdgeRouting"`
+
+	// EmbedSource makes the compile response's render options embed the
+	// original D2 files and the options set here in the rendered SVG.
+	EmbedSource *bool `json:"embedSource"`
+}
+
+// EmbedSourceRequest embeds Source in an SVG or PNG image.
+type EmbedSourceRequest struct {
+	Data   []byte             `json:"data"`
+	Source *sourcemeta.Bundle `json:"source"`
+}
+
+// ExtractSourceRequest reads the source embedded in an SVG or PNG image.
+type ExtractSourceRequest struct {
+	Data []byte `json:"data"`
+}
+
+// ExtractSourceResponse is ready to pass to compile.
+type ExtractSourceResponse struct {
+	FS        map[string]string  `json:"fs"`
+	InputPath string             `json:"inputPath"`
+	Options   ExtractedOptions   `json:"options"`
+	Source    *sourcemeta.Bundle `json:"source"`
+}
+
+// ExtractedOptions are the compile options an embedded source records. Only
+// the set ones are serialized.
+type ExtractedOptions struct {
+	Layout          *string `json:"layout,omitempty"`
+	ThemeID         *int64  `json:"themeID,omitempty"`
+	DarkThemeID     *int64  `json:"darkThemeID,omitempty"`
+	Sketch          *bool   `json:"sketch,omitempty"`
+	Pad             *int64  `json:"pad,omitempty"`
+	Center          *bool   `json:"center,omitempty"`
+	Isometric       *bool   `json:"isometric,omitempty"`
+	AnimateInterval *int64  `json:"animateInterval,omitempty"`
+	Target          *string `json:"target,omitempty"`
+	EmbedSource     *bool   `json:"embedSource,omitempty"`
 }
 
 type CompileResponse struct {

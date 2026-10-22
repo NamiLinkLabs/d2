@@ -45,11 +45,11 @@ func routeEdgesWithSearchWorkLimit(ctx context.Context, g *layoutgraph.Graph, ne
 }
 
 func routeEdgesWithLimits(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge, limits ovgBuildLimits) error {
-	return routeEdgesWithBudgets(ctx, g, edges, limits, maxRouteStageWorkUnits)
+	return routeEdgesWithBudgets(ctx, g, edges, limits, maxRouteStageWorkUnits, maxRouteSearchWorkUnits, true)
 }
 
 func routeEdgesWithWorkLimit(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge, workLimit uint64) error {
-	return routeEdgesWithBudgets(ctx, g, edges, defaultOVGBuildLimits(), workLimit)
+	return routeEdgesWithBudgets(ctx, g, edges, defaultOVGBuildLimits(), workLimit, maxRouteSearchWorkUnits, true)
 }
 
 func buildTunnelsForTest(t testing.TB, g *layoutgraph.Graph) []*Tunnel {

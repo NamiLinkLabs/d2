@@ -60,6 +60,18 @@ func extractTreesInContainer(g *layoutgraph.Graph, container *layoutgraph.Node, 
 		if len(n.Nears) > 0 || n.FixedTopLeft != nil {
 			isTerminal[n] = true
 		}
+		// Tree edges are routed as straight stubs between parent and child,
+		// which ignores source-port / target-port, so keep both ends of a
+		// pinned edge out of trees.
+		for _, e := range n.Edges {
+			if err := guard.Step(); err != nil {
+				return nil, err
+			}
+			if e.HasPinnedSide() {
+				isTerminal[n] = true
+				break
+			}
+		}
 	}
 
 	for {

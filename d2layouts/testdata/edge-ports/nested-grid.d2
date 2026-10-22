@@ -1,0 +1,23 @@
+# Pinned connections that cross into and out of grids and a sequence diagram.
+g: {
+  grid-columns: 3
+  p
+  q
+  r
+  s
+  t
+  u
+}
+seq: {
+  shape: sequence_diagram
+  alice -> bob: hi
+}
+a -> g.p: {source-port: right; target-port: top}
+g.u -> b: {source-port: bottom; target-port: left}
+a -> g.t: {source-port: bottom; target-port: bottom}
+b -> seq: {source-port: right; target-port: top}
+seq -> g: {source-port: left; target-port: right}
+c: {
+  inner: {grid-rows: 1; m; n}
+}
+c.inner.n -> a: {source-port: top; target-port: left}

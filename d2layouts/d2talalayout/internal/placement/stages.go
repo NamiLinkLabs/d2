@@ -129,7 +129,26 @@ func (rollback *normalizeGapsRollback) restore() {
 	}
 }
 
+// Options tunes node placement. The zero value is the default placement.
+type Options struct {
+	// Iterations is the annealing iteration factor: each subgraph runs
+	// Iterations × √(nodes) iterations. Zero selects the default factor.
+	Iterations int
+}
+
+func (o Options) iterations() int {
+	if o.Iterations > 0 {
+		return o.Iterations
+	}
+	return nodePlacementIterations
+}
+
 func Place(ctx context.Context, graph *layoutgraph.Graph, seed int64) error {
+	return PlaceWithOptions(ctx, graph, seed, Options{})
+}
+
+// PlaceWithOptions is Place with explicit placement tuning.
+func PlaceWithOptions(ctx context.Context, graph *layoutgraph.Graph, seed int64, options Options) error {
 	if graph == nil {
 		return invariant.New("Place requires a graph")
 	}
@@ -155,7 +174,7 @@ func Place(ctx context.Context, graph *layoutgraph.Graph, seed int64) error {
 	if err != nil {
 		return err
 	}
-	if err := placeNodes(ctx, graph, nil, seed, nil, nil); err != nil {
+	if err := placeNodesWith(ctx, graph, nil, placementRun{seed: seed, iterations: options.iterations()}, nil, nil); err != nil {
 		return err
 	}
 	nodes := make([]*layoutgraph.Node, 0, len(graph.Nodes))

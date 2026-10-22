@@ -337,3 +337,24 @@ func TestLinkRegionBoxesRemainFiniteAtLargeValidCoordinates(t *testing.T) {
 		t.Fatalf("non-finite large link box: %+v", box)
 	}
 }
+
+func TestBuildPaddedConnectionLinkRegion(t *testing.T) {
+	diagram := d2target.NewDiagram()
+	diagram.Shapes = []d2target.Shape{metadataShape("anchor", 0, "", "")}
+	connection := metadataConnection()
+	connection.Link = ""
+	connection.Tooltip = "connection hover"
+	connection.LabelPadding = 5
+	diagram.Connections = []d2target.Connection{connection}
+	document, err := Build(context.Background(), diagram, Options{
+		LinkBudget: LinkBudget{MaxRegions: 1, MaxStringBytes: len(connection.Tooltip)},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	// TestBuildTooltipOnlyConnectionRegion's region, grown by the padding.
+	want := d2scene.Box{X: 171, Y: 110, Width: 58, Height: 30}
+	if len(document.Links) != 1 || document.Links[0].Box != want {
+		t.Fatalf("padded connection links = %#v, want box %#v", document.Links, want)
+	}
+}

@@ -25,9 +25,14 @@ const (
 type Graph struct {
 	// Unfortunate, but because we represent root as nil, we need to indicate root hierarchy as a field in graph
 	IsRootHierarchy bool
-	Nodes           []*Node
-	Edges           []*Edge
-	CellSize        float64
+	// SeparateEdges gives every edge its own route: routes never share
+	// segments or ports on purpose, tree edges are not drawn as a shared bus
+	// and cluster fans are not merged into one trunk. It is a fixed setting of
+	// the layout request, not inferred.
+	SeparateEdges bool
+	Nodes         []*Node
+	Edges         []*Edge
+	CellSize      float64
 
 	// ovg
 	crossingCost      float64
@@ -66,6 +71,8 @@ type Graph struct {
 	CommonUncleSiblings map[*Node]Nodes
 
 	edgeLengthCache map[uint64]float64
+	// edgeCrossingCache holds placementcost's incremental crossing state.
+	edgeCrossingCache EdgeCrossingCache
 }
 
 type descendantWalkEntry struct {
@@ -1082,6 +1089,7 @@ func (g *Graph) CopyEntitiesFrom(other *Graph) {
 	g.CommonUncleSiblings = other.CommonUncleSiblings
 	// TODO maybe not
 	g.IsRootHierarchy = other.IsRootHierarchy
+	g.SeparateEdges = other.SeparateEdges
 }
 
 func (nodes Nodes) fixedNodes() []*Node {
@@ -1180,7 +1188,8 @@ func (g *Graph) containerPadding(container *Node, considerChildren bool) Spacing
 	if container.Icon != nil && container.shapeType != imageType {
 		// we don't know if the icon will be placed at an inside position, but leave enough padding so it has that option
 		// Note: we don't know what the exact icon size will be until the final layout size so we use max
-		padding = float64(MaxIconSize + 2*label.PADDING)
+		iconWidth, iconHeight := container.Icon.ReservedDims()
+		padding = math.Max(padding, math.Max(iconWidth, iconHeight)+2*label.PADDING)
 	}
 
 	if container.Label != nil && !container.Label.Position.IsOutside() {
@@ -1217,10 +1226,13 @@ func (g *Graph) containerPadding(container *Node, considerChildren bool) Spacing
 
 	if considerChildren {
 		var hasChildWithIcon bool
+		var childIconSize float64
 		var childrenMargin Spacing
 		for _, child := range g.Containers[container] {
-			if !hasChildWithIcon && child.Icon != nil && child.shapeType != imageType && !child.Icon.PositionFixed() {
+			if child.Icon != nil && child.shapeType != imageType && !child.Icon.PositionFixed() {
 				hasChildWithIcon = true
+				iconWidth, iconHeight := child.Icon.ReservedDims()
+				childIconSize = math.Max(childIconSize, math.Max(iconWidth, iconHeight))
 			}
 			childrenMargin.left = math.Max(childrenMargin.left, child.margin.left)
 			childrenMargin.right = math.Max(childrenMargin.right, child.margin.right)
@@ -1235,7 +1247,7 @@ func (g *Graph) containerPadding(container *Node, considerChildren bool) Spacing
 		if hasChildWithIcon {
 			// we don't know if the icon will be placed at an inside position, but leave enough padding so it has that option
 			// Note: we don't know what the exact icon size will be until the final layout size so we use max
-			padding = float64(MaxIconSize + 2*label.PADDING)
+			padding = math.Max(padding, childIconSize+2*label.PADDING)
 		}
 	}
 

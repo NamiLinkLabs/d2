@@ -462,6 +462,32 @@ func routeEdgesWithResourceGuards(
 	searchWorkLimit uint64,
 	diagnostics *RouteDiagnostics,
 ) (*OVG, error) {
+	return routeEdgesWithFlavors(ctx, g, nearbyNodes, ovgGuard, searchWorkLimit, false, diagnostics)
+}
+
+// graphRouteFlavors returns the route-generation flavors compared for g, in
+// their fixed comparison order. A single flavor keeps ShortestToLongest, the
+// first ordinary flavor, which gave the fewest crossings of the three on the
+// benchmark corpus when used alone.
+func graphRouteFlavors(g *layoutgraph.Graph, single bool) []RouteGenerationFlavor {
+	if g.Nodes[0].Hierarchy != nil {
+		return []RouteGenerationFlavor{TopDownLeftRight}
+	}
+	if single {
+		return []RouteGenerationFlavor{ShortestToLongest}
+	}
+	return []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
+}
+
+func routeEdgesWithFlavors(
+	ctx context.Context,
+	g *layoutgraph.Graph,
+	nearbyNodes []*layoutgraph.Node,
+	ovgGuard *ovgBuildGuard,
+	searchWorkLimit uint64,
+	singleFlavor bool,
+	diagnostics *RouteDiagnostics,
+) (*OVG, error) {
 	ovg, portsOnly, err := buildRoutingOVG(ctx, g, nearbyNodes, func() (*OVG, error) {
 		return buildOVGFromGraphWithGuard(g, nearbyNodes, ovgGuard)
 	})
@@ -482,6 +508,14 @@ func routeEdgesWithResourceGuards(
 		if tree, has := g.NodeToTree[node]; has {
 			// we don't route the edge from tree root to rootSentinel here since the root may move relative to the rootSentinel
 			if _, is := isTreeEdge[tree.SentinelEdge]; !is {
+				continue
+			}
+			// A tree's edges otherwise leave the parent through one shared
+			// port as a bus; separate edges are routed like any other edge.
+			// The OVG keeps the tree's bus lines and parent-aligned child
+			// ports (addTreeNodes): sharing them is penalized, but they let
+			// a child aligned with its parent get a straight route.
+			if g.SeparateEdges {
 				continue
 			}
 
@@ -521,10 +555,7 @@ func routeEdgesWithResourceGuards(
 	g.TurnCost()
 	g.NonCenterPortCost()
 
-	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
-	if g.Nodes[0].Hierarchy != nil {
-		flavors = []RouteGenerationFlavor{TopDownLeftRight}
-	}
+	flavors := graphRouteFlavors(g, singleFlavor)
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
 		router, err := newFlavorRouter(ctx, flavor, ovg, g, existingRoutes, unroutedEdges, searchWorkLimit)
@@ -560,28 +591,50 @@ func routeEdgesWithResourceGuards(
 }
 
 func routeAdditionalEdgesWithLimits(ctx context.Context, g *layoutgraph.Graph, edges []*layoutgraph.Edge, limits ovgBuildLimits) (*OVG, error) {
-	return routeAdditionalEdgesWithResourceLimits(ctx, g, edges, limits, maxRouteSearchWorkUnits)
+	return routeAdditionalEdgesWithResourceLimits(ctx, g, edges, limits, maxRouteSearchWorkUnits, true)
 }
 
+// routeAdditionalEdgesWithResourceLimits routes edges around the complete
+// routes of the others. With degrade, a route flavor that reaches its search
+// limit, or a routing graph too large to build, falls back to orthogonal
+// routes as in RouteGraph; without it, the call fails at the limit, as
+// callers with a fallback of their own (RouteEdgesBestEffort, the WASM
+// router) expect.
 func routeAdditionalEdgesWithResourceLimits(
 	ctx context.Context,
 	g *layoutgraph.Graph,
 	edges []*layoutgraph.Edge,
 	limits ovgBuildLimits,
 	searchWorkLimit uint64,
+	degrade bool,
 ) (*OVG, error) {
 	newEdges := make(map[*layoutgraph.Edge]struct{})
 	for _, e := range edges {
 		newEdges[e] = struct{}{}
 	}
 
-	ovg, portsOnly, err := buildRoutingOVG(ctx, g, nil, func() (*OVG, error) {
-		return buildOVGFromGraphWithLimits(ctx, g, nil, limits)
-	})
+	budget := attemptBudgetFromContext(ctx)
+	guard, err := newOVGBuildGuard(ctx, budget.ovgLimit(limits))
+	if err != nil {
+		return nil, err
+	}
+	if telemetry := routeSearchTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.recordOVG(guard.work) }()
+	}
+	build := func() (*OVG, error) { return buildOVGFromGraphWithGuard(g, nil, guard) }
+	var ovg *OVG
+	portsOnly := false
+	if degrade {
+		ovg, portsOnly, err = buildRoutingOVG(ctx, g, nil, build)
+		if portsOnly && ovg != nil {
+			guard = ovg.buildGuard
+		}
+	} else {
+		ovg, err = build()
+	}
 	if err != nil {
 		return ovg, err
 	}
-	guard := ovg.buildGuard
 
 	existingRoutes := make([]*Route, 0)
 	for _, e := range g.Edges {
@@ -657,22 +710,33 @@ func routeAdditionalEdgesWithResourceLimits(
 	g.TurnCost()
 	g.NonCenterPortCost()
 
-	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
-	if g.Nodes[0].Hierarchy != nil {
-		flavors = []RouteGenerationFlavor{TopDownLeftRight}
-	}
+	flavors := graphRouteFlavors(g, false)
 	routers := make([]*ovgEdgeRouter, 0, len(flavors))
 	for _, flavor := range flavors {
-		router, err := newFlavorRouter(ctx, flavor, ovg, g, existingRoutes, edges, searchWorkLimit)
+		newRouter := newOVGEdgeRouterWithWorkLimit
+		if degrade {
+			newRouter = newFlavorRouter
+		}
+		router, err := newRouter(ctx, flavor, ovg, g, existingRoutes, edges, searchWorkLimit)
 		if err != nil {
 			return ovg, err
+		}
+		if routesSameOrderAsAny(router, routers) {
+			// Flavors differ only in the order they route edges in, and the
+			// search is deterministic, so this flavor would find the same routes
+			// as an earlier one, which wins ties. A single edge, as when edges are
+			// routed one pair of shapes at a time, has one order.
+			_ = router.work.finish()
+			continue
 		}
 		if portsOnly {
 			router.degrade()
 		}
+		router.failAtLimit = !degrade
 		router.considerNodeLabels = true
 		routers = append(routers, router)
 	}
+	budget.limitSearch(guard.work, routers)
 	responses, err := generateRouteFlavorResponses(ctx, routers, true)
 	if err != nil {
 		return ovg, err
@@ -687,12 +751,22 @@ func routeAdditionalEdgesWithResourceLimits(
 	best, _ := selectRouteFlavorResponse(flavors, flavorToResponse)
 	bestRoutes, bestWork := best.Routes, best.work
 
-	reserveFinalization(bestWork)
+	if degrade {
+		reserveFinalization(bestWork)
+	}
 	if err := finalizeSelectedRoutes(ctx, g, bestRoutes, newEdges, bestWork, false); err != nil {
 		return ovg, err
 	}
 
 	return ovg, nil
+}
+
+// routesSameOrderAsAny reports whether router routes its edges in the same
+// order as one of routers.
+func routesSameOrderAsAny(router *ovgEdgeRouter, routers []*ovgEdgeRouter) bool {
+	return slices.ContainsFunc(routers, func(other *ovgEdgeRouter) bool {
+		return slices.Equal(router.edges, other.edges)
+	})
 }
 
 // For Trees, ideal route between parent & child is S shaped bend or straight line
@@ -725,7 +799,8 @@ func routeSentinelEdge(tree *layoutgraph.Tree,
 	for _, n := range nodesFromSourcePortToTargetPort {
 		if n.isPort() {
 			validOwner := false
-			for owner := range n.portOwners() {
+			for _, entry := range n.portOwners() {
+				owner := entry.owner
 				if edge.From.IsDescendantOf(owner) || edge.To.IsDescendantOf(owner) {
 					validOwner = true
 					break
@@ -1234,10 +1309,22 @@ func routeLineChecked(
 	return bestFromPort, bestToPort, bestCost, nil
 }
 
+// separatesEdges reports whether edge belongs to a graph that gives every
+// edge its own route (layoutgraph.Graph.SeparateEdges). Such an edge never
+// shares a segment with another route on purpose; the router may still
+// overlap routes when nothing else is feasible, as sharedRouteCost is a
+// penalty rather than a constraint.
+func separatesEdges(edge *layoutgraph.Edge) bool {
+	return edge != nil && edge.From != nil && edge.From.Graph != nil && edge.From.Graph.SeparateEdges
+}
+
 // return true if gEdge can overlap with the other edges provided
 func edgeCanOverlapEdges(edge *layoutgraph.Edge, otherEdges []*layoutgraph.Edge, sourceClusterNodes, targetClusterNodes map[*layoutgraph.Node]bool) bool {
 	if len(otherEdges) == 0 {
 		return true
+	}
+	if separatesEdges(edge) {
+		return false
 	}
 	if edge.TargetArrowheadLabel != nil || edge.SourceArrowheadLabel != nil {
 		return false
@@ -1499,7 +1586,7 @@ func isStraightEdgeFallbackCandidate(edge *layoutgraph.Edge, clusterNodes map[*l
 	if edge.From.Hierarchy != nil {
 		return false
 	}
-	return !edge.HasTableColumn()
+	return !edge.HasTableColumn() && !edge.HasPinnedSide()
 }
 
 func StraightEdgesFallback(ctx context.Context, g *layoutgraph.Graph) error {

@@ -140,6 +140,9 @@ func validateLayoutResultMetadata(
 	if expected.IsRootHierarchy != actual.IsRootHierarchy {
 		return fmt.Errorf("root hierarchy metadata changed")
 	}
+	if expected.SeparateEdges != actual.SeparateEdges {
+		return fmt.Errorf("separate edges metadata changed")
+	}
 	if equal, err := sameDirectionMetadata(ctx, expected, actual); err != nil {
 		return err
 	} else if !equal {
@@ -251,6 +254,10 @@ func validateLayoutResultMetadata(
 		if !sameOptionalValue(input.FromTableColumnIndex, edge.FromTableColumnIndex) ||
 			!sameOptionalValue(input.ToTableColumnIndex, edge.ToTableColumnIndex) {
 			return fmt.Errorf("edge %d table column attachment metadata changed", edge.ID)
+		}
+		if !sameOptionalValue(input.FromSide, edge.FromSide) ||
+			!sameOptionalValue(input.ToSide, edge.ToSide) {
+			return fmt.Errorf("edge %d pinned side metadata changed", edge.ID)
 		}
 		if input.IsInvisible != edge.IsInvisible {
 			return fmt.Errorf("edge %d visibility metadata changed", edge.ID)

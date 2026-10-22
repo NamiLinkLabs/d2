@@ -9,6 +9,7 @@ import (
 	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
 	"github.com/d2lang/d2/d2renderers/d2svg"
 	"github.com/d2lang/d2/d2target"
+	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/textmeasure"
 )
 
@@ -140,5 +141,133 @@ func TestDisabledIsometricRendersIdenticallyToDefault(t *testing.T) {
 				t.Fatal("disabled isometric mode changed ordinary SVG bytes")
 			}
 		})
+	}
+}
+
+func TestIntersectionGapsConfigPrecedence(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		config, option *bool
+		want           bool
+	}{
+		{"default", nil, nil, false},
+		{"source enabled", boolPointer(true), nil, true},
+		{"caller enabled", boolPointer(false), boolPointer(true), true},
+		{"caller disabled", boolPointer(true), boolPointer(false), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			compileOpts := &CompileOptions{}
+			renderOpts := &d2svg.RenderOpts{IntersectionGaps: test.option}
+			applyConfigs(&d2target.Config{IntersectionGaps: test.config}, compileOpts, renderOpts)
+			applyDefaults(compileOpts, renderOpts)
+			if renderOpts.IntersectionGaps == nil || *renderOpts.IntersectionGaps != test.want {
+				t.Fatalf("intersection gaps = %v, want %v", renderOpts.IntersectionGaps, test.want)
+			}
+		})
+	}
+}
+
+func TestIntersectionGapsConfig(t *testing.T) {
+	for _, test := range []struct {
+		name, source string
+		option       *bool
+		want         bool
+	}{
+		{"default", "a -> b", nil, false},
+		{"explicit false", "a -> b", boolPointer(false), false},
+		{"source false", "vars: {d2-config: {intersection-gaps: false}}\na -> b", nil, false},
+		{"source true", "vars: {d2-config: {intersection-gaps: true}}\na -> b", nil, true},
+		{"disable source true", "vars: {d2-config: {intersection-gaps: true}}\na -> b", boolPointer(false), false},
+		{"caller true", "a -> b", boolPointer(true), true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ruler, err := textmeasure.NewRuler()
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := &d2svg.RenderOpts{IntersectionGaps: test.option}
+			diagram, _, err := Compile(context.Background(), test.source, &CompileOptions{
+				Ruler:          ruler,
+				LayoutResolver: func(string) (d2graph.LayoutGraph, error) { return d2dagrelayout.DefaultLayout, nil },
+			}, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if opts.IntersectionGaps == nil || *opts.IntersectionGaps != test.want {
+				t.Fatalf("effective option = %v, want %v", opts.IntersectionGaps, test.want)
+			}
+			// Disabled and absent look the same: keep both out of the diagram's
+			// JSON and hash.
+			if test.want {
+				if diagram.Config.IntersectionGaps == nil || !*diagram.Config.IntersectionGaps {
+					t.Fatal("enabled gaps are missing from the diagram config")
+				}
+			} else if diagram.Config.IntersectionGaps != nil {
+				t.Fatal("disabled gaps leaked into the diagram config")
+			}
+		})
+	}
+}
+
+func TestNestedEdgeRoutingConfig(t *testing.T) {
+	// From d2lang/d2#1994: the connection from the near shape is routed
+	// around the shapes between, unless it is drawn straight.
+	const shapes = "a; b\nlegend: {near: top-right}\ntarget\n* -> target\n"
+	straight, around := d2target.NestedEdgeRoutingStraight, d2target.NestedEdgeRoutingAroundShapes
+	for _, test := range []struct {
+		name, config string
+		option       *string
+		want         int // points in the route from the near shape; 0 is more than 2
+	}{
+		{"default", "", nil, 0},
+		{"source straight", straight, nil, 2},
+		{"source around shapes", around, nil, 0},
+		{"caller straight", "", &straight, 2},
+		{"caller overrides source straight", straight, &around, 0},
+		{"caller overrides source around shapes", around, &straight, 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source := shapes
+			if test.config != "" {
+				source = "vars: {d2-config: {nested-edge-routing: " + test.config + "}}\n" + source
+			}
+			ruler, err := textmeasure.NewRuler()
+			if err != nil {
+				t.Fatal(err)
+			}
+			diagram, _, err := Compile(context.Background(), source, &CompileOptions{
+				Ruler:             ruler,
+				NestedEdgeRouting: test.option,
+				LayoutResolver:    func(string) (d2graph.LayoutGraph, error) { return d2dagrelayout.DefaultLayout, nil },
+			}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var route []*geo.Point
+			for _, c := range diagram.Connections {
+				if c.Src == "legend" {
+					route = c.Route
+				}
+			}
+			if test.want == 2 && len(route) != 2 || test.want == 0 && len(route) <= 2 {
+				t.Fatalf("route from the near shape = %v", route)
+			}
+			if (test.config != "") != (diagram.Config.NestedEdgeRouting != nil) {
+				t.Fatalf("diagram config nested edge routing = %v", diagram.Config.NestedEdgeRouting)
+			}
+		})
+	}
+
+	ruler, err := textmeasure.NewRuler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	curved := "curved"
+	if _, _, err := Compile(context.Background(), shapes, &CompileOptions{
+		Ruler:             ruler,
+		NestedEdgeRouting: &curved,
+		LayoutResolver:    func(string) (d2graph.LayoutGraph, error) { return d2dagrelayout.DefaultLayout, nil },
+	}, nil); err == nil {
+		t.Fatal("an unknown nested edge routing was accepted")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
@@ -393,14 +394,14 @@ func clusterNodeBoundingBoxPlacement(node *layoutgraph.Node, nodes layoutgraph.N
 			br.Y = math.Ceil(labelTopLeft.Y + node.Label.Height + padding)
 		}
 	}
-	if node.Icon != nil && !node.IsImage() && node.Icon.Position.IsOutside() {
-		iconSize := float64(layoutgraph.MaxIconSize)
-		iconTopLeft := node.LabelTopLeft(node.Icon.Position, iconSize, iconSize)
+	if node.Icon != nil && !node.IsImage() && (node.Icon.Position.IsOutside() || node.Icon.Position.IsBorder()) {
+		iconWidth, iconHeight := node.Icon.ReservedDims()
+		iconTopLeft := node.IconTopLeft(node.Icon.Position, iconWidth, iconHeight)
 		outsidePadding := 2. * label.PADDING
 		tl.X = math.Min(tl.X, math.Floor(iconTopLeft.X-outsidePadding))
 		tl.Y = math.Min(tl.Y, math.Floor(iconTopLeft.Y-outsidePadding))
-		br.X = math.Max(br.X, math.Ceil(iconTopLeft.X+iconSize+outsidePadding))
-		br.Y = math.Max(br.Y, math.Ceil(iconTopLeft.Y+iconSize+outsidePadding))
+		br.X = math.Max(br.X, math.Ceil(iconTopLeft.X+iconWidth+outsidePadding))
+		br.Y = math.Max(br.Y, math.Ceil(iconTopLeft.Y+iconHeight+outsidePadding))
 	}
 	return tl, br, nil
 }
@@ -621,4 +622,37 @@ func sortSharedSegmentGroup(segments []*geo.Segment, coordinate func(*geo.Point)
 		copy(segments, items)
 	}
 	return nil
+}
+
+// WorkTelemetry adds up the work of the label placements run with a context
+// that carries it, including ones that fail. It is safe for concurrent use.
+type WorkTelemetry struct {
+	mu   sync.Mutex
+	work int64
+}
+
+// Work returns the work recorded so far.
+func (t *WorkTelemetry) Work() int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.work
+}
+
+func (t *WorkTelemetry) record(work int64) {
+	t.mu.Lock()
+	t.work += work
+	t.mu.Unlock()
+}
+
+type workTelemetryKey struct{}
+
+// WithWorkTelemetry returns ctx carrying t for label placement to record its
+// work in.
+func WithWorkTelemetry(ctx context.Context, t *WorkTelemetry) context.Context {
+	return context.WithValue(ctx, workTelemetryKey{}, t)
+}
+
+func workTelemetryFromContext(ctx context.Context) *WorkTelemetry {
+	t, _ := ctx.Value(workTelemetryKey{}).(*WorkTelemetry)
+	return t
 }

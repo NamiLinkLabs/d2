@@ -14,6 +14,12 @@ import (
 // placement trial. It never runs another full seed pipeline. The adapter must
 // validate and compare the completed proposal against the ordinary incumbent.
 func CompoundCandidate(ctx context.Context, graph *layoutgraph.Graph) (*layoutgraph.Graph, error) {
+	return CompoundCandidateWithEffort(ctx, graph, Effort{})
+}
+
+// CompoundCandidateWithEffort is CompoundCandidate whose routing trial uses
+// the routing effort of the layout it refines.
+func CompoundCandidateWithEffort(ctx context.Context, graph *layoutgraph.Graph, effort Effort) (*layoutgraph.Graph, error) {
 	if ctx == nil || graph == nil {
 		return nil, fmt.Errorf("TALA compound candidate requires a context and graph")
 	}
@@ -54,7 +60,7 @@ func CompoundCandidate(ctx context.Context, graph *layoutgraph.Graph) (*layoutgr
 	if worseAlignment {
 		return graph, nil
 	}
-	if err := reroutePlaced(ctx, candidate); err != nil {
+	if err := reroutePlaced(ctx, candidate, effort); err != nil {
 		return nil, err
 	}
 	tl, br := candidate.BoundingBox()
@@ -96,8 +102,10 @@ func compoundCrossAxisDetours(g *layoutgraph.Graph) int {
 	return detours
 }
 
-func reroutePlaced(ctx context.Context, g *layoutgraph.Graph) error {
+func reroutePlaced(ctx context.Context, g *layoutgraph.Graph, effort Effort) error {
 	p := newPipeline(g, 0, false)
+	// Only routing effort applies: these stages never place nodes.
+	p.effort = Effort{SingleRouteFlavor: effort.SingleRouteFlavor}
 	p.limits = workLimitsFromContext(ctx)
 	p.resetFullLayoutRouteState()
 	// Reuse routing and label cleanup on placed nodes without regrouping,

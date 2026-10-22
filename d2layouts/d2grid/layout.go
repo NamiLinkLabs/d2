@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/d2lang/d2/d2graph"
-	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
 	"github.com/d2lang/util-go/go2"
@@ -97,7 +96,8 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 			// . ├────┤───────├────┤
 			// .  icon  label  icon
 			// with an icon in top left we need 2x the space to fit the label in the center
-			iconSize := float64(d2target.MAX_ICON_SIZE) + 2*label.PADDING
+			iconWidth, _ := obj.IconReservedSize()
+			iconSize := iconWidth + 2*label.PADDING
 			padding.Left = math.Max(padding.Left, iconSize)
 			padding.Right = math.Max(padding.Right, iconSize)
 			minWidth := 2*iconSize + float64(obj.LabelDimensions.Width) + 2*label.PADDING
@@ -140,7 +140,9 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 		}
 	}
 
-	// simple straight line edge routing between grid objects
+	// simple straight line edge routing between grid objects, which LayoutNested
+	// then replaces with the edge router's routes
+	var cellEdges []*d2graph.Edge
 	for _, e := range g.Edges {
 		if !e.Src.Parent.IsDescendantOf(obj) && !e.Dst.Parent.IsDescendantOf(obj) {
 			continue
@@ -152,8 +154,10 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 			continue
 		}
 		// if edge is grid child, use simple routing
-		e.Route = []*geo.Point{e.Src.Center(), e.Dst.Center()}
-		e.TraceToShape(e.Route, 0, 1)
+		cellEdges = append(cellEdges, e)
+	}
+	d2graph.RouteStraight(cellEdges)
+	for _, e := range cellEdges {
 		if e.Label.Value != "" {
 			e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
 		}

@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/bench"
+	"github.com/d2lang/d2/d2target"
 )
 
 type record struct {
@@ -33,6 +35,7 @@ type record struct {
 	Crossings     int     `json:"crossings"`
 	Bends         int     `json:"bends"`
 	EdgeLength    float64 `json:"edge_length"`
+	SharedLength  float64 `json:"shared_length"`
 	BBoxWidth     int     `json:"bbox_width"`
 	BBoxHeight    int     `json:"bbox_height"`
 	EmptyFraction float64 `json:"empty_fraction"`
@@ -55,6 +58,8 @@ func main() {
 	noEdit := flag.Bool("no-edit", false, "skip the one-line-edit stability measurement")
 	format := flag.String("format", "markdown", "output format: markdown or jsonl")
 	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile (samples are labeled engine=..., phase=layout|routing)")
+	memprofile := flag.String("memprofile", "", "write an allocation profile (go tool pprof -sample_index=alloc_space) after all cases")
+	dump := flag.String("dump", "", "write each layout's final geometry (bench.GeometryJSON) to DIR/<case>.<engine>[.edit].json and print its SHA-256 to stderr")
 	flag.Parse()
 
 	die := func(err error) {
@@ -87,11 +92,20 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
+	if *memprofile != "" {
+		defer func() {
+			f, err := os.Create(*memprofile)
+			die(err)
+			die(pprof.Lookup("allocs").WriteTo(f, 0))
+			die(f.Close())
+		}()
+	}
+
 	fmt.Fprintf(os.Stderr, "talabench: go=%s GOMAXPROCS=%d GOOS/GOARCH=%s/%s timeout=%s\n",
 		runtime.Version(), runtime.GOMAXPROCS(0), runtime.GOOS, runtime.GOARCH, *timeout)
 	if *format == "markdown" {
-		fmt.Println("| case | objects | edges | engine | layout ms | compile ms | crossings | bends | edge length | bbox | empty % | edit layout ms | disp mean | disp max | moved |")
-		fmt.Println("|---|---:|---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|")
+		fmt.Println("| case | objects | edges | engine | layout ms | compile ms | crossings | bends | edge length | shared | bbox | empty % | edit layout ms | disp mean | disp max | moved |")
+		fmt.Println("|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|")
 	}
 	enc := json.NewEncoder(os.Stdout)
 	for _, path := range files {
@@ -111,7 +125,7 @@ func main() {
 			rec := record{
 				Case: r.Case, Engine: r.Engine, Objects: r.Objects, Edges: r.Edges,
 				LayoutMS: ms(r.Layout), CompileMS: ms(r.Compile),
-				Crossings: r.Metrics.Crossings, Bends: r.Metrics.Bends, EdgeLength: r.Metrics.EdgeLength,
+				Crossings: r.Metrics.Crossings, Bends: r.Metrics.Bends, EdgeLength: r.Metrics.EdgeLength, SharedLength: r.Metrics.SharedLength,
 				BBoxWidth: r.Metrics.BBoxWidth, BBoxHeight: r.Metrics.BBoxHeight, EmptyFraction: r.Metrics.EmptyFraction,
 				EditLayoutMS: ms(r.EditLayout),
 			}
@@ -125,6 +139,10 @@ func main() {
 			if r.EditErr != nil {
 				rec.EditError = r.EditErr.Error()
 			}
+			if *dump != "" {
+				die(dumpGeometry(*dump, name+"."+engine.Name, r.Diagram))
+				die(dumpGeometry(*dump, name+"."+engine.Name+".edit", r.EditDiagram))
+			}
 			fmt.Fprintf(os.Stderr, "%s %s layout=%.0fms edit=%.0fms err=%v editErr=%v\n", name, engine.Name, rec.LayoutMS, rec.EditLayoutMS, r.Err, r.EditErr)
 			if *format == "jsonl" {
 				die(enc.Encode(rec))
@@ -135,13 +153,33 @@ func main() {
 	}
 }
 
+// dumpGeometry writes diagram's geometry to dir/stem.json and prints its
+// SHA-256. A nil diagram (failed or skipped compile) writes nothing.
+func dumpGeometry(dir, stem string, diagram *d2target.Diagram) error {
+	if diagram == nil {
+		return nil
+	}
+	b, err := bench.GeometryJSON(diagram)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, stem+".json"), b, 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "geometry %x %s\n", sha256.Sum256(b), stem)
+	return nil
+}
+
 func printRow(rec record, r bench.Result) {
 	if r.Err != nil {
 		status := "error"
 		if errors.Is(r.Err, bench.ErrTimeout) {
 			status = "timeout"
 		}
-		fmt.Printf("| %s | | | %s | %s (%.0f) | | | | | | | | | | |\n", rec.Case, rec.Engine, status, rec.LayoutMS)
+		fmt.Printf("| %s | | | %s | %s (%.0f) | | | | | | | | | | | |\n", rec.Case, rec.Engine, status, rec.LayoutMS)
 		return
 	}
 	edit, mean, maxd, moved := "", "", "", ""
@@ -156,8 +194,8 @@ func printRow(rec record, r bench.Result) {
 	case r.EditErr != nil:
 		edit = "error"
 	}
-	fmt.Printf("| %s | %d | %d | %s | %.0f | %.0f | %d | %d | %.0f | %dx%d | %.1f | %s | %s | %s | %s |\n",
+	fmt.Printf("| %s | %d | %d | %s | %.0f | %.0f | %d | %d | %.0f | %.0f | %dx%d | %.1f | %s | %s | %s | %s |\n",
 		rec.Case, rec.Objects, rec.Edges, rec.Engine, rec.LayoutMS, rec.CompileMS,
-		rec.Crossings, rec.Bends, rec.EdgeLength, rec.BBoxWidth, rec.BBoxHeight, 100*rec.EmptyFraction,
+		rec.Crossings, rec.Bends, rec.EdgeLength, rec.SharedLength, rec.BBoxWidth, rec.BBoxHeight, 100*rec.EmptyFraction,
 		edit, mean, maxd, moved)
 }

@@ -360,7 +360,76 @@ beats: Beats {
 }
 `,
 		},
+		{
+			name:      "theme-color-codes-dark-mauve",
+			themeID:   &d2themescatalog.DarkMauve.ID,
+			justDagre: true,
+			script:    themeColorCodesScript,
+		},
+		{
+			name:      "theme-color-codes-terminal",
+			themeID:   &d2themescatalog.Terminal.ID,
+			justDagre: true,
+			script:    themeColorCodesScript,
+		},
 	}
 
 	runa(t, tcs)
 }
+
+// themeColorCodesScript draws every theme color code as a swatch, plus styled
+// special shapes, so each theme shows what the codes resolve to.
+const themeColorCodesScript = `
+palette: Theme palette {
+  grid-rows: 3
+  grid-columns: 7
+  grid-gap: 24
+  N1: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N1; stroke: N1}}
+  N2: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N2; stroke: N1}}
+  N3: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N3; stroke: N1}}
+  N4: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N4; stroke: N1}}
+  N5: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N5; stroke: N1}}
+  N6: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N6; stroke: N1}}
+  N7: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: N7; stroke: N1}}
+  B1: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: B1; stroke: N1}}
+  B2: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: B2; stroke: N1}}
+  B3: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: B3; stroke: N1}}
+  B4: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: B4; stroke: N1}}
+  B5: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: B5; stroke: N1}}
+  B6: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: B6; stroke: N1}}
+  gap60: "" {width: 64; height: 40; style.opacity: 0}
+  AA2: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: AA2; stroke: N1}}
+  AA4: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: AA4; stroke: N1}}
+  AA5: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: AA5; stroke: N1}}
+  AB4: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: AB4; stroke: N1}}
+  AB5: {width: 64; height: 40; label.near: outside-bottom-center; style: {fill: AB5; stroke: N1}}
+  gap50: "" {width: 64; height: 40; style.opacity: 0}
+  gap51: "" {width: 64; height: 40; style.opacity: 0}
+}
+
+orders: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  total: decimal
+  style: {
+    fill: AA2
+    stroke: N6
+    font-color: N7
+  }
+}
+api: API {
+  style: {
+    fill: AB4
+    stroke: AB5
+    font-color: AA2
+    3d: true
+  }
+}
+api -> orders: writes {
+  style: {
+    stroke: AA4
+    font-color: B2
+    stroke-width: 3
+  }
+}
+`

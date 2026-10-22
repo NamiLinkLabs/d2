@@ -1,0 +1,60 @@
+# Quick checks for pull requests, a few minutes instead of the full suite in
+# ci.yml: vet, a full build, the tests of the packages this fork works on, and
+# the WASM tests. The full suite runs on master and can be started by hand.
+name: quick
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ./go.mod
+          cache: true
+      - name: Build everything
+        run: go build ./...
+      - name: Vet
+        run: |
+          go vet --composites=false ./d2layouts/... ./d2lib/... ./d2graph/... ./d2target/...
+          GOOS=js GOARCH=wasm go vet --composites=false ./d2js/...
+      - name: Test TALA, the other layouts and d2lib
+        run: CI=1 go test -count=1 -timeout=15m ./d2layouts/... ./d2lib/...
+
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ./go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: WASM tests (D2.js API, ELK)
+        run: ./ci/test-wasm.sh
+
+  signed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: git submodule update --init
+      - run: COLOR=1 ./ci/sub/bin/ensure_signed.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

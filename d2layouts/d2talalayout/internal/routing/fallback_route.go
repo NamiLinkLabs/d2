@@ -136,7 +136,7 @@ func (router *ovgEdgeRouter) addFallbackRoute(route *Route) error {
 		if err := router.work.step(); err != nil {
 			return err
 		}
-		router.pointToRoute[*node.Point] = append(router.pointToRoute[*node.Point], route)
+		router.pointToRoute.add(node, route)
 	}
 	router.fallbacks++
 	return router.work.check()
@@ -158,6 +158,17 @@ func (router *ovgEdgeRouter) fallbackRoute(ctx context.Context, edge *layoutgrap
 	sourceCenter, targetCenter := router.ovg.Centers[source], router.ovg.Centers[target]
 	if source == nil || target == nil || sourceCenter == nil || targetCenter == nil {
 		return nil, 0, invariant.Errorf("fallback route %s has an endpoint outside the OVG", edge.DebugID())
+	}
+	if edge.HasPinnedSide() {
+		// The facing-side candidates below ignore pins, so a pinned edge first
+		// tries the pinned fallback the search uses when it finds no path.
+		nodes, distance, err := router.pinnedFallbackRoute(edge)
+		if err == nil {
+			return nodes, distance, nil
+		}
+		if isContextTermination(err) {
+			return nil, 0, err
+		}
 	}
 	if source != target {
 		scored := router.work.limit-router.work.used > fallbackFinalizeReserve
@@ -273,7 +284,7 @@ func (router *ovgEdgeRouter) fallbackPort(node *layoutgraph.Node, side geo.Orien
 			}
 		}
 		occupied := 0.0
-		if len(router.pointToRoute[*port.Point]) > 0 {
+		if len(router.pointToRoute.at(port)) > 0 {
 			occupied = 1
 		}
 		center := 1.0
