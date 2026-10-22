@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"runtime"
-	"strconv"
 	"sync"
 
 	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/engine"
+	"github.com/d2lang/d2/lib/layoutdata"
 )
 
 const (
@@ -82,27 +81,6 @@ func normalizeSeeds(seeds []int64) ([]int64, error) {
 	return unique, nil
 }
 
-func seedsFromData(raw any) ([]int64, error) {
-	v := reflect.ValueOf(raw)
-	if !v.IsValid() || (v.Kind() != reflect.Array && v.Kind() != reflect.Slice) {
-		return nil, fmt.Errorf("tala-seeds must be a list of signed 64-bit integers")
-	}
-	if v.Len() > maxSeedEntries {
-		return nil, fmt.Errorf("tala accepts at most %d seed entries", maxSeedEntries)
-	}
-
-	seeds := make([]int64, 0, min(v.Len(), maxSeeds))
-	for i := 0; i < v.Len(); i++ {
-		rawSeed := v.Index(i).Interface()
-		seed, err := strconv.ParseInt(fmt.Sprint(rawSeed), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid tala seed at index %d (%v): must be a signed 64-bit integer", i, rawSeed)
-		}
-		seeds = append(seeds, seed)
-	}
-	return seeds, nil
-}
-
 func layoutPlan(graph *d2graph.Graph, opts *Options) ([]int64, int, error) {
 	defaults := DefaultOptions()
 	if opts == nil {
@@ -114,12 +92,12 @@ func layoutPlan(graph *d2graph.Graph, opts *Options) ([]int64, int, error) {
 		seeds = defaults.Seeds
 	}
 	if graph.Data != nil {
-		if raw, ok := graph.Data["tala-seeds"]; ok {
-			var err error
-			seeds, err = seedsFromData(raw)
-			if err != nil {
-				return nil, 0, err
-			}
+		dataSeeds, ok, err := layoutdata.Int64s(graph.Data, layoutdata.TALASeeds)
+		if err != nil {
+			return nil, 0, err
+		}
+		if ok {
+			seeds = dataSeeds
 		}
 	}
 

@@ -199,6 +199,28 @@ resources are released. Calling `dispose()` more than once is safe.
 All [RenderOptions](#renderoptions) properties in addition to:
 
 - `layout`: Layout engine to use (`'dagre' | 'elk' | 'tala'`) [default: `'dagre'`]
+- `elk`: ELK spacing and padding, used when `layout` is `'elk'`: `nodeSpacing`,
+  `edgeNodeSpacing`, `edgeEdgeSpacing`, `selfLoopSpacing`, `inLayerNodeSpacing`,
+  `inLayerEdgeSpacing`, `inLayerEdgeNodeSpacing` and `padding`.
+- `dagre`: dagre spacing and padding, used when `layout` is `'dagre'`: `nodeSep`, `edgeSep`,
+  `rankSep` and `padding`.
+- `tala`: TALA's `seeds`, used when `layout` is `'tala'`.
+
+  A diagram can set these itself under `vars.d2-config.data`, named like the CLI flags,
+  and values set there take precedence over compile options, so the diagram lays out the
+  same in D2.js and the CLI:
+
+  ```d2
+  vars: {
+    d2-config: {
+      data: {
+        elk-nodeNode: 30
+        dagre-ranksep: 60
+        dagre-padding: 10
+      }
+    }
+  }
+  ```
 - `fontRegular` A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used.
 - `fontItalic` A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used.
 - `fontBold` A byte array containing .ttf file to use for the bold font. If none provided, Source Sans Pro Bold is used.

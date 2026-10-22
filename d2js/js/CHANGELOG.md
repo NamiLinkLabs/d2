@@ -7,6 +7,7 @@ include changes to the main d2 project.**
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
 - Type the `explicitThemeFill`, `explicitThemeStroke` and `explicitThemeFontColor` diagram fields, which mark theme color codes (such as `style.fill: B2`) chosen in the source rather than applied by the theme
+- Tune ELK, dagre and TALA with the `elk`, `dagre` and `tala` compile options. ELK gains in-layer node, edge and edge-node spacing; dagre gains `rankSep` and container `padding`; padding takes a number or `[top=..,left=..,bottom=..,right=..]`. Layout options a diagram sets under `vars.d2-config.data` take precedence, and invalid ones are compile errors with a source range.
 - Add the `intersectionGaps` render option, which leaves empty gaps where connections cross; compile resolves it from `vars.d2-config.intersection-gaps` into `renderOptions` [#1932](https://github.com/d2lang/d2/issues/1932)
 - Add `labelPadding` to connections in the diagram, from D2's new `label.padding`
 - Add the `embedSource` compile option, which embeds the D2 source in rendered SVGs, and `D2.extractSource()` / `D2.embedSource()` to read it back from SVG and PNG images or add it to other images

@@ -138,3 +138,32 @@ func layoutGraphJSON(t *testing.T, layout d2graph.LayoutGraph) string {
 	}
 	return string(data)
 }
+
+// layoutSourceJSON lays out src with data set as diagram layout data, the way
+// d2lib hands vars.d2-config.data to layout engines, and serializes the
+// resulting geometry.
+func layoutSourceJSON(t *testing.T, layout d2graph.LayoutGraph, src string, data map[string]any) string {
+	t.Helper()
+	graph, _, err := d2compiler.Compile("test.d2", strings.NewReader(src), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ruler, err := textmeasure.NewRuler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := graph.SetDimensions(nil, ruler, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	graph.Data = data
+	if err := layout(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	// Compare geometry only.
+	graph.Data = nil
+	out, err := d2graph.SerializeGraph(graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
