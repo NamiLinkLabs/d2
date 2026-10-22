@@ -29,6 +29,7 @@ import (
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/log"
 	"github.com/d2lang/d2/lib/memfs"
+	"github.com/d2lang/d2/lib/sourcemeta"
 	"github.com/d2lang/d2/lib/textmeasure"
 	"github.com/d2lang/d2/lib/urlenc"
 	"github.com/d2lang/d2/lib/version"
@@ -238,6 +239,14 @@ func Compile(args []js.Value) (interface{}, error) {
 	if err != nil {
 		return nil, &WASMError{Message: fmt.Sprintf("invalid fs input: %s", err.Error()), Code: 400}
 	}
+	embedSource := input.Opts != nil && input.Opts.EmbedSource != nil && *input.Opts.EmbedSource
+	var recorder *sourcemeta.Recorder
+	if embedSource {
+		recorder = sourcemeta.NewRecorder(compileOpts.FS)
+		compileOpts.FS = recorder
+	}
+	// The original text, before formatting replaces it below.
+	originalInput := input.FS[inputPath]
 
 	var fontRegular []byte
 	var fontItalic []byte
@@ -316,6 +325,16 @@ func Compile(args []js.Value) (interface{}, error) {
 
 	input.FS[inputPath] = d2format.Format(g.AST)
 
+	var source *sourcemeta.Bundle
+	if embedSource {
+		source = sourcemeta.NewBundle(inputPath, originalInput, recorder.Files())
+		source.Settings = embeddedSettings(input.Opts)
+		source.Version = version.Version
+		if err := source.Validate(); err != nil {
+			return nil, &WASMError{Message: fmt.Sprintf("embedSource: %s", err.Error()), Code: 400}
+		}
+	}
+
 	return CompileResponse{
 		FS:        input.FS,
 		InputPath: inputPath,
@@ -339,6 +358,7 @@ func Compile(args []js.Value) (interface{}, error) {
 			NoXMLTag:           input.Opts.NoXMLTag,
 			ASCII:              input.Opts.ASCII,
 			ASCIIMode:          input.Opts.ASCIIMode,
+			Source:             source,
 		},
 	}, nil
 }
@@ -388,6 +408,12 @@ func Render(args []js.Value) (interface{}, error) {
 		if !noChildren && animateInterval <= 0 {
 			return nil, &WASMError{Message: fmt.Sprintf("target '%s' only supported for animated SVGs", *input.Opts.Target), Code: 500}
 		}
+	}
+
+	// Settle what the image embeds before the boards are trimmed below.
+	var source *sourcemeta.Bundle
+	if input.Opts != nil && input.Opts.Source != nil {
+		source = renderedSource(input.Opts.Source, input.Diagram, boardPath, input.Opts.Target, animateInterval > 0)
 	}
 
 	diagram := input.Diagram.GetBoard(boardPath)
@@ -524,6 +550,14 @@ func Render(args []js.Value) (interface{}, error) {
 			if err != nil {
 				return nil, &WASMError{Message: fmt.Sprintf("animation failed: %s", err.Error()), Code: 500}
 			}
+		}
+	}
+	if source != nil && len(out) > 0 {
+		// Embed last: the appendix edits the SVG text with patterns that
+		// embedded source text could match.
+		out, err = sourcemeta.EmbedSVG(out, source)
+		if err != nil {
+			return nil, &WASMError{Message: fmt.Sprintf("embedding the source failed: %s", err.Error()), Code: 400}
 		}
 	}
 	return out, nil

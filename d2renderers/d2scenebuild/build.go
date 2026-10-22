@@ -1149,6 +1149,8 @@ func validateShapeNumbers(object string, targetShape d2target.Shape) error {
 		{name: "strokeWidth", value: targetShape.StrokeWidth},
 		{name: "borderRadius", value: targetShape.BorderRadius},
 		{name: "iconBorderRadius", value: targetShape.IconBorderRadius},
+		{name: "iconWidth", value: targetShape.IconWidth},
+		{name: "iconHeight", value: targetShape.IconHeight},
 	} {
 		if field.value < 0 {
 			return invalidField(object, field.name, field.value, "must be non-negative")
@@ -1184,6 +1186,12 @@ func validateConnectionNumbers(object string, connection d2target.Connection) er
 	}
 	if !finite(connection.IconBorderRadius) || connection.IconBorderRadius < 0 {
 		return invalidField(object, "iconBorderRadius", connection.IconBorderRadius, "must be finite and non-negative")
+	}
+	if connection.IconWidth < 0 {
+		return invalidField(object, "iconWidth", connection.IconWidth, "must be non-negative")
+	}
+	if connection.IconHeight < 0 {
+		return invalidField(object, "iconHeight", connection.IconHeight, "must be non-negative")
 	}
 	if !finite(connection.LabelPercentage) || connection.LabelPercentage < 0 || connection.LabelPercentage > 1 {
 		return invalidField(object, "labelPercentage", connection.LabelPercentage, "must be finite and within [0,1]")

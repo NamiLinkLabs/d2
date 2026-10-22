@@ -25,6 +25,23 @@ export class D2 {
    */
   routeEdges(request: RouteEdgesRequest): Promise<RouteEdgesResponse>;
 
+  /**
+   * Reads the D2 source embedded in an SVG (string or bytes) or PNG (bytes)
+   * exported with `embedSource`, `d2 --embed-source` or Boxwire. Resolves to
+   * null when the image has none. The result is a compile request that embeds
+   * the source again: `d2.compile(await d2.extractSource(svg))`.
+   */
+  extractSource(image: string | Uint8Array | ArrayBuffer): Promise<ExtractedSource | null>;
+
+  /**
+   * Embeds a source, as `compile` returns it in `renderOptions.source`, in an
+   * SVG or PNG image, replacing an earlier embedded source. Use it for images
+   * that D2.js did not render itself, such as a PNG drawn from the SVG on a
+   * canvas. Strings come back as strings, bytes as bytes.
+   */
+  embedSource(image: string, source: EmbeddedSource): Promise<string>;
+  embedSource(image: Uint8Array | ArrayBuffer, source: EmbeddedSource): Promise<Uint8Array>;
+
   /** Terminates the backing worker and rejects any pending operations. */
   dispose(): Promise<void>;
 }
@@ -60,6 +77,8 @@ export interface RenderOptions {
   ascii?: boolean;
   /** ASCII rendering mode for text outputs. Options: 'standard' (basic ASCII chars) or 'extended' (Unicode chars) [default: 'extended'] */
   asciiMode?: "standard" | "extended";
+  /** D2 source to embed in the SVG, as `compile` returns it with `embedSource` set. ASCII output embeds nothing. */
+  source?: EmbeddedSource;
 }
 
 export interface CompileOptions extends RenderOptions {
@@ -79,6 +98,54 @@ export interface CompileOptions extends RenderOptions {
   fontBold?: Uint8Array;
   /** A byte array containing .ttf file to use for the semibold font. If none provided, Source Sans Pro Semibold is used. */
   fontSemibold?: Uint8Array;
+  /**
+   * Return the original D2 files the compile read and the options set here in
+   * `renderOptions.source`, so `render` embeds them in the SVG and the image
+   * can be opened again with `extractSource` or the d2 CLI. The embedded text
+   * includes comments and boards the image does not show [default: false].
+   */
+  embedSource?: boolean;
+}
+
+/** One embedded D2 file. */
+export interface EmbeddedFile {
+  /** Slash-separated, relative to the deepest directory holding every embedded file. */
+  path: string;
+  content: string;
+}
+
+/** Render options that were set explicitly; `vars.d2-config` is in the source. */
+export interface EmbeddedSettings {
+  layout?: string;
+  themeID?: number;
+  darkThemeID?: number;
+  sketch?: boolean;
+  pad?: number;
+  center?: boolean;
+  isometric?: boolean;
+  animateInterval?: number;
+}
+
+/** The D2 source embedded in an image. */
+export interface EmbeddedSource {
+  /** The compiled file. Its path is empty in images Boxwire exported before D2 embedded sources. */
+  entry: EmbeddedFile;
+  /** The files it imported, sorted by path. */
+  imports?: EmbeddedFile[];
+  settings: EmbeddedSettings;
+  /** The target that renders exactly what the image shows; unset for the whole diagram. */
+  target?: string;
+  /** The D2 version that wrote the image. */
+  version?: string;
+}
+
+/** An embedded source as a compile request. */
+export interface ExtractedSource extends CompileRequest {
+  fs: Record<string, string>;
+  inputPath: string;
+  /** The embedded settings and target, with `embedSource` set. */
+  options: CompileOptions;
+  source: EmbeddedSource;
 }
 
 export interface ELKOptions {
@@ -243,6 +310,12 @@ export interface ShapeBase {
   icon?: string /* url.URL */;
   iconPosition: string;
   /**
+   * Explicit icon size from icon.width and icon.height, in pixels. Left out
+   * when the size is automatic (32 to 64 px, depending on the shape).
+   */
+  iconWidth?: number /* int */;
+  iconHeight?: number /* int */;
+  /**
    * Whether the shape should allow shapes behind it to bleed through
    * Currently just used for sequence diagram groups
    */
@@ -331,6 +404,12 @@ export interface Connection extends Text {
   tooltip: string;
   icon?: string /* url.URL */;
   iconPosition?: string;
+  /**
+   * Explicit icon size from icon.width and icon.height, in pixels. Left out
+   * when the icon has the default size of 32 px.
+   */
+  iconWidth?: number /* int */;
+  iconHeight?: number /* int */;
   zIndex: number /* int */;
 }
 
@@ -428,6 +507,12 @@ export interface Attributes {
   horizontalGap?: Scalar;
   labelPosition?: Scalar;
   iconPosition?: Scalar;
+  /**
+   * The explicit icon.width and icon.height. When unset, the icon size is
+   * automatic.
+   */
+  iconWidth?: Scalar;
+  iconHeight?: Scalar;
   /**
    * These names are attached to the rendered elements in SVG
    * so that users can target them however they like outside of D2

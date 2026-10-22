@@ -85,6 +85,28 @@ container.child -> outside
     await d2.dispose();
   }, 20000);
 
+  test("explicit icon size compiles and renders", async () => {
+    const d2 = new D2();
+    const result = await d2.compile(
+      `x: {icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg; icon.width: 48}
+y: {icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg {near: border-top-left; width: 40; height: 24}}
+x -> y: {icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg; icon.width: 20}`
+    );
+    const x = result.diagram.shapes.find((s) => s.id === "x");
+    const y = result.diagram.shapes.find((s) => s.id === "y");
+    expect(x.iconWidth).toBe(48);
+    expect(x.iconHeight).toBe(48);
+    expect(y.iconWidth).toBe(40);
+    expect(y.iconHeight).toBe(24);
+    expect(y.iconPosition).toBe("BORDER_TOP_LEFT");
+    expect(result.diagram.connections[0].iconWidth).toBe(20);
+    const svg = await d2.render(result.diagram);
+    expect(svg).toContain('width="48" height="48"');
+    expect(svg).toContain('width="40" height="24"');
+    expect(svg).toContain('width="20" height="20"');
+    await d2.dispose();
+  }, 20000);
+
   test("render works", async () => {
     const d2 = new D2();
     const result = await d2.compile("x -> y");
