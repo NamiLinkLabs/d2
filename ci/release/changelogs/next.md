@@ -2,6 +2,20 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- layout: set ELK and dagre spacing and padding in the diagram itself, under
+  `vars.d2-config.data`, named like the command-line flags (e.g. `elk-nodeNode: 30`,
+  `dagre-padding: 10`). As with `tala-seeds`, the diagram's values take precedence over
+  flags and API options, so a diagram lays out the same in the CLI, D2.js and Go. Invalid
+  values and unknown `elk-*`/`dagre-*` keys are compile errors.
+  [#1740](https://github.com/d2lang/d2/issues/1740)
+  [#1221](https://github.com/d2lang/d2/issues/1221)
+  [#2236](https://github.com/d2lang/d2/issues/2236)
+- elk: configure the spacing within a layer with `--elk-nodeNode` (between nodes),
+  `--elk-edgeEdge` (between edges) and `--elk-edgeNode` (between edges and nodes, previously
+  fixed at 40). `--elk-padding` also takes one number for all four sides.
+- dagre: configure the space between ranks with `--dagre-ranksep` (previously at least 100) and
+  the padding containers are fitted to with `--dagre-padding` (previously fixed at 30), which
+  makes containers around a single image or shape as tight as wanted.
 - renders: leave an empty gap in a connection where another one drawn above it crosses with `--intersection-gaps`, `vars: {d2-config: {intersection-gaps: true}}` or the D2.js `intersectionGaps` option, in SVG and in native PNG, GIF, PDF and PPTX exports. Lines meeting at a shape, running together or crossing at a shallow angle keep their stroke, as do sequence diagram lifelines. [#1932](https://github.com/d2lang/d2/issues/1932)
 - connections: set the space kept free around a connection's label with
   `label.padding`, e.g. `a -> b: hi {label.padding: 8}`, or
@@ -42,6 +56,7 @@
 
 #### Bugfixes ⛑️
 
+- elk: an `--elk-padding` value without a `right=` side no longer panics; missing sides are 0, as in ELK.
 - compiler:
   - Limit combined map/array nesting to 128. [#2894](https://github.com/d2lang/d2/pull/2894)
   - Honor cancellation during parsing and IR compilation, and prevent `d2 fmt`

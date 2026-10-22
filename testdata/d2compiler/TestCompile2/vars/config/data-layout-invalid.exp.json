@@ -1,0 +1,31 @@
+{
+  "graph": null,
+  "err": {
+    "errs": [
+      {
+        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2,4:6:39-4:18:51",
+        "errmsg": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:5:7: expected a whole number of pixels from 0 to 10000 for \"elk-nodeNode\", got \"-3\""
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2,5:6:62-5:18:74",
+        "errmsg": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:6:7: expected a whole number of pixels from 0 to 10000 for \"elk-edgeNode\", got \"lol\""
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2,6:6:86-6:17:97",
+        "errmsg": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:7:7: expected a number or \"[top=..,left=..,bottom=..,right=..]\" for \"elk-padding\", got \"[top=x]\": top: \"x\" is not a whole number"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2,7:6:115-7:19:128",
+        "errmsg": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:8:7: expected a whole number of pixels from 0 to 10000 for \"dagre-ranksep\", got \"[1; 2]\""
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2,8:6:143-8:16:153",
+        "errmsg": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:9:7: invalid \"tala-seeds\" entry at index 1 (nope): must be a signed 64-bit integer"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2,9:6:171-9:19:184",
+        "errmsg": "d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:10:7: expected one of layered, mrtree, radial, force, stress, rectpacking, sporeOverlap, sporeCompaction, box, fixed, random for \"elk-algorithm\", got \"disco\""
+      }
+    ]
+  }
+}

@@ -27,10 +27,26 @@ const (
 	MIN_SPACING     = 10.
 )
 
+// ConfigurableOpts are the dagre options D2 exposes. A diagram can set each of
+// them under vars.d2-config.data with the name of the matching command-line
+// flag (see lib/layoutdata), and values set there take precedence.
 type ConfigurableOpts struct {
 	NodeSep int `json:"nodesep"`
 	EdgeSep int `json:"edgesep"`
+	// RankSep is the space between ranks. Nil keeps DefaultRankSep. It is
+	// never less than 40 plus the largest edge label, which dagre places
+	// between ranks.
+	RankSep *int `json:"ranksep,omitempty"`
+	// Padding is the space D2 fits containers to around their contents: one
+	// number for all four sides, or "[top=T,left=L,bottom=B,right=R]". Empty
+	// keeps DEFAULT_PADDING. Containers only shrink to it: dagre's own spacing
+	// bounds how much room there is, so a large value can leave a container
+	// as dagre sized it.
+	Padding string `json:"padding,omitempty"`
 }
+
+// DefaultRankSep is the space between ranks when ConfigurableOpts.RankSep is nil.
+const DefaultRankSep = 100
 
 var DefaultOpts = ConfigurableOpts{
 	NodeSep: 60,
@@ -60,6 +76,21 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 	defer xdefer.Errorf(&err, "failed to dagre layout")
 	if err := layoutguard.CheckGraph(ctx, "dagre", g); err != nil {
 		return err
+	}
+	if g.Data != nil {
+		withData, err := withGraphData(*opts, g.Data)
+		if err != nil {
+			return err
+		}
+		opts = &withData
+	}
+	containerPadding, err := parseContainerPadding(opts.Padding)
+	if err != nil {
+		return err
+	}
+	rankSep := DefaultRankSep
+	if opts.RankSep != nil {
+		rankSep = *opts.RankSep
 	}
 
 	rootAttrs := dagreOpts{
@@ -99,9 +130,9 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 	}
 
 	if !isHorizontal {
-		rootAttrs.ranksep = go2.Max(100, maxLabelHeight+40)
+		rootAttrs.ranksep = go2.Max(rankSep, maxLabelHeight+40)
 	} else {
-		rootAttrs.ranksep = go2.Max(100, maxLabelWidth+40)
+		rootAttrs.ranksep = go2.Max(rankSep, maxLabelWidth+40)
 		// use existing config
 		// rootAttrs.NodeSep = rootAttrs.EdgeSep
 		// // configure vertical padding
@@ -286,7 +317,7 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 
 	adjustRankSpacing(g, float64(rootAttrs.ranksep), isHorizontal)
 	adjustCrossRankSpacing(g, float64(rootAttrs.ranksep), !isHorizontal)
-	fitContainerPadding(g, float64(rootAttrs.ranksep), isHorizontal)
+	fitContainerPadding(g, float64(rootAttrs.ranksep), isHorizontal, containerPadding)
 
 	for _, edge := range g.Edges {
 		points := edge.Route
@@ -1376,13 +1407,15 @@ func adjustCrossRankSpacing(g *d2graph.Graph, rankSep float64, isHorizontal bool
 	}
 }
 
-func fitContainerPadding(g *d2graph.Graph, rankSep float64, isHorizontal bool) {
+func fitContainerPadding(g *d2graph.Graph, rankSep float64, isHorizontal bool, minPadding geo.Spacing) {
 	for _, obj := range g.Root.ChildrenArray {
-		fitPadding(obj)
+		fitPadding(obj, minPadding)
 	}
 }
 
-func fitPadding(obj *d2graph.Object) {
+// fitPadding shrinks containers to minPadding around their contents, or to the
+// space their own label and icon need where that is more.
+func fitPadding(obj *d2graph.Object, minPadding geo.Spacing) {
 	dslShape := strings.ToLower(obj.Shape.Value)
 	shapeType := d2target.DSL_SHAPE_TO_SHAPE_TYPE[dslShape]
 	// Note: there's no shape-specific padding/placement in dagre yet
@@ -1390,16 +1423,16 @@ func fitPadding(obj *d2graph.Object) {
 		return
 	}
 	for _, child := range obj.ChildrenArray {
-		fitPadding(child)
+		fitPadding(child, minPadding)
 	}
 
 	// we will compute a perfectly fit innerBox merging our padding with children's margin,
 	// but we need to add padding and margin together if an outside child label will overlap with our inside label
 	_, padding := obj.Spacing()
-	padding.Top = math.Max(padding.Top, DEFAULT_PADDING)
-	padding.Bottom = math.Max(padding.Bottom, DEFAULT_PADDING)
-	padding.Left = math.Max(padding.Left, DEFAULT_PADDING)
-	padding.Right = math.Max(padding.Right, DEFAULT_PADDING)
+	padding.Top = math.Max(padding.Top, minPadding.Top)
+	padding.Bottom = math.Max(padding.Bottom, minPadding.Bottom)
+	padding.Left = math.Max(padding.Left, minPadding.Left)
+	padding.Right = math.Max(padding.Right, minPadding.Right)
 
 	// where we are (current*) vs where we want to fit each side to (inner*)
 	currentTop := obj.TopLeft.Y
@@ -1680,7 +1713,7 @@ func fitPadding(obj *d2graph.Object) {
 	}
 
 	if 0 < topDelta {
-		topDelta = adjustDeltaForEdges(obj, currentTop, topDelta, false)
+		topDelta = adjustDeltaForEdges(obj, currentTop, topDelta, false, minPadding.Top)
 		if 0 < topDelta {
 			adjustEdges(obj, currentTop, topDelta, false)
 			obj.TopLeft.Y += topDelta
@@ -1688,14 +1721,14 @@ func fitPadding(obj *d2graph.Object) {
 		}
 	}
 	if 0 < bottomDelta {
-		bottomDelta = adjustDeltaForEdges(obj, currentBottom, -bottomDelta, false)
+		bottomDelta = adjustDeltaForEdges(obj, currentBottom, -bottomDelta, false, minPadding.Bottom)
 		if 0 < bottomDelta {
 			adjustEdges(obj, currentBottom, -bottomDelta, false)
 			obj.Height -= bottomDelta
 		}
 	}
 	if 0 < leftDelta {
-		leftDelta = adjustDeltaForEdges(obj, currentLeft, leftDelta, true)
+		leftDelta = adjustDeltaForEdges(obj, currentLeft, leftDelta, true, minPadding.Left)
 		if 0 < leftDelta {
 			adjustEdges(obj, currentLeft, leftDelta, true)
 			obj.TopLeft.X += leftDelta
@@ -1703,7 +1736,7 @@ func fitPadding(obj *d2graph.Object) {
 		}
 	}
 	if 0 < rightDelta {
-		rightDelta = adjustDeltaForEdges(obj, currentRight, -rightDelta, true)
+		rightDelta = adjustDeltaForEdges(obj, currentRight, -rightDelta, true, minPadding.Right)
 		if 0 < rightDelta {
 			adjustEdges(obj, currentRight, -rightDelta, true)
 			obj.Width -= rightDelta
@@ -1711,7 +1744,7 @@ func fitPadding(obj *d2graph.Object) {
 	}
 }
 
-func adjustDeltaForEdges(obj *d2graph.Object, objPosition, delta float64, isHorizontal bool) (newMagnitude float64) {
+func adjustDeltaForEdges(obj *d2graph.Object, objPosition, delta float64, isHorizontal bool, minPadding float64) (newMagnitude float64) {
 	isOnCollapsingSide := func(p *geo.Point) bool {
 		var position float64
 		if isHorizontal {
@@ -1791,11 +1824,11 @@ func adjustDeltaForEdges(obj *d2graph.Object, objPosition, delta float64, isHori
 	}
 	newMagnitude = math.Abs(delta)
 	if hasEdgeOnCollapsingSide {
-		// only reduce to outermost + DEFAULT_PADDING
+		// only reduce to outermost + minPadding
 		if delta < 0 {
-			newMagnitude = math.Max(0, objPosition-(outermost+DEFAULT_PADDING))
+			newMagnitude = math.Max(0, objPosition-(outermost+minPadding))
 		} else {
-			newMagnitude = math.Max(0, (outermost-DEFAULT_PADDING)-objPosition)
+			newMagnitude = math.Max(0, (outermost-minPadding)-objPosition)
 		}
 	}
 	return newMagnitude

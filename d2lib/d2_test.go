@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
+	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/geo"
 	d2log "github.com/d2lang/d2/lib/log"
 	"github.com/d2lang/d2/lib/textmeasure"
@@ -265,5 +267,70 @@ func TestCompileGraphMeasuresWithoutLayout(t *testing.T) {
 	}
 	if g.Edges[0].LabelDimensions.Width == 0 {
 		t.Fatal("edge label was not measured")
+	}
+}
+
+func TestCompileAppliesLayoutDataOnEveryBoard(t *testing.T) {
+	ruler, err := textmeasure.NewRuler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// a and b share a layer, so the gap between them is ELK's in-layer spacing.
+	input := `vars: {
+  d2-config: {
+    layout-engine: elk
+    data: {
+      elk-nodeNode: 80
+    }
+  }
+}
+x -> a
+x -> b
+layers: {
+  layer: {
+    x -> a
+    x -> b
+  }
+}
+scenarios: {
+  scenario: {
+    x.style.stroke-width: 4
+  }
+}
+`
+	ctx := d2log.WithDefault(context.Background())
+	elk := "elk"
+	opts := &CompileOptions{
+		Ruler:  ruler,
+		Layout: &elk,
+		LayoutResolver: func(string) (d2graph.LayoutGraph, error) {
+			return d2elklayout.DefaultLayout, nil
+		},
+	}
+	diagram, _, err := Compile(ctx, input, opts, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	boards := map[string]*d2target.Diagram{
+		"root":     diagram,
+		"layer":    diagram.Layers[0],
+		"scenario": diagram.Scenarios[0],
+	}
+	for name, board := range boards {
+		var a, b d2target.Shape
+		for _, shape := range board.Shapes {
+			switch shape.ID {
+			case "a":
+				a = shape
+			case "b":
+				b = shape
+			}
+		}
+		if a.Pos.X > b.Pos.X {
+			a, b = b, a
+		}
+		if gap := b.Pos.X - (a.Pos.X + a.Width); gap != 80 {
+			t.Errorf("%s: gap between a and b = %d, want 80", name, gap)
+		}
 	}
 }
