@@ -7,6 +7,7 @@
     "pad": null,
     "center": null,
     "intersectionGaps": true,
+    "nestedEdgeRouting": "straight",
     "layoutEngine": null
   },
   "isFolderOnly": false,
@@ -1507,7 +1508,7 @@
           "y": 201.33299255371094
         },
         {
-          "x": 736.5,
+          "x": 737.5,
           "y": 381.3330078125
         }
       ],

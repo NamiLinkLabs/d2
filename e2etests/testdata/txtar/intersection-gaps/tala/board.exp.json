@@ -7,6 +7,7 @@
     "pad": null,
     "center": null,
     "intersectionGaps": true,
+    "nestedEdgeRouting": "straight",
     "layoutEngine": null
   },
   "isFolderOnly": false,
@@ -1426,11 +1427,11 @@
       "route": [
         {
           "x": 113,
-          "y": 216
+          "y": 215.99899291992188
         },
         {
           "x": 293,
-          "y": 216
+          "y": 215.99899291992188
         }
       ],
       "animated": false,
