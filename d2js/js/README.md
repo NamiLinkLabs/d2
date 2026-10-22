@@ -216,6 +216,12 @@ All [RenderOptions](#renderoptions) properties in addition to:
 - `fs`
 - `graph`
 
+Shapes and connections with an icon carry `icon` and `iconPosition`. When the source sets
+`icon.width` or `icon.height`, they also carry `iconWidth` and `iconHeight` in pixels
+(setting one of them gives a square icon). Without them the size is automatic: 32 to 64
+px for shapes, depending on their size, and 32 px for connections. Icons on `border-*`
+positions are centered on the edge of the shape's box, like border labels.
+
 ## Development
 
 D2.js development requires the Go version in the root `go.mod`, the Bun version

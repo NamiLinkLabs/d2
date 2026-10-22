@@ -47,6 +47,10 @@ else
 fi
 
 cd d2js/js
+if [ -n "${NPM_VERSION:-}" ]; then
+  # Published packages always carry the compressed module.
+  export D2JS_COMPRESS=1
+fi
 sh_c bun build.js
 
 if [ -n "${NPM_VERSION:-}" ]; then

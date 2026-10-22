@@ -15,7 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  # Four jobs side by side, each on its own runner, instead of one job that ran
+  # everything at once on four cores and the race tests after it.
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -50,20 +52,116 @@ jobs:
           mkdir -p "$RUNNER_TEMP/d2-ci-bin"
           go build -trimpath -o "$RUNNER_TEMP/d2-ci-bin/d2" .
           echo "$RUNNER_TEMP/d2-ci-bin" >> "$GITHUB_PATH"
-      - run: COLOR=1 ./make.sh
-        env:
-          # Disable chat notifications from the shared CI helper.
-          CI_MAKE_ROOT: "0"
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Test TALA with the race detector
-        run: go test -race ./d2layouts/d2talalayout/... -count=1 -timeout=15m
-      - name: Verify representative release archive and size budget
-        run: ./ci/release/build.sh --rebuild --run=linux/amd64 --version=v0.0.0-ci
+      - name: Go tests
+        run: COLOR=1 ./ci/test.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: d2chaos
           path: ./d2chaos/out
+
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ./go.mod
+          cache: true
+      - name: Install verified Pandoc formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v pandoc >/dev/null; then
+            pandoc --version
+            exit 0
+          fi
+          PANDOC_VERSION="3.1"
+          PANDOC_DEB="$RUNNER_TEMP/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb" \
+            -o "$PANDOC_DEB"
+          echo "3c9d3d992cb97591b404a31394d79dcca2e2e1d96095f15dfe18b32d6a95a551  $PANDOC_DEB" \
+            | sha256sum --check --strict
+          sudo dpkg -i "$PANDOC_DEB"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Build the D2 formatter from this checkout
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/d2-ci-bin"
+          go build -trimpath -o "$RUNNER_TEMP/d2-ci-bin/d2" .
+          echo "$RUNNER_TEMP/d2-ci-bin" >> "$GITHUB_PATH"
+      - name: Format, generate, vet, build and WASM tests
+        run: COLOR=1 ./make.sh fmt gen lint build test-wasm
+        env:
+          # Disable chat notifications from the shared CI helper.
+          CI_MAKE_ROOT: "0"
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify representative release archive and size budget
+        run: ./ci/release/build.sh --rebuild --run=linux/amd64 --version=v0.0.0-ci
+
+  js:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ./go.mod
+          cache: true
+      - name: Install verified Pandoc formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v pandoc >/dev/null; then
+            pandoc --version
+            exit 0
+          fi
+          PANDOC_VERSION="3.1"
+          PANDOC_DEB="$RUNNER_TEMP/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb" \
+            -o "$PANDOC_DEB"
+          echo "3c9d3d992cb97591b404a31394d79dcca2e2e1d96095f15dfe18b32d6a95a551  $PANDOC_DEB" \
+            | sha256sum --check --strict
+          sudo dpkg -i "$PANDOC_DEB"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Build the D2 formatter from this checkout
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/d2-ci-bin"
+          go build -trimpath -o "$RUNNER_TEMP/d2-ci-bin/d2" .
+          echo "$RUNNER_TEMP/d2-ci-bin" >> "$GITHUB_PATH"
+      - name: Build and test D2.js
+        working-directory: d2js/js
+        run: COLOR=1 ./make.sh build test
+        env:
+          CI_MAKE_ROOT: "0"
+          # Tests don't need the brotli-compressed module (minutes to make) or the
+          # package.json formatting pass (a yarn install from scratch); releases
+          # still do both.
+          D2JS_COMPRESS: "0"
+          D2JS_SKIP_FMT: "1"
+
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ./go.mod
+          cache: true
+      - name: Test TALA with the race detector
+        run: go test -race ./d2layouts/d2talalayout/... -count=1 -timeout=15m
+
   signed:
     runs-on: ubuntu-latest
     timeout-minutes: 5

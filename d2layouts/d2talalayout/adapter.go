@@ -218,6 +218,9 @@ func translateGraph(ctx context.Context, g *d2graph.Graph, talaGraph *layoutgrap
 			if obj.IconPosition != nil {
 				n.Icon.Position = label.FromString(*obj.IconPosition)
 			}
+			if width, height := obj.IconSize(); width > 0 {
+				n.Icon.Width, n.Icon.Height = float64(width), float64(height)
+			}
 		}
 		if obj.Direction.Value != "" {
 			talaGraph.Directions[n] = parseDirection(obj.Direction.Value)

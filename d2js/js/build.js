@@ -15,22 +15,28 @@ await mkdir("./dist/node-cjs", { recursive: true });
 const wasmBinary = await readFile("./wasm/d2.wasm");
 const wasmExecJs = await readFile("./wasm/wasm_exec.js", "utf8");
 
-const compressedWasm = brotliCompressSync(wasmBinary);
-console.log(
-  `WASM compression: ${(wasmBinary.length / 1024 / 1024).toFixed(2)}MB → ${(
-    compressedWasm.length /
-    1024 /
-    1024
-  ).toFixed(2)}MB`
-);
+// Brotli at its default quality takes minutes on a 57 MB module. Only published
+// packages need it: D2JS_COMPRESS=0 (set by the CI test run) embeds the module
+// as is, with the same loader API, so the browser bundle still gets built.
+const compress = process.env.D2JS_COMPRESS !== "0";
 
-// Store compressed WASM as base64 and include brotli decoder in the loader
-// Don't decompress immediately - let the consumer decompress when needed
-const brotliDecoder = await readFile("./vendor/decode.min.js", "utf8");
+if (compress) {
+  const compressedWasm = brotliCompressSync(wasmBinary);
+  console.log(
+    `WASM compression: ${(wasmBinary.length / 1024 / 1024).toFixed(2)}MB → ${(
+      compressedWasm.length /
+      1024 /
+      1024
+    ).toFixed(2)}MB`
+  );
 
-await writeFile(
-  join(SRC_DIR, "wasm-loader.browser.js"),
-  `${brotliDecoder}
+  // Store compressed WASM as base64 and include brotli decoder in the loader
+  // Don't decompress immediately - let the consumer decompress when needed
+  const brotliDecoder = await readFile("./vendor/decode.min.js", "utf8");
+
+  await writeFile(
+    join(SRC_DIR, "wasm-loader.browser.js"),
+    `${brotliDecoder}
 
 export const wasmBinaryCompressed = "${Buffer.from(compressedWasm).toString("base64")}";
 export function getWasmBinary() {
@@ -38,7 +44,18 @@ export function getWasmBinary() {
   return BrotliDecode(compressedBytes);
 }
 export const wasmExecJs = ${JSON.stringify(wasmExecJs)};`
-);
+  );
+} else {
+  console.log(`WASM compression skipped (D2JS_COMPRESS=0): ${(wasmBinary.length / 1024 / 1024).toFixed(2)}MB`);
+  await writeFile(
+    join(SRC_DIR, "wasm-loader.browser.js"),
+    `export const wasmBinaryBase64 = "${wasmBinary.toString("base64")}";
+export function getWasmBinary() {
+  return Uint8Array.from(atob(wasmBinaryBase64), c => c.charCodeAt(0));
+}
+export const wasmExecJs = ${JSON.stringify(wasmExecJs)};`
+  );
+}
 
 const commonConfig = {
   minify: true,

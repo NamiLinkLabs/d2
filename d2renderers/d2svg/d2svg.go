@@ -1114,6 +1114,7 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 		markerEnd = []svg.Attribute{svg.Attr("marker-end", svg.LocalIRI(svg.LiteralID(id)))}
 	}
 
+	iconWidth, iconHeight := connection.IconSize()
 	if connection.Icon != nil {
 		iconPos := connection.GetIconPosition()
 		if iconPos != nil {
@@ -1121,8 +1122,8 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				svg.Attr("href", connection.Icon.String()),
 				svg.FloatAttr("x", iconPos.X),
 				svg.FloatAttr("y", iconPos.Y),
-				svg.IntAttr("width", d2target.DEFAULT_ICON_SIZE),
-				svg.IntAttr("height", d2target.DEFAULT_ICON_SIZE),
+				svg.FloatAttr("width", iconWidth),
+				svg.FloatAttr("height", iconHeight),
 			}
 			if connection.IconBorderRadius != 0 {
 				attributes = append(attributes, svg.Attr("clip-path", "inset(0 round "+svg.FormatFloat(connection.IconBorderRadius)+"px)"))
@@ -1142,8 +1143,8 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 		height := connection.LabelHeight
 
 		if connection.Icon != nil {
-			width += d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE
-			maskTL.X -= float64(d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE)
+			width += d2target.CONNECTION_ICON_LABEL_GAP + int(iconWidth)
+			maskTL.X -= d2target.CONNECTION_ICON_LABEL_GAP + iconWidth
 		}
 
 		if label.FromString(connection.LabelPosition).IsOnEdge() {
@@ -1159,9 +1160,9 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				Y: iconPos.Y,
 			}
 			if label.FromString(connection.IconPosition).IsOnEdge() {
-				labelMask = makeLabelMask(maskTL, d2target.DEFAULT_ICON_SIZE, d2target.DEFAULT_ICON_SIZE, 1)
+				labelMask = makeLabelMask(maskTL, int(iconWidth), int(iconHeight), 1)
 			} else {
-				labelMask = makeLabelMask(maskTL, d2target.DEFAULT_ICON_SIZE, d2target.DEFAULT_ICON_SIZE, 0.75)
+				labelMask = makeLabelMask(maskTL, int(iconWidth), int(iconHeight), 0.75)
 			}
 		}
 	}
@@ -2019,23 +2020,14 @@ func drawShape(writer, appendixWriter io.Writer, diagramHash string, targetShape
 	fmt.Fprint(writer, `</g>`)
 
 	if targetShape.Icon != nil && targetShape.Type != d2target.ShapeImage && targetShape.Opacity != 0 {
-		iconPosition := label.FromString(targetShape.IconPosition)
-		var box *geo.Box
-		if iconPosition.IsOutside() {
-			box = s.GetBox()
-		} else {
-			box = s.GetInnerBox()
-		}
-		iconSize := d2target.GetIconSize(box, targetShape.IconPosition)
-
-		tl := iconPosition.GetPointOnBox(box, label.PADDING, float64(iconSize), float64(iconSize))
+		iconBox := d2target.IconBox(s.GetBox(), s.GetInnerBox(), targetShape.IconPosition, targetShape.IconWidth, targetShape.IconHeight)
 
 		attributes := []svg.Attribute{
 			svg.Attr("href", targetShape.Icon.String()),
-			svg.FloatAttr("x", tl.X),
-			svg.FloatAttr("y", tl.Y),
-			svg.IntAttr("width", iconSize),
-			svg.IntAttr("height", iconSize),
+			svg.FloatAttr("x", iconBox.TopLeft.X),
+			svg.FloatAttr("y", iconBox.TopLeft.Y),
+			svg.FloatAttr("width", iconBox.Width),
+			svg.FloatAttr("height", iconBox.Height),
 		}
 		if targetShape.IconBorderRadius != 0 {
 			attributes = append(attributes, svg.Attr("clip-path", fmt.Sprintf("inset(0 round %dpx)", targetShape.IconBorderRadius)))
