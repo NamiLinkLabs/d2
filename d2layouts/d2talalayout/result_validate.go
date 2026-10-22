@@ -140,6 +140,9 @@ func validateLayoutResultMetadata(
 	if expected.IsRootHierarchy != actual.IsRootHierarchy {
 		return fmt.Errorf("root hierarchy metadata changed")
 	}
+	if expected.SeparateEdges != actual.SeparateEdges {
+		return fmt.Errorf("separate edges metadata changed")
+	}
 	if equal, err := sameDirectionMetadata(ctx, expected, actual); err != nil {
 		return err
 	} else if !equal {

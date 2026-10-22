@@ -47,6 +47,10 @@ var Engines = []Engine{
 	// Quality levels with their own default seeds, sequential as in D2.js.
 	{Name: "tala-balanced", D2: "tala", TALA: &d2talalayout.Options{Quality: d2talalayout.QualityBalanced, MaxConcurrency: 1}},
 	{Name: "tala-fast", D2: "tala", TALA: &d2talalayout.Options{Quality: d2talalayout.QualityFast, MaxConcurrency: 1}},
+	// Every connection on its own route (tala-separate-edges), with the
+	// default seeds and with one seed.
+	{Name: "tala-separate", D2: "tala", TALA: &d2talalayout.Options{Seeds: d2talalayout.DefaultOptions().Seeds, MaxConcurrency: 1, SeparateEdges: true}},
+	{Name: "tala-separate-1seed", D2: "tala", TALA: &d2talalayout.Options{Seeds: []int64{1}, MaxConcurrency: 1, SeparateEdges: true}},
 	{Name: "dagre", D2: "dagre"},
 	{Name: "elk", D2: "elk"},
 }

@@ -25,9 +25,14 @@ const (
 type Graph struct {
 	// Unfortunate, but because we represent root as nil, we need to indicate root hierarchy as a field in graph
 	IsRootHierarchy bool
-	Nodes           []*Node
-	Edges           []*Edge
-	CellSize        float64
+	// SeparateEdges gives every edge its own route: routes never share
+	// segments or ports on purpose, tree edges are not drawn as a shared bus
+	// and cluster fans are not merged into one trunk. It is a fixed setting of
+	// the layout request, not inferred.
+	SeparateEdges bool
+	Nodes         []*Node
+	Edges         []*Edge
+	CellSize      float64
 
 	// ovg
 	crossingCost      float64
@@ -1084,6 +1089,7 @@ func (g *Graph) CopyEntitiesFrom(other *Graph) {
 	g.CommonUncleSiblings = other.CommonUncleSiblings
 	// TODO maybe not
 	g.IsRootHierarchy = other.IsRootHierarchy
+	g.SeparateEdges = other.SeparateEdges
 }
 
 func (nodes Nodes) fixedNodes() []*Node {

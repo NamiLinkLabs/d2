@@ -41,7 +41,7 @@ const (
 var errSelfLoop = errors.New("connections from a shape to itself cannot be rerouted; move their route with the shape")
 
 // routeWithTALA is a seam for tests that exercise the fallback paths.
-var routeWithTALA = d2talalayout.RouteEdges
+var routeWithTALA = d2talalayout.RouteEdgesWithOptions
 
 // RouteEdges reroutes the requested connections with TALA's edge router on
 // shapes the caller has already placed. See RouteEdgesRequest.
@@ -107,6 +107,10 @@ func routeEdges(input RouteEdgesRequest) (*RouteEdgesResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	talaOpts, err := compileTALAOptions(input.Opts).resolve()
+	if err != nil {
+		return nil, err
+	}
 	g, err := d2lib.CompileGraph(ctx, source, compileOpts, renderOpts)
 	if err != nil {
 		if isContextError(err) || ctx.Err() != nil {
@@ -156,7 +160,7 @@ func routeEdges(input RouteEdgesRequest) (*RouteEdgesResponse, error) {
 		}
 		routable = append(routable, e)
 	}
-	r := &edgeRouter{graph: g, all: slices.Clone(g.Edges), keep: fixed}
+	r := &edgeRouter{graph: g, all: slices.Clone(g.Edges), keep: fixed, opts: talaOpts}
 	if len(routable) > 0 {
 		maps.Copy(routeErrs, r.route(ctx, routable, deadline))
 	}
@@ -205,6 +209,8 @@ type edgeRouter struct {
 	all []*d2graph.Edge
 	// keep holds the edges whose current route the router works around.
 	keep map[*d2graph.Edge]bool
+	// opts is the caller's TALA tuning; of it, routing uses SeparateEdges.
+	opts *d2talalayout.Options
 }
 
 func (r *edgeRouter) run(ctx context.Context, edges []*d2graph.Edge, withKept bool) error {
@@ -218,7 +224,7 @@ func (r *edgeRouter) run(ctx context.Context, edges []*d2graph.Edge, withKept bo
 			r.graph.Edges = append(r.graph.Edges, e)
 		}
 	}
-	return routeWithTALA(ctx, r.graph, edges)
+	return routeWithTALA(ctx, r.graph, edges, r.opts)
 }
 
 // route routes edges in up to two passes and returns the edges left without

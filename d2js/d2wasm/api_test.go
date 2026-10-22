@@ -390,3 +390,51 @@ func TestCompileTALAQuality(t *testing.T) {
 		t.Fatalf("invalid diagram tala-quality: error = %v", werr)
 	}
 }
+
+// talaFansSource is a fan-out and fan-in that TALA bundles by default.
+const talaFansSource = "lb -> web1\nlb -> web2\nlb -> web3\nweb1 -> db\nweb2 -> db\nweb3 -> db\n"
+
+func connectionRoutes(r CompileResponse) string {
+	routes := make([]string, 0, len(r.Diagram.Connections))
+	for _, c := range r.Diagram.Connections {
+		route := c.ID + ":"
+		for _, p := range c.Route {
+			route += fmt.Sprintf(" %v,%v", p.X, p.Y)
+		}
+		routes = append(routes, route)
+	}
+	return strings.Join(routes, " ")
+}
+
+func TestCompileTALASeparateEdges(t *testing.T) {
+	compile := func(source, options string) string {
+		t.Helper()
+		r, werr := compileSourceForTest(t, source, options)
+		if werr != nil {
+			t.Fatalf("%s: %v", options, werr.Message)
+		}
+		return connectionRoutes(r)
+	}
+	bundled := compile(talaFansSource, `{"layout":"tala"}`)
+	if off := compile(talaFansSource, `{"layout":"tala","tala":{"separateEdges":false}}`); off != bundled {
+		t.Fatal("separateEdges: false differs from the default")
+	}
+	separate := compile(talaFansSource, `{"layout":"tala","tala":{"separateEdges":true}}`)
+	if separate == bundled {
+		t.Fatal("separateEdges: true had no effect")
+	}
+	if again := compile(talaFansSource, `{"layout":"tala","tala":{"separateEdges":true}}`); again != separate {
+		t.Fatal("separateEdges: true is not deterministic")
+	}
+	// The diagram's tala-separate-edges takes precedence over the compile option.
+	fromData := compile("vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+talaFansSource, `{"layout":"tala","tala":{"separateEdges":true}}`)
+	if fromData != compile("vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+talaFansSource, `{"layout":"tala"}`) {
+		t.Fatal("diagram tala-separate-edges did not take precedence over tala.separateEdges")
+	}
+	if _, werr := compileSourceForTest(t, talaFansSource, `{"layout":"tala","tala":{"separateEdges":"yes"}}`); werr == nil || werr.Code != 400 {
+		t.Fatalf("a non-boolean separateEdges: error = %v, want a 400", werr)
+	}
+	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-separate-edges: yes}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, "tala-separate-edges must be true or false") {
+		t.Fatalf("invalid diagram tala-separate-edges: error = %v", werr)
+	}
+}

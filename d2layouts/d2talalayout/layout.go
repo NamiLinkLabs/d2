@@ -21,9 +21,9 @@ const (
 
 // Options controls deterministic local layout attempts. The zero value uses
 // the package defaults. Diagram data stored on the D2 graph takes precedence
-// over Options: tala-seeds over Seeds and tala-quality over Quality.
-// MaxConcurrency bounds simultaneous attempts; zero selects the package
-// default.
+// over Options: tala-seeds over Seeds, tala-quality over Quality and
+// tala-separate-edges over SeparateEdges. MaxConcurrency bounds simultaneous
+// attempts; zero selects the package default.
 type Options struct {
 	// Seeds selects deterministic attempts. Nil uses the package defaults; an
 	// explicitly empty slice is invalid. QualityFast runs only the first seed.
@@ -31,6 +31,15 @@ type Options struct {
 
 	// Quality trades layout quality for speed. Empty selects QualityFull.
 	Quality Quality `json:"tala-quality"`
+
+	// SeparateEdges gives every connection its own route. By default TALA
+	// bundles connections that share an endpoint: they leave or enter it
+	// through one port and share a trunk, tree edges form a bus, and fans
+	// into a cluster of shapes merge. With SeparateEdges, routes avoid
+	// sharing segments and ports with each other. This is a strong
+	// preference, not a guarantee: a crowded side may still force an
+	// overlap. False keeps the default, bundled routes.
+	SeparateEdges bool `json:"tala-separate-edges"`
 
 	// MaxConcurrency bounds simultaneous attempts. Zero uses the package default.
 	MaxConcurrency int `json:"-"`
@@ -113,6 +122,8 @@ type layoutRequest struct {
 	concurrency int
 	quality     Quality
 	profile     qualityProfile
+	// separateEdges gives every edge its own route.
+	separateEdges bool
 }
 
 // layoutPlan resolves options and diagram data into a layout request. Diagram
@@ -172,7 +183,11 @@ func layoutPlan(graph *d2graph.Graph, opts *Options) (layoutRequest, error) {
 	if concurrency > len(seeds) {
 		concurrency = len(seeds)
 	}
-	return layoutRequest{seeds: seeds, concurrency: concurrency, quality: quality, profile: profile}, nil
+	separateEdges, err := resolveSeparateEdges(graph, opts)
+	if err != nil {
+		return layoutRequest{}, err
+	}
+	return layoutRequest{seeds: seeds, concurrency: concurrency, quality: quality, profile: profile, separateEdges: separateEdges}, nil
 }
 
 func runLocalSeed(
@@ -294,6 +309,7 @@ func Layout(ctx context.Context, graph *d2graph.Graph, opts *Options) (err error
 		return err
 	}
 	input.effort = request.profile.effort
+	input.graph.SeparateEdges = request.separateEdges
 	// Logging and request metadata commonly wrap Background with values, leaving
 	// Done nil. Give the CPU-heavy engine phase a real cancellation channel so
 	// its hot work guards can poll that channel without repeatedly traversing

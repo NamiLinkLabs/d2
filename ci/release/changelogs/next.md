@@ -2,6 +2,7 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- tala: give every connection its own route instead of bundling connections that share an endpoint with `--tala-separate-edges`, `vars.d2-config.data.tala-separate-edges: true`, or the Go/JavaScript option. [terrastruct/TALA#21](https://github.com/terrastruct/TALA/issues/21)
 
 #### Improvements 🧹
 

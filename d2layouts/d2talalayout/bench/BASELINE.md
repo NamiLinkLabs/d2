@@ -63,6 +63,9 @@ this family that the unmodified engine completes (see the 200/500 rows).
   after another.
 - `tala-1seed`: the same with `Seeds: []int64{1}` (D2:
   `vars: {d2-config: {data: {tala-seeds: [1]}}}`, CLI `--tala-seeds=1`).
+- `tala-separate`, `tala-separate-1seed`: `tala` and `tala-1seed` with
+  `SeparateEdges` (D2: `vars: {d2-config: {data: {tala-separate-edges: true}}}`,
+  CLI `--tala-separate-edges`). Added later; see `SEPARATE-EDGES.md`.
 - `dagre`, `elk`: D2's built-in Go implementations, as in D2.js.
 
 All run through `d2lib.Compile` exactly as D2.js does.
@@ -80,6 +83,11 @@ All run through `d2lib.Compile` exactly as D2.js does.
   than 1°. Curves (dagre) count every maximal run of same-direction turning
   totalling at least 20°, so a quarter arc is 1 bend and an S-curve is 2.
 - **edge length**: total rendered length of all routes, in px.
+- **shared**: total length, in px, along which two different connections'
+  rendered paths lie on top of each other (collinear overlap of horizontal or
+  vertical segments on the same line within 0.5px, summed over every pair of
+  connections; overlaps of at most 1px are ignored). It measures edge
+  bundling; see `SEPARATE-EDGES.md`. Added after this baseline was recorded.
 - **bbox**: `d2target.Diagram.BoundingBox()` (shapes, labels and routes).
 - **empty %**: (bbox area − Σ area of top-level shapes) / bbox area. Top-level
   shapes are root objects, containers included, so space inside containers
