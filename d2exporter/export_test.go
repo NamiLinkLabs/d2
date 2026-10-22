@@ -200,6 +200,30 @@ x -> plain: hi {
 			},
 		},
 		{
+			name: "root_theme_color_codes",
+			dsl: `style.fill: AA2
+style.stroke: B1
+style.font-color: N7
+x
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				tassert.Equal(t, "AA2", d.Root.Fill)
+				tassert.True(t, d.Root.ExplicitThemeFill)
+				tassert.True(t, d.Root.ExplicitThemeStroke)
+				tassert.True(t, d.Root.ExplicitThemeFontColor)
+			},
+		},
+		{
+			name: "root_default_colors_not_explicit",
+			dsl: `x
+`,
+			assertions: func(t *testing.T, d *d2target.Diagram) {
+				tassert.False(t, d.Root.ExplicitThemeFill)
+				tassert.False(t, d.Root.ExplicitThemeStroke)
+				tassert.False(t, d.Root.ExplicitThemeFontColor)
+			},
+		},
+		{
 			name: "special_shape_theme_font_color",
 			dsl: `table: {
   shape: sql_table

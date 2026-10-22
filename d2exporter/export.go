@@ -22,6 +22,7 @@ import (
 func Export(ctx context.Context, g *d2graph.Graph, fontFamily *d2fonts.FontFamily, monoFontFamily *d2fonts.FontFamily) (*d2target.Diagram, error) {
 	diagram := d2target.NewDiagram()
 	applyStyles(&diagram.Root, g.Root)
+	applyThemeMarkers(&diagram.Root, g.Root)
 	if g.Root.Label.MapKey == nil {
 		diagram.Root.Label = g.Name
 	} else {
@@ -154,6 +155,14 @@ func isThemeColor(s *d2graph.Scalar) bool {
 	return s != nil && color.IsThemeColor(s.Value)
 }
 
+// applyThemeMarkers records which colors were set to theme codes explicitly,
+// so renderers with their own palettes (isometric) keep them.
+func applyThemeMarkers(shape *d2target.Shape, obj *d2graph.Object) {
+	shape.ExplicitThemeFill = isThemeColor(obj.Style.Fill)
+	shape.ExplicitThemeStroke = isThemeColor(obj.Style.Stroke)
+	shape.ExplicitThemeFontColor = isThemeColor(obj.Style.FontColor)
+}
+
 func applyStyles(shape *d2target.Shape, obj *d2graph.Object) {
 	if obj.Style.Opacity != nil {
 		shape.Opacity, _ = strconv.ParseFloat(obj.Style.Opacity.Value, 64)
@@ -250,9 +259,7 @@ func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
 		}
 	}
 	applyStyles(shape, obj)
-	shape.ExplicitThemeFill = isThemeColor(obj.Style.Fill)
-	shape.ExplicitThemeStroke = isThemeColor(obj.Style.Stroke)
-	shape.ExplicitThemeFontColor = isThemeColor(obj.Style.FontColor)
+	applyThemeMarkers(shape, obj)
 
 	switch strings.ToLower(obj.Shape.Value) {
 	case d2target.ShapeClass:

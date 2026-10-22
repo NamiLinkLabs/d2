@@ -793,6 +793,7 @@
     "labelWidth": 0,
     "labelHeight": 0,
     "zIndex": 0,
-    "level": 0
+    "level": 0,
+    "explicitThemeFill": true
   }
 }

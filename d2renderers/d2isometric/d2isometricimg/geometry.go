@@ -90,6 +90,14 @@ func nunit(a Vec) Vec {
 	return nv(0, 1, 0)
 }
 func nlerp(a, b Vec, t float64) Vec { return nadd(a, nmul(nsub(b, a), t)) }
+
+// rootFillDefault reports whether the board background is the theme default,
+// which the isometric renderer replaces with its own ground color. A theme
+// code the user set explicitly is kept.
+func rootFillDefault(s *d2isometric.Scene) bool {
+	return nativeToken(s.Root.Fill) && !s.Root.ExplicitThemeFill
+}
+
 func nativeToken(s string) bool {
 	if s == "" {
 		return true
@@ -504,7 +512,7 @@ func newNativeSceneWithOptions(ctx context.Context, s *d2isometric.Scene, width,
 	b.routeCasingFloor = hierarchyCasingFloor(boards, nodes)
 	b.hierarchySupports = hierarchySupportOffsets(boards)
 	headerNodes := hierarchyRenderNodes(s.Nodes, b.hierarchySupports)
-	if !nativeToken(s.Root.Fill) {
+	if !rootFillDefault(s) {
 		hierarchyBackground = s.Background
 	}
 	boardIndex := map[string]d2isometric.Board{}
