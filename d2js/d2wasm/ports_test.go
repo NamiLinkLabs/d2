@@ -3,37 +3,11 @@
 package d2wasm
 
 import (
-	"encoding/json"
 	"math"
 	"testing"
 
 	"github.com/d2lang/d2/d2target"
 )
-
-func compileSourceForTest(t *testing.T, source, options string) (CompileResponse, *WASMError) {
-	t.Helper()
-	request, err := json.Marshal(map[string]any{
-		"fs":      map[string]string{"index": source},
-		"options": json.RawMessage(options),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	call := wrapWASMCall(Compile)
-	defer call.Release()
-	got := call.Invoke(string(request)).String()
-	var response struct {
-		Data  *CompileResponse `json:"data"`
-		Error *WASMError       `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(got), &response); err != nil {
-		t.Fatalf("invalid response: %v", err)
-	}
-	if response.Error != nil {
-		return CompileResponse{}, response.Error
-	}
-	return *response.Data, nil
-}
 
 func TestCompileEdgePorts(t *testing.T) {
 	const source = "a -> b: {source-port: top; target-port: right}\nb -> c\n"
