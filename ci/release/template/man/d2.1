@@ -19,6 +19,9 @@
 .Ar play Ar file.d2
 .Nm d2
 .Ar validate Ar file.d2
+.Nm d2
+.Ar extract Ar image.svg
+.Op Ar file.d2 | directory | -
 .Sh DESCRIPTION
 .Nm
 compiles and renders
@@ -44,6 +47,16 @@ if no output path is passed.
 Pass - to have
 .Nm
 read from stdin or write to stdout.
+.Pp
+With
+.Fl -embed-source ,
+SVG and PNG exports also store the D2 source, the files it imports and the render flags.
+Such an image is valid input:
+.Nm d2
+renders its source again and
+.Nm d2 Ar extract
+writes it out.
+The embedded text includes comments and any boards the image does not show.
 .Pp
 PNG exports support up to 32768 pixels per dimension, subject to rendering resource limits.
 .Pp
@@ -118,6 +131,16 @@ and animated multi-board SVG; use separate themed SVGs or a GIF slideshow.
 .It Fl -center Ar flag
 Center the SVG in the containing viewbox, such as your browser screen
 .Ns .
+.It Fl -intersection-gaps Ar false
+Leave an empty gap in a connection where another one drawn above it crosses.
+Connections are drawn by z-index, then in the order they are declared; the later one stays whole.
+Lines meeting at a shape, running together or crossing at a shallow angle get no gap,
+nor do sequence diagram lifelines.
+Applies to SVG, PNG, GIF, PDF and PPTX; isometric output already lifts crossing routes over each other.
+This can also be enabled using D2_INTERSECTION_GAPS=true or
+vars: {d2-config: {intersection-gaps: true}} in D2 source.
+Use --intersection-gaps=false to disable a source or environment setting.
+.Ns .
 .It Fl -scale Ar -1
 Scale the output. E.g., 0.5 to halve the default size. Default -1 means that SVG's will fit to screen and all others will use their default render size. Setting to 1 turns off SVG fitting to screen
 .Ns .
@@ -157,6 +180,16 @@ Browser executable that watch opens. Setting to 0 opens no browser
 .It Fl l , -layout Ar dagre
 Set the diagram layout engine to the passed string. For a list of available options, run
 .Ar layout
+.Ns .
+.It Fl -nested-edge-routing Ar around-shapes
+How to draw the connections that cross into or out of grids, constant nears and sequence
+diagrams, and those between grid cells, which the layout engine does not route.
+.Ar around-shapes
+routes them around the other shapes;
+.Ar straight
+draws straight lines. Routing stops once a work budget that grows with the diagram is spent,
+and the connections left are drawn straight. Can also be set with
+vars: {d2-config: {nested-edge-routing: straight}} in D2 source; the flag takes precedence
 .Ns .
 .It Fl b , -bundle Ar true
 Bundle all assets and layers into the output svg
@@ -202,6 +235,9 @@ Omit XML tag (<?xml ...?>) from output SVG files. Useful when generating SVGs fo
 .It Fl -omit-version Ar false
 omit D2 version from generated image
 .Ns .
+.It Fl -embed-source Ar false
+embed the D2 source and the files it imports in SVG and PNG exports, so that d2 can render the image again (d2 image.svg out.png) or extract its source (d2 extract image.svg). The embedded text includes comments and boards the image does not show. Rendering an image with an embedded source embeds it again unless --embed-source=false
+.Ns .
 .It Fl -ascii-mode Ar extended
 ASCII rendering mode for text outputs. Options: 'standard' (basic ASCII chars) or 'extended' (Unicode chars)
 .Ns .
@@ -223,6 +259,9 @@ Format all passed files
 Opens the file in playground, an online web viewer (https://play.d2lang.com)
 .It Ar validate Ar file.d2
 Validates file.d2
+.It Ar extract Ar image.svg Op Ar file.d2 | directory | -
+Writes the D2 source embedded in an image exported with --embed-source to stdout, to file.d2
+with its imports next to it, or into a directory under the embedded file names
 .El
 .Sh ENVIRONMENT VARIABLES
 Many flags can also be set with environment variables.
@@ -231,6 +270,8 @@ Many flags can also be set with environment variables.
 See -w[atch] flag.
 .It Ev Sy D2_LAYOUT
 See -l[ayout] flag.
+.It Ev Sy D2_NESTED_EDGE_ROUTING
+See --nested-edge-routing flag.
 .It Ev Sy D2_THEME
 See -t[heme] flag.
 .It Ev Sy D2_DARK_THEME
@@ -243,6 +284,8 @@ See --center flag.
 See -s[ketch] flag.
 .It Ev Sy D2_ISOMETRIC
 See --isometric flag.
+.It Ev Sy D2_INTERSECTION_GAPS
+See --intersection-gaps flag.
 .It Ev Sy D2_BUNDLE
 See -b[undle] flag.
 .It Ev Sy D2_ALLOW_PRIVATE_NETWORK
@@ -273,6 +316,8 @@ See --timeout flag.
 See --check flag.
 .It Ev Sy D2_ASCII_MODE
 See --ascii-mode flag.
+.It Ev Sy D2_EMBED_SOURCE
+See --embed-source flag.
 .El
 .Bl -tag -width Ds
 .It Ev Sy DEBUG

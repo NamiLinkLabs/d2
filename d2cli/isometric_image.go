@@ -72,6 +72,15 @@ func renderIsometricImage(ctx context.Context, ms *xmain.State, diagram *d2targe
 	if err != nil {
 		return nil, false, err
 	}
+	switch ext {
+	case isometricSVG:
+		data, err = embedSVGOutput(ctx, data)
+	case isometricPNG:
+		data, err = embedPNGOutput(ctx, data)
+	}
+	if err != nil {
+		return nil, false, err
+	}
 	return writeIsometricImage(ctx, ms, output, data)
 }
 
@@ -182,12 +191,14 @@ func renderIsometricImages(ctx context.Context, ms *xmain.State, diagram *d2targ
 	type boardOutput struct {
 		board     *d2target.Diagram
 		key, path string
+		// boardPath is relative to diagram, the --target board.
+		boardPath []string
 	}
 	var outputs []boardOutput
 	usedPaths := make(map[string]bool)
 	base, _ := splitBoardOutputPath(output)
-	var walk func(*d2target.Diagram, string) error
-	walk = func(board *d2target.Diagram, key string) error {
+	var walk func(*d2target.Diagram, string, []string) error
+	walk = func(board *d2target.Diagram, key string, boardPath []string) error {
 		if !board.IsFolderOnly {
 			path, exists := paths[key]
 			if !exists || usedPaths[path] {
@@ -198,19 +209,20 @@ func renderIsometricImages(ctx context.Context, ms *xmain.State, diagram *d2targ
 				return fmt.Errorf("isometric board name escapes the output directory: %s", key)
 			}
 			usedPaths[path] = true
-			outputs = append(outputs, boardOutput{board: board, key: key, path: path})
+			outputs = append(outputs, boardOutput{board: board, key: key, path: path, boardPath: boardPath})
 		}
 		for i, children := range [][]*d2target.Diagram{board.Layers, board.Scenarios, board.Steps} {
 			kind := []string{"layers", "scenarios", "steps"}[i]
 			for _, child := range children {
-				if err := walk(child, strings.Join([]string{key, kind, child.Name}, ".")); err != nil {
+				childPath := append(append([]string(nil), boardPath...), kind, child.Name)
+				if err := walk(child, strings.Join([]string{key, kind, child.Name}, "."), childPath); err != nil {
 					return err
 				}
 			}
 		}
 		return nil
 	}
-	if err := walk(diagram, "root"); err != nil {
+	if err := walk(diagram, "root", nil); err != nil {
 		return nil, false, err
 	}
 	workspace, err := newBoardOutputWorkspace(output)
@@ -231,7 +243,11 @@ func renderIsometricImages(ctx context.Context, ms *xmain.State, diagram *d2targ
 		if err != nil {
 			return nil, false, err
 		}
-		data, _, err := renderIsometricImage(ctx, ms, board, render, input, filepath.Join(workspace.stageRoot, rel), ext)
+		boardCtx := ctx
+		for i := 0; i+1 < len(item.boardPath); i += 2 {
+			boardCtx = withEmbeddedChildBoard(boardCtx, item.boardPath[i], item.boardPath[i+1])
+		}
+		data, _, err := renderIsometricImage(boardCtx, ms, board, render, input, filepath.Join(workspace.stageRoot, rel), ext)
 		if err != nil {
 			return nil, false, fmt.Errorf("isometric board %s: %w", item.key, err)
 		}

@@ -1,0 +1,15 @@
+{
+  "graph": null,
+  "err": {
+    "errs": [
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/edge_ports_sql_column.d2,2:16:79-2:32:95",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/edge_ports_sql_column.d2:3:17: source-port cannot be used on a connection from a sql_table column"
+      },
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/edge_ports_sql_column.d2,2:34:97-2:51:114",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/edge_ports_sql_column.d2:3:35: target-port cannot be used on a connection to a sql_table column"
+      }
+    ]
+  }
+}

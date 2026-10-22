@@ -34,6 +34,11 @@ type Edge struct {
 	FromTableColumnIndex *int
 	ToTableColumnIndex   *int
 
+	// FromSide and ToSide pin the route to one side of From / To (D2's
+	// source-port / target-port). nil leaves the router free to pick any port.
+	FromSide *geo.Orientation
+	ToSide   *geo.Orientation
+
 	IsInvisible bool
 	Style       EdgeStyle
 
@@ -210,6 +215,13 @@ func (e *Edge) DebugID() string {
 
 func (e *Edge) isBetweenTableColumns() bool {
 	return e.FromTableColumnIndex != nil && e.ToTableColumnIndex != nil
+}
+
+// HasPinnedSide reports whether either end of the edge is pinned to a side.
+// Pinned edges are routed by the port search, which honours the pin; the
+// shortcut routers that choose their own ports skip them.
+func (e *Edge) HasPinnedSide() bool {
+	return e.FromSide != nil || e.ToSide != nil
 }
 
 func (e *Edge) hasTableColumn() bool {

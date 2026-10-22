@@ -442,9 +442,11 @@ func (p *pipeline) runAllStages(ctx context.Context) error {
 		if timed {
 			start = time.Now()
 		}
+		pinned := newPinnedRouteGuard(p.graph)
 		if err := stage.run(p, ctx); err != nil {
 			return err
 		}
+		pinned.restore()
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("%s: %w", stage.name, err)
 		}

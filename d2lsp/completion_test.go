@@ -1,7 +1,10 @@
 package d2lsp
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/d2lang/d2/lib/color"
 )
 
 func TestGetCompletionItems(t *testing.T) {
@@ -172,6 +175,29 @@ layers: {
 			want:   getDirectionCompletions(),
 		},
 		{
+			name:   "source-port completions",
+			text:   "a -> b: { source-port: }",
+			line:   0,
+			column: 22,
+			want:   getPortSideCompletions(),
+		},
+		{
+			name: "target-port map completions",
+			text: `a -> b: {
+  target-port:
+}`,
+			line:   1,
+			column: 14,
+			want:   getPortSideCompletions(),
+		},
+		{
+			name:   "indexed edge port completions",
+			text:   "a -> b\n(a -> b)[0].target-port: ",
+			line:   1,
+			column: 24,
+			want:   getPortSideCompletions(),
+		},
+		{
 			name:   "icon url completions",
 			text:   "a -> b: { icon: }",
 			line:   0,
@@ -229,7 +255,56 @@ layers: {
 			text:   `a.label.`,
 			line:   0,
 			column: 8,
-			want:   getLabelCompletions(),
+			want:   getLabelCompletions(false),
+		},
+		{
+			name:   "edge label flat dot",
+			text:   `(a -> b)[0].label.`,
+			line:   0,
+			column: 18,
+			want:   getLabelCompletions(true),
+		},
+		{
+			name:   "edge map label dot",
+			text:   "a -> b: { label. }",
+			line:   0,
+			column: 16,
+			want:   getLabelCompletions(true),
+		},
+		{
+			name:   "edge label map",
+			text:   "a -> b: {\n  label: hi {\n    \n  }\n}",
+			line:   2,
+			column: 4,
+			want:   getLabelCompletions(true),
+		},
+		{
+			name:   "shape map label dot",
+			text:   "a: { label. }",
+			line:   0,
+			column: 11,
+			want:   getLabelCompletions(false),
+		},
+		{
+			name:   "nested edge label dot",
+			text:   "x: {\n  a -> b: { label. }\n}",
+			line:   1,
+			column: 18,
+			want:   getLabelCompletions(true),
+		},
+		{
+			name:   "arrowhead label dot",
+			text:   "a -> b: { source-arrowhead.label. }",
+			line:   0,
+			column: 33,
+			want:   getLabelCompletions(false),
+		},
+		{
+			name:   "edge glob label dot",
+			text:   "(** -> **)[*].label.",
+			line:   0,
+			column: 20,
+			want:   getLabelCompletions(true),
 		},
 		{
 			name:   "arrowhead completions - dot syntax",
@@ -499,6 +574,7 @@ func TestGetValueCompletions(t *testing.T) {
 		property   string
 		wantLabel  string
 		wantDetail string
+		wantCount  int
 	}{
 		{
 			property:   "opacity",
@@ -522,16 +598,21 @@ func TestGetValueCompletions(t *testing.T) {
 		},
 		{
 			property:   "stroke",
-			wantLabel:  "(color name or hex code)",
-			wantDetail: "e.g. blue, #ff0000",
+			wantLabel:  "(color name, hex code or theme color code)",
+			wantDetail: "e.g. blue, #ff0000, B2",
+			wantCount:  19,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.property, func(t *testing.T) {
 			got := getValueCompletions(tt.property)
-			if len(got) != 1 {
-				t.Fatalf("getValueCompletions(%s) returned %d items, want 1", tt.property, len(got))
+			wantCount := tt.wantCount
+			if wantCount == 0 {
+				wantCount = 1
+			}
+			if len(got) != wantCount {
+				t.Fatalf("getValueCompletions(%s) returned %d items, want %d", tt.property, len(got), wantCount)
 			}
 			if got[0].Label != tt.wantLabel {
 				t.Errorf("completion.Label = %v, want %v", got[0].Label, tt.wantLabel)
@@ -543,5 +624,38 @@ func TestGetValueCompletions(t *testing.T) {
 				t.Errorf("completion.InsertText = %v, want empty string", got[0].InsertText)
 			}
 		})
+	}
+}
+
+func TestGetThemeColorCompletions(t *testing.T) {
+	for _, property := range []string{"fill", "stroke", "font-color"} {
+		got := getValueCompletions(property)
+		codes := got[1:]
+		if len(codes) != len(color.ThemeColorCodes) {
+			t.Fatalf("%s: got %d theme color completions, want %d", property, len(codes), len(color.ThemeColorCodes))
+		}
+		for i, item := range codes {
+			code := color.ThemeColorCodes[i]
+			if item.Label != code || item.InsertText != code || item.Kind != KeywordCompletion {
+				t.Errorf("%s: completion[%d] = %+v, want label and insert text %q", property, i, item, code)
+			}
+			if !strings.HasPrefix(item.Detail, "theme color (") {
+				t.Errorf("%s: completion[%d].Detail = %q", property, i, item.Detail)
+			}
+		}
+	}
+
+	items, err := GetCompletionItems("a.style.fill: ", 0, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := make(map[string]bool, len(items))
+	for _, item := range items {
+		labels[item.Label] = true
+	}
+	for _, code := range []string{"N1", "N7", "B2", "AA4", "AB5"} {
+		if !labels[code] {
+			t.Errorf("style.fill completions are missing %q", code)
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/util-go/xmain"
 )
@@ -54,14 +55,13 @@ func talaLayout(ms *xmain.State) (d2graph.LayoutGraph, error) {
 	}, nil
 }
 
-// talaRouter routes the edges D2 hands back to TALA (connections into nested
-// grid and sequence diagrams) with the same flags as the layout.
+// talaRouter routes the edges a TALA layout does not route itself
+// (connections into grids, near shapes and sequence diagrams) with the same
+// flags as the layout.
 func talaRouter(ms *xmain.State) (d2graph.RouteEdges, error) {
 	opts, err := talaOptions(ms)
 	if err != nil {
 		return nil, err
 	}
-	return func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
-		return d2talalayout.RouteEdgesWithOptions(ctx, g, edges, &opts)
-	}, nil
+	return d2layouts.TALARouter(&opts), nil
 }

@@ -22,6 +22,7 @@ import (
 func Export(ctx context.Context, g *d2graph.Graph, fontFamily *d2fonts.FontFamily, monoFontFamily *d2fonts.FontFamily) (*d2target.Diagram, error) {
 	diagram := d2target.NewDiagram()
 	applyStyles(&diagram.Root, g.Root)
+	applyThemeMarkers(&diagram.Root, g.Root)
 	if g.Root.Label.MapKey == nil {
 		diagram.Root.Label = g.Name
 	} else {
@@ -149,6 +150,19 @@ func applyTheme(shape *d2target.Shape, obj *d2graph.Object, theme *d2themes.Them
 	}
 }
 
+// isThemeColor reports whether a style color was set to a theme color code.
+func isThemeColor(s *d2graph.Scalar) bool {
+	return s != nil && color.IsThemeColor(s.Value)
+}
+
+// applyThemeMarkers records which colors were set to theme codes explicitly,
+// so renderers with their own palettes (isometric) keep them.
+func applyThemeMarkers(shape *d2target.Shape, obj *d2graph.Object) {
+	shape.ExplicitThemeFill = isThemeColor(obj.Style.Fill)
+	shape.ExplicitThemeStroke = isThemeColor(obj.Style.Stroke)
+	shape.ExplicitThemeFontColor = isThemeColor(obj.Style.FontColor)
+}
+
 func applyStyles(shape *d2target.Shape, obj *d2graph.Object) {
 	if obj.Style.Opacity != nil {
 		shape.Opacity, _ = strconv.ParseFloat(obj.Style.Opacity.Value, 64)
@@ -245,6 +259,7 @@ func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
 		}
 	}
 	applyStyles(shape, obj)
+	applyThemeMarkers(shape, obj)
 
 	switch strings.ToLower(obj.Shape.Value) {
 	case d2target.ShapeClass:
@@ -379,6 +394,12 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 			}
 		}
 	}
+	if edge.SrcPort != nil {
+		connection.SrcPort = edge.SrcPort.Value
+	}
+	if edge.DstPort != nil {
+		connection.DstPort = edge.DstPort.Value
+	}
 	if theme != nil && theme.SpecialRules.NoCornerRadius {
 		connection.BorderRadius = 0
 	}
@@ -458,6 +479,13 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 	connection.Label = text.Text
 	connection.LabelWidth = text.Dimensions.Width
 	connection.LabelHeight = text.Dimensions.Height
+	if p := edge.LabelPaddingPx(); p > 0 && text.Text != "" {
+		// LabelDimensions holds the padded box the layout reserved. The
+		// diagram keeps the text size and the padding apart.
+		connection.LabelPadding = p
+		connection.LabelWidth = max(0, connection.LabelWidth-2*p)
+		connection.LabelHeight = max(0, connection.LabelHeight-2*p)
+	}
 	connection.Language = edge.Language
 
 	if edge.LabelPosition != nil {
@@ -478,6 +506,9 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 
 	connection.Src = edge.Src.AbsID()
 	connection.Dst = edge.Dst.AbsID()
+
+	connection.ExplicitThemeStroke = isThemeColor(edge.Style.Stroke)
+	connection.ExplicitThemeFontColor = isThemeColor(edge.Style.FontColor)
 
 	if theme != nil && theme.SpecialRules.C4 {
 		if edge.Style.StrokeDash == nil {

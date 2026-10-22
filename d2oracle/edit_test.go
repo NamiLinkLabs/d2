@@ -1995,6 +1995,48 @@ a.b -> a.c: {style.animated: true}
 `,
 		},
 		{
+			name: "edge_set_port",
+			text: `x -> y
+`,
+			key:   `(x -> y)[0].source-port`,
+			value: go2.Pointer(`right`),
+
+			exp: `x -> y: {source-port: right}
+`,
+		},
+		{
+			name: "edge_update_port_map",
+			text: `x -> y: {source-port: right; target-port: top}
+`,
+			key:   `(x -> y)[0].target-port`,
+			value: go2.Pointer(`left`),
+
+			exp: `x -> y: {source-port: right; target-port: left}
+`,
+		},
+		{
+			name: "edge_update_port_flat",
+			text: `x -> y -> z
+(x -> y)[0].source-port: top
+`,
+			key:   `(x -> y)[0].source-port`,
+			value: go2.Pointer(`bottom`),
+
+			exp: `x -> y -> z
+(x -> y)[0].source-port: bottom
+`,
+		},
+		{
+			name: "edge_set_port_in_label_map",
+			text: `x -> y: hi
+`,
+			key:   `(x -> y)[0].target-port`,
+			value: go2.Pointer(`bottom`),
+
+			exp: `x -> y: hi {target-port: bottom}
+`,
+		},
+		{
 			name: "edge_chain_nested_set",
 			text: `oreo: {
   q -> z -> p: wsup
@@ -2598,6 +2640,26 @@ layers: {
 			key:       `asdf.link`,
 			value:     go2.Pointer(`_._`),
 			expErr:    `failed to set "asdf.link" to "\"_._\"": board [man 1] cannot be modified through this file`,
+		},
+		{
+			name: "edge-label-padding/1",
+
+			text: `a -> b: hi
+`,
+			key:   `(a -> b)[0].label.padding`,
+			value: go2.Pointer(`8`),
+			exp: `a -> b: hi {label.padding: 8}
+`,
+		},
+		{
+			name: "edge-label-padding/2",
+
+			text: `a -> b: hi {label.padding: 4}
+`,
+			key:   `(a -> b)[0].label.padding`,
+			value: go2.Pointer(`8`),
+			exp: `a -> b: hi {label.padding: 8}
+`,
 		},
 		{
 			name: "label-near/1",
@@ -6530,6 +6592,27 @@ x
 `,
 		},
 		{
+			name: "edge_port",
+
+			text: `x -> y: {source-port: right; target-port: top}
+`,
+			key: `(x -> y)[0].source-port`,
+
+			exp: `x -> y: {target-port: top}
+`,
+		},
+		{
+			name: "edge_port_flat",
+
+			text: `x -> y
+(x -> y)[0].target-port: top
+`,
+			key: `(x -> y)[0].target-port`,
+
+			exp: `x -> y
+`,
+		},
+		{
 			// Just checks that removing an object removes the arrowhead field too
 			name: "breakup_arrowhead",
 
@@ -8098,6 +8181,68 @@ a.label.near: center-center
 `,
 			key: `yes.label.near`,
 			exp: `yes
+`,
+		},
+		{
+			name: "edge-label-padding/1",
+
+			text: `a -> b: hi {style.stroke: red; label.padding: 4}
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: hi {style.stroke: red}
+`,
+		},
+		{
+			name: "edge-label-padding/2",
+
+			text: `a -> b: {
+  label: hi {
+    padding: 4
+    near: top-center
+  }
+}
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: {
+  label: hi {
+    near: top-center
+  }
+}
+`,
+		},
+		{
+			name: "edge-label-padding/3",
+
+			text: `a -> b: hi
+(a -> b)[0].label.padding: 4
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: hi
+`,
+		},
+		{
+			name: "edge-label-padding/4",
+
+			text: `a -> b: hi {
+  label.padding: 4
+}
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: hi
+`,
+		},
+		{
+			name: "edge-label-padding/5",
+
+			text: `...@meow
+(a -> b)[0].label.padding: 4
+`,
+			fsTexts: map[string]string{
+				"meow.d2": `a -> b: hi
+`,
+			},
+			key: `(a -> b)[0].label.padding`,
+			exp: `...@meow
 `,
 		},
 		{

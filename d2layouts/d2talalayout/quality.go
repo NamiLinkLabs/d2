@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/engine"
+	"github.com/d2lang/d2/lib/layoutdata"
 )
 
 // Quality trades layout quality for speed. Every level is deterministic: the
@@ -30,7 +31,7 @@ const (
 
 // qualityDataKey is the diagram data key that requests a quality level, e.g.
 // vars: {d2-config: {data: {tala-quality: fast}}}.
-const qualityDataKey = "tala-quality"
+const qualityDataKey = layoutdata.TALAQuality
 
 // qualityProfile is the deterministic work plan of one quality level.
 type qualityProfile struct {

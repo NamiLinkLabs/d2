@@ -8,6 +8,7 @@ import (
 
 	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/lib/geo"
+	"github.com/d2lang/d2/lib/layoutdata"
 )
 
 // layoutInputSignature is an exact, length-delimited encoding of the graph
@@ -32,6 +33,9 @@ func newLayoutInputSignature(g *d2graph.Graph, engine string) (layoutInputSignat
 
 	b := &layoutSignatureBuilder{}
 	b.writeString(engine)
+	// Layout options from vars.d2-config.data. Boards compiled together share
+	// them today, but Go callers can give each board its own Graph.Data.
+	b.writeString(layoutdata.Signature(g.Data, engine))
 	b.writeInt(g.RootLevel)
 	if err := b.writeObject(g.Root); err != nil {
 		return "", false, err
@@ -114,6 +118,8 @@ func (b *layoutSignatureBuilder) writeEdge(edge *d2graph.Edge) error {
 	b.writeInt(edge.Index)
 	b.writeOptionalInt(edge.SrcTableColumnIndex)
 	b.writeOptionalInt(edge.DstTableColumnIndex)
+	b.writeOptionalScalar(edge.SrcPort)
+	b.writeOptionalScalar(edge.DstPort)
 	b.writeBool(edge.SrcArrow)
 	b.writeBool(edge.DstArrow)
 	b.writeBool(edge.IsCurve)
@@ -152,6 +158,7 @@ func (b *layoutSignatureBuilder) writeAttributes(attrs *d2graph.Attributes) {
 	b.writeOptionalScalar(attrs.HorizontalGap)
 	b.writeOptionalScalar(attrs.LabelPosition)
 	b.writeOptionalScalar(attrs.IconPosition)
+	b.writeOptionalScalar(attrs.LabelPadding)
 	b.writeOptionalScalar(attrs.IconWidth)
 	b.writeOptionalScalar(attrs.IconHeight)
 

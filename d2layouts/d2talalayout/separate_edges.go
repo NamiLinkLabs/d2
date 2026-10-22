@@ -4,11 +4,12 @@ import (
 	"fmt"
 
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/lib/layoutdata"
 )
 
 // separateEdgesDataKey is the diagram data key that gives every connection its
 // own route, e.g. vars: {d2-config: {data: {tala-separate-edges: true}}}.
-const separateEdgesDataKey = "tala-separate-edges"
+const separateEdgesDataKey = layoutdata.TALASeparateEdges
 
 // separateEdgesFromData reads tala-separate-edges from diagram data. D2 stores
 // scalar config data as strings; Go callers may also store a bool.
@@ -32,7 +33,7 @@ func separateEdgesFromData(raw any) (bool, error) {
 func resolveSeparateEdges(graph *d2graph.Graph, opts *Options) (bool, error) {
 	separate := opts != nil && opts.SeparateEdges
 	if graph != nil && graph.Data != nil {
-		if raw, ok := graph.Data[separateEdgesDataKey]; ok {
+		if raw, ok := layoutdata.Value(graph.Data, layoutdata.TALASeparateEdges); ok {
 			return separateEdgesFromData(raw)
 		}
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/geo"
 	"github.com/d2lang/d2/lib/label"
+	"github.com/d2lang/d2/lib/layoutdata"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
 )
@@ -279,23 +280,37 @@ func TestNormalizeSeeds(t *testing.T) {
 	}
 }
 
+func TestSeedBoundsMatchDiagramData(t *testing.T) {
+	// The compiler validates tala-seeds in diagrams with lib/layoutdata, so its
+	// bound must be TALA's.
+	if layoutdata.MaxListEntries != maxSeedEntries {
+		t.Fatalf("layoutdata.MaxListEntries = %d, want maxSeedEntries %d", layoutdata.MaxListEntries, maxSeedEntries)
+	}
+}
+
 func TestLayoutPlanRejectsInvalidInput(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  any
 		want string
 	}{
-		{name: "not a list", raw: "1", want: "must be a list"},
+		{name: "not a list", raw: "1", want: `expected a list of signed 64-bit integers for "tala-seeds"`},
 		{name: "malformed member", raw: []any{1, "nope"}, want: "index 1"},
 		{name: "overflow", raw: []string{"9223372036854775808"}, want: "signed 64-bit"},
 		{name: "empty", raw: []any{}, want: "at least one"},
-		{name: "too many entries", raw: make([]int, maxSeedEntries+1), want: "at most 64 seed entries"},
+		{name: "too many entries", raw: make([]int, maxSeedEntries+1), want: `"tala-seeds" accepts at most 64 entries`},
+		{name: "spelled in another case", raw: nil, want: "expected a list"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			key := "tala-seeds"
+			if tt.name == "spelled in another case" {
+				// D2 field names are case-insensitive.
+				key = "TALA-Seeds"
+			}
 			_, err := layoutPlan(&d2graph.Graph{Data: map[string]any{
-				"tala-seeds": tt.raw,
+				key: tt.raw,
 			}}, &Options{Seeds: []int64{7}})
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("expected error containing %q, got %v", tt.want, err)

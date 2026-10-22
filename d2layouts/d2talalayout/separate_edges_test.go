@@ -65,10 +65,22 @@ func TestSeparateEdgesFromDiagramData(t *testing.T) {
 }
 
 func TestSeparateEdgesRejectsInvalidData(t *testing.T) {
+	// The compiler rejects it where it is written.
 	for _, value := range []string{"yes", "[true]"} {
 		_, _, err := compileTALAGraph(t.Context(), "vars: {d2-config: {data: {tala-separate-edges: "+value+"}}}\na -> b\n", nil)
-		if err == nil || !strings.Contains(err.Error(), "tala-separate-edges must be true or false") {
+		if err == nil || !strings.Contains(err.Error(), `expected true or false for "tala-separate-edges"`) || !strings.Contains(err.Error(), "1:27:") {
 			t.Fatalf("tala-separate-edges: %s error = %v", value, err)
+		}
+	}
+	// Layout rejects it too, for Go callers that set graph data themselves.
+	for _, value := range []any{"yes", []any{"true"}} {
+		_, g, err := compileTALAGraph(t.Context(), "a -> b\n", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g.Data = map[string]any{"tala-separate-edges": value}
+		if err := d2talalayout.Layout(t.Context(), g, nil); err == nil || !strings.Contains(err.Error(), "tala-separate-edges must be true or false") {
+			t.Fatalf("tala-separate-edges: %v layout error = %v", value, err)
 		}
 	}
 }

@@ -49,19 +49,19 @@ func TestTALASeparateEdgesFlag(t *testing.T) {
 	}
 	// A fan-out and fan-in, which TALA bundles by default.
 	const fans = "lb -> web1\nlb -> web2\nlb -> web3\nweb1 -> db\nweb2 -> db\nweb3 -> db"
-	if layoutSourceJSON(t, separate, fans) == layoutSourceJSON(t, bundled, fans) {
+	if layoutDiagramJSON(t, separate, fans) == layoutDiagramJSON(t, bundled, fans) {
 		t.Fatal("--tala-separate-edges did not change the layout")
 	}
 	off, err := LayoutResolver(t.Context(), layoutOptionsState(t, "--tala-separate-edges=false"))("tala")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if layoutSourceJSON(t, off, fans) != layoutSourceJSON(t, bundled, fans) {
+	if layoutDiagramJSON(t, off, fans) != layoutDiagramJSON(t, bundled, fans) {
 		t.Fatal("--tala-separate-edges=false changed the layout")
 	}
 	// Diagram data takes precedence over the flag.
-	if layoutSourceJSON(t, separate, "vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+fans) !=
-		layoutSourceJSON(t, bundled, "vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+fans) {
+	if layoutDiagramJSON(t, separate, "vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+fans) !=
+		layoutDiagramJSON(t, bundled, "vars: {d2-config: {data: {tala-separate-edges: false}}}\n"+fans) {
 		t.Fatal("diagram tala-separate-edges did not override --tala-separate-edges")
 	}
 }
@@ -183,10 +183,10 @@ func simpleLayoutGraph() *d2graph.Graph {
 
 func layoutGraphJSON(t *testing.T, layout d2graph.LayoutGraph) string {
 	t.Helper()
-	return layoutSourceJSON(t, layout, "a -> b\na -> c\nb -> d\nc -> d\nb -> b")
+	return layoutDiagramJSON(t, layout, "a -> b\na -> c\nb -> d\nc -> d\nb -> b")
 }
 
-func layoutSourceJSON(t *testing.T, layout d2graph.LayoutGraph, source string) string {
+func layoutDiagramJSON(t *testing.T, layout d2graph.LayoutGraph, source string) string {
 	t.Helper()
 	graph, config, err := d2compiler.Compile("test.d2", strings.NewReader(source), nil)
 	if err != nil {
@@ -211,4 +211,33 @@ func layoutSourceJSON(t *testing.T, layout d2graph.LayoutGraph, source string) s
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+// layoutSourceJSON lays out src with data set as diagram layout data, the way
+// d2lib hands vars.d2-config.data to layout engines, and serializes the
+// resulting geometry.
+func layoutSourceJSON(t *testing.T, layout d2graph.LayoutGraph, src string, data map[string]any) string {
+	t.Helper()
+	graph, _, err := d2compiler.Compile("test.d2", strings.NewReader(src), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ruler, err := textmeasure.NewRuler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := graph.SetDimensions(nil, ruler, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	graph.Data = data
+	if err := layout(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	// Compare geometry only.
+	graph.Data = nil
+	out, err := d2graph.SerializeGraph(graph)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
 }

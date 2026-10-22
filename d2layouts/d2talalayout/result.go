@@ -9,17 +9,23 @@ import (
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/quality"
 )
 
-// layoutScore is the stable ordering value for a completed layout attempt. Lower
-// penalty is better; area breaks otherwise equal penalties.
+// layoutScore is the stable ordering value for a completed layout attempt.
+// Fewer broken edge pins (source-port / target-port) is better, then lower
+// penalty; area breaks otherwise equal penalties. Without pins every attempt
+// has zero pin violations, so the order is penalty, then area.
 type layoutScore struct {
-	penalty float64
-	area    float64
+	pinViolations int
+	penalty       float64
+	area          float64
 }
 
 // compare reports whether score sorts before, with, or after other. It returns
 // -1 when score is better, 0 when both scores are equivalent, and 1 when score
 // is worse.
 func (score layoutScore) compare(other layoutScore) int {
+	if comparison := cmp.Compare(score.pinViolations, other.pinViolations); comparison != 0 {
+		return comparison
+	}
 	if comparison := comparePenalty(score.penalty, other.penalty); comparison != 0 {
 		return comparison
 	}
@@ -99,6 +105,6 @@ func evaluateSeedResult(ctx context.Context, input seedInput, graph *layoutgraph
 		bindings:      input.bindings,
 		graph:         graph,
 		sequenceEdges: sequenceEdges,
-		score:         layoutScore{penalty: penalty, area: area},
+		score:         layoutScore{pinViolations: pinnedSideViolations(graph), penalty: penalty, area: area},
 	}, nil
 }

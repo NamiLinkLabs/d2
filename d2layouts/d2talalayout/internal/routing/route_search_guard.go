@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/labeling"
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/limits"
 )
@@ -207,23 +208,44 @@ func (guard *routeSearchWorkGuard) finish() error {
 type routeSearchTelemetry struct {
 	mu      sync.Mutex
 	samples []uint64
+	ovgWork uint64
+}
+
+// recordOVG adds the work of building one OVG, whether or not it completed.
+func (telemetry *routeSearchTelemetry) recordOVG(work uint64) {
+	telemetry.mu.Lock()
+	telemetry.ovgWork += work
+	telemetry.mu.Unlock()
 }
 
 // SearchTelemetry collects per-flavor work samples for routing diagnostics
 // and calibration. It is safe to share across concurrent route workers.
 type SearchTelemetry struct {
-	state routeSearchTelemetry
+	state  routeSearchTelemetry
+	labels labeling.WorkTelemetry
 }
 
 // MaxSearchWorkUnits is the calibrated per-flavor route-search budget.
 const MaxSearchWorkUnits = maxRouteSearchWorkUnits
+
+// MaxSearchFlavors is the most route flavors one routing call searches.
+const MaxSearchFlavors = maxRouteSearchFlavors
 
 // WithSearchTelemetry attaches route-search diagnostics to a routing context.
 func WithSearchTelemetry(ctx context.Context, telemetry *SearchTelemetry) context.Context {
 	if telemetry == nil {
 		return ctx
 	}
-	return withRouteSearchTelemetry(ctx, &telemetry.state)
+	return labeling.WithWorkTelemetry(withRouteSearchTelemetry(ctx, &telemetry.state), &telemetry.labels)
+}
+
+// LabelWork returns the work spent placing edge labels in the standalone
+// routing calls made with this telemetry.
+func (telemetry *SearchTelemetry) LabelWork() uint64 {
+	if telemetry == nil {
+		return 0
+	}
+	return uint64(max(telemetry.labels.Work(), 0))
 }
 
 // WorkSamples returns a stable copy of the recorded per-flavor work totals.
@@ -232,6 +254,18 @@ func (telemetry *SearchTelemetry) WorkSamples() []uint64 {
 		return nil
 	}
 	return telemetry.state.snapshot()
+}
+
+// OVGWork returns the work spent building the routing graphs of the
+// standalone routing calls made with this telemetry, including ones that ran
+// out of budget.
+func (telemetry *SearchTelemetry) OVGWork() uint64 {
+	if telemetry == nil {
+		return 0
+	}
+	telemetry.state.mu.Lock()
+	defer telemetry.state.mu.Unlock()
+	return telemetry.state.ovgWork
 }
 
 type routeSearchTelemetryKey struct{}

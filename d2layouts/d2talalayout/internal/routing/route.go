@@ -203,6 +203,10 @@ func (r *Route) canSwapEdgesGuarded(r2 *Route, allRoutes []*Route, guard workBud
 	if r.GEdge.From == r.GEdge.To {
 		return false, nil
 	}
+	// A route searched for an edge's pinned sides belongs to that edge.
+	if r.GEdge.HasPinnedSide() || r2.GEdge.HasPinnedSide() {
+		return false, nil
+	}
 	if r2.GEdge.From == r2.GEdge.To {
 		return false, nil
 	}

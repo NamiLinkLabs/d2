@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/d2lang/d2/d2compiler"
 	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
@@ -150,6 +151,38 @@ scenarios: {
 	_, calls = compileForLayoutReuseTestEngine(t, styleOnly, true, "custom")
 	if calls != 2 {
 		t.Fatalf("custom-layout calls = %d, want 2", calls)
+	}
+
+	for _, change := range []string{
+		"(a -> b)[0].target-port: top",
+		"(a -> b)[0].source-port: left",
+	} {
+		pinOnly := `a -> b: {source-port: right}
+scenarios: {
+  changed: {
+    ` + change + `
+  }
+}`
+		_, calls = compileForLayoutReuseTest(t, pinOnly, true)
+		if calls != 2 {
+			t.Fatalf("%s: layout calls = %d, want 2", change, calls)
+		}
+	}
+
+	labelPadding := `a -> b: hello
+scenarios: {
+  roomy: {
+    (a -> b)[0].label.padding: 20
+  }
+}`
+	optimized, calls := compileForLayoutReuseTest(t, labelPadding, true)
+	if calls != 2 {
+		t.Fatalf("label-padding layout calls = %d, want 2", calls)
+	}
+	baseline, _ := compileForLayoutReuseTest(t, labelPadding, false)
+	assertExactDiagramAndSVG(t, optimized, baseline)
+	if got := optimized.Scenarios[0].Connections[0].LabelPadding; got != 20 {
+		t.Fatalf("scenario label padding = %d, want 20", got)
 	}
 
 	// A container's box is the same before layout, but its padding depends
@@ -420,4 +453,56 @@ func benchmarkStyleOnlyBoards(nodes, scenarios, steps int) string {
 	}
 	b.WriteString("}\n")
 	return b.String()
+}
+
+func TestLayoutInputSignatureIncludesLayoutData(t *testing.T) {
+	signature := func(engine string, data map[string]any) layoutInputSignature {
+		t.Helper()
+		g, _, err := d2compiler.Compile("", strings.NewReader("a -> b"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g.Data = data
+		sig, ok, err := newLayoutInputSignature(g, engine)
+		if err != nil || !ok {
+			t.Fatalf("signature: %v, %v", ok, err)
+		}
+		return sig
+	}
+	base := signature("elk", nil)
+	if signature("elk", map[string]any{"elk-nodeNode": "30"}) == base {
+		t.Error("ELK layout data does not change the ELK signature")
+	}
+	if signature("elk", map[string]any{"dagre-ranksep": "60", "cat": "hat"}) != base {
+		t.Error("data ELK does not read changes the ELK signature")
+	}
+	if signature("dagre", map[string]any{"dagre-padding": "8"}) == signature("dagre", nil) {
+		t.Error("dagre layout data does not change the dagre signature")
+	}
+}
+
+func TestCompileLayoutReuseWithLayoutData(t *testing.T) {
+	const input = `vars: {
+  d2-config: {
+    data: {
+      dagre-ranksep: 60
+      dagre-padding: 10
+    }
+  }
+}
+c: {a -> b}
+scenarios: {
+  changed: {
+    c.a.style.fill: red
+  }
+}`
+	reused, calls := compileForLayoutReuseTest(t, input, true)
+	if calls != 1 {
+		t.Fatalf("layout calls with shared layout data = %d, want 1", calls)
+	}
+	full, calls := compileForLayoutReuseTest(t, input, false)
+	if calls != 2 {
+		t.Fatalf("layout calls without reuse = %d, want 2", calls)
+	}
+	assertExactDiagramAndSVG(t, reused, full)
 }

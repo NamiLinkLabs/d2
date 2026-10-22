@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/encoding/charmap"
 
 	"github.com/d2lang/d2/d2renderers/d2scene"
+	"github.com/d2lang/d2/lib/sourcemeta"
 	libsvg "github.com/d2lang/d2/lib/svg"
 )
 
@@ -483,7 +484,7 @@ func (i *svgImporter) parse(data []byte) (*svgElement, error) {
 				}
 				continue
 			}
-			if len(stack) != 0 && stack[len(stack)-1].name == "title" {
+			if len(stack) != 0 && (stack[len(stack)-1].name == "title" || stack[len(stack)-1].name == d2SourceElement) {
 				if err := checkpointXMLText(i.ctx, token); err != nil {
 					return nil, err
 				}
@@ -762,6 +763,10 @@ func (i *svgImporter) elementName(name xml.Name) (string, error) {
 	case sodipodiNamespace:
 		if name.Local == "namedview" {
 			return "sodipodi:namedview", nil
+		}
+	case sourcemeta.Namespace, boxwireNamespace:
+		if name.Local == d2SourceElement {
+			return d2SourceElement, nil
 		}
 	}
 	return "", i.errorf("element <%s> uses unsupported namespace or metadata name", displayXMLName(name.Local))

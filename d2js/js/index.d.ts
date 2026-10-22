@@ -25,6 +25,23 @@ export class D2 {
    */
   routeEdges(request: RouteEdgesRequest): Promise<RouteEdgesResponse>;
 
+  /**
+   * Reads the D2 source embedded in an SVG (string or bytes) or PNG (bytes)
+   * exported with `embedSource`, `d2 --embed-source` or Boxwire. Resolves to
+   * null when the image has none. The result is a compile request that embeds
+   * the source again: `d2.compile(await d2.extractSource(svg))`.
+   */
+  extractSource(image: string | Uint8Array | ArrayBuffer): Promise<ExtractedSource | null>;
+
+  /**
+   * Embeds a source, as `compile` returns it in `renderOptions.source`, in an
+   * SVG or PNG image, replacing an earlier embedded source. Use it for images
+   * that D2.js did not render itself, such as a PNG drawn from the SVG on a
+   * canvas. Strings come back as strings, bytes as bytes.
+   */
+  embedSource(image: string, source: EmbeddedSource): Promise<string>;
+  embedSource(image: Uint8Array | ArrayBuffer, source: EmbeddedSource): Promise<Uint8Array>;
+
   /** Terminates the backing worker and rejects any pending operations. */
   dispose(): Promise<void>;
 }
@@ -40,6 +57,8 @@ export interface RenderOptions {
   darkThemeID?: number;
   /** Center the SVG in the containing viewbox [default: false] */
   center?: boolean;
+  /** Leave an empty gap in a connection where another one drawn above it crosses, as `vars: {d2-config: {intersection-gaps: true}}` does. Connections are drawn by z-index, then in declaration order; the later one stays whole. Ignored by isometric and ASCII output [default: false] */
+  intersectionGaps?: boolean;
   /** Pixels padded around the rendered diagram [default: 100] */
   pad?: number;
   /** Scale the output. E.g., 0.5 to halve the default size. The default will render SVG's that will fit to screen. Setting to 1 turns off SVG fitting to screen. */
@@ -58,6 +77,8 @@ export interface RenderOptions {
   ascii?: boolean;
   /** ASCII rendering mode for text outputs. Options: 'standard' (basic ASCII chars) or 'extended' (Unicode chars) [default: 'extended'] */
   asciiMode?: "standard" | "extended";
+  /** D2 source to embed in the SVG, as `compile` returns it with `embedSource` set. ASCII output embeds nothing. */
+  source?: EmbeddedSource;
 }
 
 export interface CompileOptions extends RenderOptions {
@@ -69,6 +90,16 @@ export interface CompileOptions extends RenderOptions {
   dagre?: DagreOptions;
   /** TALA tuning, used when layout is 'tala'. Unset fields keep TALA's defaults. */
   tala?: TALAOptions;
+  /**
+   * How to draw the connections that cross into or out of a grid, a `near`
+   * shape or a sequence diagram, and those between grid cells, which the layout
+   * engine does not route: 'around-shapes' routes them around the other shapes
+   * with TALA's edge router, within a work budget that grows with the diagram,
+   * past which the rest are drawn straight; 'straight' draws straight lines.
+   * When unset, the diagram's `vars.d2-config.nested-edge-routing` applies
+   * [default: 'around-shapes']
+   */
+  nestedEdgeRouting?: "around-shapes" | "straight";
   /** A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used. */
   fontRegular?: Uint8Array;
   /** A byte array containing .ttf file to use for the italic font. If none provided, Source Sans Pro Italic is used. */
@@ -77,26 +108,101 @@ export interface CompileOptions extends RenderOptions {
   fontBold?: Uint8Array;
   /** A byte array containing .ttf file to use for the semibold font. If none provided, Source Sans Pro Semibold is used. */
   fontSemibold?: Uint8Array;
+  /**
+   * Return the original D2 files the compile read and the options set here in
+   * `renderOptions.source`, so `render` embeds them in the SVG and the image
+   * can be opened again with `extractSource` or the d2 CLI. The embedded text
+   * includes comments and boards the image does not show [default: false].
+   */
+  embedSource?: boolean;
 }
 
+/** One embedded D2 file. */
+export interface EmbeddedFile {
+  /** Slash-separated, relative to the deepest directory holding every embedded file. */
+  path: string;
+  content: string;
+}
+
+/** Render options that were set explicitly; `vars.d2-config` is in the source. */
+export interface EmbeddedSettings {
+  layout?: string;
+  themeID?: number;
+  darkThemeID?: number;
+  sketch?: boolean;
+  pad?: number;
+  center?: boolean;
+  isometric?: boolean;
+  animateInterval?: number;
+}
+
+/** The D2 source embedded in an image. */
+export interface EmbeddedSource {
+  /** The compiled file. Its path is empty in images Boxwire exported before D2 embedded sources. */
+  entry: EmbeddedFile;
+  /** The files it imported, sorted by path. */
+  imports?: EmbeddedFile[];
+  settings: EmbeddedSettings;
+  /** The target that renders exactly what the image shows; unset for the whole diagram. */
+  target?: string;
+  /** The D2 version that wrote the image. */
+  version?: string;
+}
+
+/** An embedded source as a compile request. */
+export interface ExtractedSource extends CompileRequest {
+  fs: Record<string, string>;
+  inputPath: string;
+  /** The embedded settings and target, with `embedSource` set. */
+  options: CompileOptions;
+  source: EmbeddedSource;
+}
+
+/**
+ * ELK tuning. A diagram can set the same options itself under
+ * `vars.d2-config.data` (e.g. `elk-nodeNode: 30`, named like the CLI flags),
+ * and values set there take precedence over these.
+ */
 export interface ELKOptions {
   /** Space between nodes in neighbouring layers [default: 70] */
   nodeSpacing?: number;
-  /** Space between edges and nodes [default: 40] */
+  /** Space between edges and nodes in neighbouring layers [default: 40] */
   edgeNodeSpacing?: number;
-  /** Space between parallel edges [default: 50] */
+  /** Space between edges routed between the same pair of layers [default: 50] */
   edgeEdgeSpacing?: number;
   /** Space around self-loops [default: 50] */
   selfLoopSpacing?: number;
-  /** Container padding in ELK syntax [default: '[top=50,left=50,bottom=50,right=50]'] */
-  padding?: string;
+  /** Space between nodes of the same layer [default: 20] */
+  inLayerNodeSpacing?: number;
+  /** Space between edges running through the same layer [default: 10] */
+  inLayerEdgeSpacing?: number;
+  /** Space between nodes and edges running past them in the same layer [default: 40] */
+  inLayerEdgeNodeSpacing?: number;
+  /**
+   * Container padding: one number for all four sides, or
+   * '[top=..,left=..,bottom=..,right=..]' [default: 50]
+   */
+  padding?: number | string;
 }
 
+/**
+ * dagre tuning. A diagram can set the same options itself under
+ * `vars.d2-config.data` (e.g. `dagre-ranksep: 60`, named like the CLI flags),
+ * and values set there take precedence over these.
+ */
 export interface DagreOptions {
   /** Horizontal space between nodes of the same rank [default: 60] */
   nodeSep?: number;
   /** Horizontal space between edges [default: 20] */
   edgeSep?: number;
+  /** Space between ranks. Edge labels can make it larger [default: 100] */
+  rankSep?: number;
+  /**
+   * Padding containers are fitted to around their contents: one number, or
+   * '[top=..,left=..,bottom=..,right=..]'. Containers never grow beyond the
+   * room dagre gives them [default: 30]
+   */
+  padding?: number | string;
 }
 
 export interface TALAOptions {
@@ -277,6 +383,14 @@ export interface ShapeBase {
   primaryAccentColor?: string;
   secondaryAccentColor?: string;
   neutralAccentColor?: string;
+  /**
+   * Theme defaults are theme color codes (such as "B2") too, so these mark the
+   * colors that hold a theme color code chosen in the source
+   * (style.fill: B2). Omitted when false.
+   */
+  explicitThemeFill?: boolean;
+  explicitThemeStroke?: boolean;
+  explicitThemeFontColor?: boolean;
 }
 
 export interface Point {
@@ -335,6 +449,15 @@ export interface Connection extends Text {
   dst: string;
   dstArrow: Arrowhead;
   dstLabel?: Text;
+  /**
+   * Side of the src shape the connection is pinned to with `source-port`.
+   * Absent when the layout engine chose the attachment point freely.
+   */
+  srcPort?: PortSide;
+  /**
+   * Side of the dst shape the connection is pinned to with `target-port`.
+   */
+  dstPort?: PortSide;
   opacity: number /* float64 */;
   strokeDash: number /* float64 */;
   strokeWidth: number /* int */;
@@ -343,6 +466,12 @@ export interface Connection extends Text {
   borderRadius?: number /* float64 */;
   labelPosition: string;
   labelPercentage: number /* float64 */;
+  /**
+   * Space kept free on every side of the label's text, from label.padding.
+   * labelWidth and labelHeight stay the text's size; the layout reserved the
+   * padded box.
+   */
+  labelPadding?: number /* int */;
   link: string;
   prettyLink?: string;
   route: (any /* geo.Point */ | undefined)[];
@@ -358,7 +487,15 @@ export interface Connection extends Text {
   iconWidth?: number /* int */;
   iconHeight?: number /* int */;
   zIndex: number /* int */;
+  /**
+   * See ShapeBase.explicitThemeFill.
+   */
+  explicitThemeStroke?: boolean;
+  explicitThemeFontColor?: boolean;
 }
+
+/** A side of a shape that `source-port` / `target-port` can pin a connection end to. */
+export type PortSide = "top" | "right" | "bottom" | "left";
 
 export type Arrowhead =
   | "none"
@@ -408,6 +545,10 @@ export interface Edge {
   index: number /* int */;
   srcTableColumnIndex?: number /* int */;
   dstTableColumnIndex?: number /* int */;
+  /** Set by `source-port`; value is a PortSide. */
+  srcPort?: Scalar;
+  /** Set by `target-port`; value is a PortSide. */
+  dstPort?: Scalar;
   labelPosition?: string;
   labelPercentage?: number /* float64 */;
   isCurve: boolean;
@@ -454,6 +595,9 @@ export interface Attributes {
   horizontalGap?: Scalar;
   labelPosition?: Scalar;
   iconPosition?: Scalar;
+  tooltipPosition?: Scalar;
+  /** Connections only */
+  labelPadding?: Scalar;
   /**
    * The explicit icon.width and icon.height. When unset, the icon size is
    * automatic.

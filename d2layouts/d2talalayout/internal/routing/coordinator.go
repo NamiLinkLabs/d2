@@ -570,11 +570,18 @@ func routeAdditionalEdgesWithResourceLimits(
 		newEdges[e] = struct{}{}
 	}
 
-	ovg, err := buildOVGFromGraphWithLimits(ctx, g, nil, limits)
+	budget := attemptBudgetFromContext(ctx)
+	guard, err := newOVGBuildGuard(ctx, budget.ovgLimit(limits))
+	if err != nil {
+		return nil, err
+	}
+	if telemetry := routeSearchTelemetryFromContext(ctx); telemetry != nil {
+		defer func() { telemetry.recordOVG(guard.work) }()
+	}
+	ovg, err := buildOVGFromGraphWithGuard(g, nil, guard)
 	if err != nil {
 		return ovg, err
 	}
-	guard := ovg.buildGuard
 
 	existingRoutes := make([]*Route, 0)
 	for _, e := range g.Edges {
@@ -657,9 +664,18 @@ func routeAdditionalEdgesWithResourceLimits(
 		if err != nil {
 			return ovg, err
 		}
+		if routesSameOrderAsAny(router, routers) {
+			// Flavors differ only in the order they route edges in, and the
+			// search is deterministic, so this flavor would find the same routes
+			// as an earlier one, which wins ties. A single edge, as when edges are
+			// routed one pair of shapes at a time, has one order.
+			_ = router.work.finish()
+			continue
+		}
 		router.considerNodeLabels = true
 		routers = append(routers, router)
 	}
+	budget.limitSearch(guard.work, routers)
 	responses, err := generateRouteFlavorResponses(ctx, routers, true)
 	if err != nil {
 		return ovg, err
@@ -690,6 +706,14 @@ func routeAdditionalEdgesWithResourceLimits(
 	}
 
 	return ovg, nil
+}
+
+// routesSameOrderAsAny reports whether router routes its edges in the same
+// order as one of routers.
+func routesSameOrderAsAny(router *ovgEdgeRouter, routers []*ovgEdgeRouter) bool {
+	return slices.ContainsFunc(routers, func(other *ovgEdgeRouter) bool {
+		return slices.Equal(router.edges, other.edges)
+	})
 }
 
 // For Trees, ideal route between parent & child is S shaped bend or straight line
@@ -1509,7 +1533,7 @@ func isStraightEdgeFallbackCandidate(edge *layoutgraph.Edge, clusterNodes map[*l
 	if edge.From.Hierarchy != nil {
 		return false
 	}
-	return !edge.HasTableColumn()
+	return !edge.HasTableColumn() && !edge.HasPinnedSide()
 }
 
 func StraightEdgesFallback(ctx context.Context, g *layoutgraph.Graph) error {

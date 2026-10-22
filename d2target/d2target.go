@@ -39,23 +39,45 @@ const (
 	ARROWHEAD_PADDING          = 2.
 
 	CONNECTION_ICON_LABEL_GAP = 8
+
+	// MAX_CONNECTION_LABEL_PADDING caps label.padding on connections.
+	MAX_CONNECTION_LABEL_PADDING = 100
 )
 
 var BorderOffset = geo.NewVector(5, 5)
 
 type Config struct {
-	Sketch             *bool           `json:"sketch"`
-	Isometric          *bool           `json:"isometric,omitempty"`
-	ThemeID            *int64          `json:"themeID"`
-	DarkThemeID        *int64          `json:"darkThemeID"`
-	Pad                *int64          `json:"pad"`
-	Center             *bool           `json:"center"`
+	Sketch           *bool  `json:"sketch"`
+	Isometric        *bool  `json:"isometric,omitempty"`
+	ThemeID          *int64 `json:"themeID"`
+	DarkThemeID      *int64 `json:"darkThemeID"`
+	Pad              *int64 `json:"pad"`
+	Center           *bool  `json:"center"`
+	IntersectionGaps *bool  `json:"intersectionGaps,omitempty"`
+	// NestedEdgeRouting is vars.d2-config.nested-edge-routing: how to draw the
+	// connections that cross into or out of a grid, a constant near or a
+	// sequence diagram, and those between grid cells. It is one of the
+	// NestedEdgeRouting constants.
+	NestedEdgeRouting  *string         `json:"nestedEdgeRouting,omitempty"`
 	LayoutEngine       *string         `json:"layoutEngine"`
 	ThemeOverrides     *ThemeOverrides `json:"themeOverrides,omitempty"`
 	DarkThemeOverrides *ThemeOverrides `json:"darkThemeOverrides,omitempty"`
 	// Data is a data structure for holding user-defined data
 	// useful for layout engines that allow users to configure within source code
 	Data map[string]interface{} `json:"data,omitempty"`
+}
+
+const (
+	// NestedEdgeRoutingAroundShapes routes the connections the layout engine
+	// does not route around the other shapes. It is the default.
+	NestedEdgeRoutingAroundShapes = "around-shapes"
+	// NestedEdgeRoutingStraight draws them as straight lines.
+	NestedEdgeRoutingStraight = "straight"
+)
+
+// ValidNestedEdgeRouting reports whether s is a NestedEdgeRouting value.
+func ValidNestedEdgeRouting(s string) bool {
+	return s == NestedEdgeRoutingAroundShapes || s == NestedEdgeRoutingStraight
 }
 
 type ThemeOverrides struct {
@@ -557,10 +579,11 @@ func (diagram Diagram) BoundingBox() (topLeft, bottomRight Point) {
 		}
 		if connection.Label != "" {
 			labelTL := connection.GetLabelTopLeft()
-			x1 = go2.Min(x1, int(labelTL.X))
-			y1 = go2.Min(y1, int(labelTL.Y))
-			x2 = go2.Max(x2, int(labelTL.X)+connection.LabelWidth)
-			y2 = go2.Max(y2, int(labelTL.Y)+connection.LabelHeight)
+			p := connection.LabelPadding
+			x1 = go2.Min(x1, int(labelTL.X)-p)
+			y1 = go2.Min(y1, int(labelTL.Y)-p)
+			x2 = go2.Max(x2, int(labelTL.X)+connection.LabelWidth+p)
+			y2 = go2.Max(y2, int(labelTL.Y)+connection.LabelHeight+p)
 		}
 		if connection.SrcLabel != nil && connection.SrcLabel.Label != "" {
 			labelTL := connection.GetArrowheadLabelPosition(false)
@@ -824,11 +847,20 @@ type Shape struct {
 	PrimaryAccentColor   string `json:"primaryAccentColor,omitempty"`
 	SecondaryAccentColor string `json:"secondaryAccentColor,omitempty"`
 	NeutralAccentColor   string `json:"neutralAccentColor,omitempty"`
+
+	// Theme defaults are theme color codes too, so these mark the colors that
+	// hold a theme color code the user chose (style.fill: B2). sql_table and
+	// class headers otherwise read a theme color code in Color as unset and use
+	// Stroke for their text, and the isometric renderer swaps theme defaults for
+	// its own palette.
+	ExplicitThemeFill      bool `json:"explicitThemeFill,omitempty"`
+	ExplicitThemeStroke    bool `json:"explicitThemeStroke,omitempty"`
+	ExplicitThemeFontColor bool `json:"explicitThemeFontColor,omitempty"`
 }
 
 func (s Shape) GetFontColor() string {
 	if s.Type == ShapeClass || s.Type == ShapeSQLTable {
-		if !color.IsThemeColor(s.Color) {
+		if s.ExplicitThemeFontColor || !color.IsThemeColor(s.Color) {
 			return s.Color
 		}
 		return s.Stroke
@@ -912,6 +944,12 @@ type Connection struct {
 	DstArrow Arrowhead `json:"dstArrow"`
 	DstLabel *Text     `json:"dstLabel,omitempty"`
 
+	// SrcPort and DstPort are the sides of the Src / Dst shapes that the
+	// connection is pinned to with source-port / target-port ("top", "right",
+	// "bottom" or "left"). Empty means the layout engine chose freely.
+	SrcPort string `json:"srcPort,omitempty"`
+	DstPort string `json:"dstPort,omitempty"`
+
 	Opacity      float64 `json:"opacity"`
 	StrokeDash   float64 `json:"strokeDash"`
 	StrokeWidth  int     `json:"strokeWidth"`
@@ -922,6 +960,10 @@ type Connection struct {
 	Text
 	LabelPosition   string  `json:"labelPosition"`
 	LabelPercentage float64 `json:"labelPercentage"`
+	// LabelPadding is the space, in pixels, kept free on every side of the
+	// label's text box (label.padding). LabelWidth and LabelHeight stay the
+	// size of the text; the layout reserved the padded box, LabelBox.
+	LabelPadding int `json:"labelPadding,omitempty"`
 
 	Link       string `json:"link"`
 	PrettyLink string `json:"prettyLink,omitempty"`
@@ -940,6 +982,10 @@ type Connection struct {
 	IconHeight int `json:"iconHeight,omitempty"`
 
 	ZIndex int `json:"zIndex"`
+
+	// See Shape.ExplicitThemeStroke.
+	ExplicitThemeStroke    bool `json:"explicitThemeStroke,omitempty"`
+	ExplicitThemeFontColor bool `json:"explicitThemeFontColor,omitempty"`
 }
 
 // IconSize returns the size of the connection's icon.
@@ -959,9 +1005,9 @@ func (c *Connection) GetIconPosition() *geo.Point {
 	if c.Label != "" {
 		labelTL := c.GetLabelTopLeft()
 		if labelTL != nil {
-			// Position icon to the left of the label with a small gap
+			// Position icon to the left of the label's padded box with a small gap
 			return &geo.Point{
-				X: labelTL.X - CONNECTION_ICON_LABEL_GAP - width,
+				X: labelTL.X - float64(c.LabelPadding) - CONNECTION_ICON_LABEL_GAP - width,
 				Y: labelTL.Y + float64(c.LabelHeight)/2 - math.Floor(height/2),
 			}
 		}
@@ -1024,15 +1070,68 @@ func (c Connection) CSSStyle() string {
 	return out
 }
 
+// GetLabelTopLeft returns the top-left corner of the label's text. With
+// label padding, the label's padded box (LabelBox) sits where the layout put
+// it and the text is inset by the padding.
 func (c *Connection) GetLabelTopLeft() *geo.Point {
+	p := float64(c.LabelPadding)
 	point, _ := label.FromString(c.LabelPosition).GetPointOnRoute(
 		c.Route,
 		float64(c.StrokeWidth),
 		c.LabelPercentage,
-		float64(c.LabelWidth),
-		float64(c.LabelHeight),
+		float64(c.LabelWidth)+2*p,
+		float64(c.LabelHeight)+2*p,
 	)
+	if point != nil && p != 0 {
+		point.X += p
+		point.Y += p
+	}
 	return point
+}
+
+// LabelBox returns the label's padded box: its text box grown by LabelPadding
+// on every side. It is the box the layout reserved for the label.
+func (c *Connection) LabelBox() *geo.Box {
+	tl := c.GetLabelTopLeft()
+	if tl == nil {
+		return nil
+	}
+	p := float64(c.LabelPadding)
+	return geo.NewBox(geo.NewPoint(tl.X-p, tl.Y-p), float64(c.LabelWidth)+2*p, float64(c.LabelHeight)+2*p)
+}
+
+// LabelMaskBox returns the box that renderers cut out of the connection's
+// line around its label, given the label's rounded text top-left. It covers
+// the padding, at least the 2px D2 always leaves to the label's sides, and
+// the icon left of the label, if any.
+func (c *Connection) LabelMaskBox(labelTL *geo.Point) *geo.Box {
+	p := float64(c.LabelPadding)
+	padX := math.Max(2, p)
+	box := geo.NewBox(
+		geo.NewPoint(labelTL.X-padX, labelTL.Y-p),
+		float64(c.LabelWidth)+2*padX,
+		float64(c.LabelHeight)+2*p,
+	)
+	if c.Icon != nil {
+		iconWidth, _ := c.IconSize()
+		iconSpace := CONNECTION_ICON_LABEL_GAP + iconWidth + p
+		box.TopLeft.X -= iconSpace
+		box.Width += iconSpace
+	}
+	return box
+}
+
+// LabelFillBox returns the box that a connection's style.fill paints behind
+// its label, given the label's rounded text top-left. It covers the padding
+// and never shrinks below the 4px by 3px margin of unpadded labels.
+func (c *Connection) LabelFillBox(labelTL *geo.Point) *geo.Box {
+	p := float64(c.LabelPadding)
+	padX, padY := math.Max(4, p), math.Max(3, p)
+	return geo.NewBox(
+		geo.NewPoint(labelTL.X-padX, labelTL.Y-padY),
+		float64(c.LabelWidth)+2*padX,
+		float64(c.LabelHeight)+2*padY,
+	)
 }
 
 func (connection *Connection) GetArrowheadLabelPosition(isDst bool) *geo.Point {

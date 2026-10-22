@@ -4,6 +4,7 @@ package d2svg
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"encoding/base64"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	"github.com/d2lang/d2/d2renderers/d2fonts"
 	"github.com/d2lang/d2/d2renderers/d2latex"
 	"github.com/d2lang/d2/d2renderers/d2sketch"
+	"github.com/d2lang/d2/d2renderers/internal/crossgaps"
 	"github.com/d2lang/d2/d2renderers/internal/patternassets"
 	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/d2themes"
@@ -99,6 +101,11 @@ type RenderOpts struct {
 	NoXMLTag    *bool
 	Salt        *string
 	OmitVersion *bool
+
+	// IntersectionGaps leaves an empty gap in a connection where another one
+	// drawn above it crosses (d2lang/d2#1932). Isometric output ignores it: it
+	// already lifts crossing routes over each other.
+	IntersectionGaps *bool
 }
 
 func invalidPaddingError(pad int64) error {
@@ -503,7 +510,7 @@ func renderLegendConnectionIcon(c d2target.Connection, x, y int, theme *d2themes
 	fmt.Fprintf(finalBuf, `<g transform="translate(%d, %d) scale(%s)">`,
 		x, y, svg.FormatFloat(1.0/sizeFactor))
 
-	_, err := drawConnection(buf, legendHash, legendConn, markers, idToShape, false, theme, newMarkdownRenderer(nil, nil, theme))
+	_, err := drawConnection(buf, legendHash, "", legendConn, markers, idToShape, false, theme, newMarkdownRenderer(nil, nil, theme))
 	if err != nil {
 		return "", err
 	}
@@ -994,12 +1001,22 @@ func makeLabelMask(labelTL *geo.Point, width, height int, opacity float64) strin
 	return makeLabelMaskWithTransform(labelTL, width, height, opacity, nil)
 }
 
-func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity float64, shapePos *geo.Point) string {
+// makeMaskRect cuts box out of the connections, e.g. a connection's
+// d2target.Connection.LabelMaskBox.
+func makeMaskRect(box *geo.Box, opacity float64) string {
 	fill := "black"
 	if opacity != 1 {
 		fill = fmt.Sprintf("rgba(0,0,0,%.2f)", opacity)
 	}
+	return fmt.Sprintf(`<rect x="%s" y="%s" width="%d" height="%d" fill="%s"></rect>`,
+		svg.FormatFloat(box.TopLeft.X), svg.FormatFloat(box.TopLeft.Y),
+		int(box.Width),
+		int(box.Height),
+		fill,
+	)
+}
 
+func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity float64, shapePos *geo.Point) string {
 	x := labelTL.X - 2
 	y := labelTL.Y
 
@@ -1010,12 +1027,7 @@ func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity f
 		y -= shapePos.Y
 	}
 
-	return fmt.Sprintf(`<rect x="%s" y="%s" width="%d" height="%d" fill="%s"></rect>`,
-		svg.FormatFloat(x), svg.FormatFloat(y),
-		width+4,
-		height,
-		fill,
-	)
+	return makeMaskRect(geo.NewBox(geo.NewPoint(x, y), float64(width+4), float64(height)), opacity)
 }
 
 // border label mask is minimal, intending to only cover the portion of the border that passes through the label
@@ -1076,7 +1088,9 @@ func makeBorderLabelMask(labelPosition label.Position, labelTL *geo.Point, label
 	)
 }
 
-func drawConnection(writer io.Writer, diagramHash string, connection d2target.Connection, markers map[string]struct{}, idToShape map[string]d2target.Shape, sketch bool, inlineTheme *d2themes.Theme, markdown *markdownRenderer) (labelMask string, _ error) {
+// drawConnection masks the connection's line with the diagram's shared label
+// mask, named diagramHash, or with maskID when it isn't empty.
+func drawConnection(writer io.Writer, diagramHash, maskID string, connection d2target.Connection, markers map[string]struct{}, idToShape map[string]d2target.Shape, sketch bool, inlineTheme *d2themes.Theme, markdown *markdownRenderer) (labelMask string, _ error) {
 	classes := []string{base64.URLEncoding.EncodeToString([]byte(svg.EscapeText(connection.ID)))}
 	classes = append(classes, connection.Classes...)
 	groupAttributes := []svg.Attribute{svg.Attr("class", strings.Join(classes, " "))}
@@ -1138,20 +1152,11 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 		labelTL.X = math.Round(labelTL.X)
 		labelTL.Y = math.Round(labelTL.Y)
 
-		maskTL := labelTL.Copy()
-		width := connection.LabelWidth
-		height := connection.LabelHeight
-
-		if connection.Icon != nil {
-			width += d2target.CONNECTION_ICON_LABEL_GAP + int(iconWidth)
-			maskTL.X -= d2target.CONNECTION_ICON_LABEL_GAP + iconWidth
-		}
-
+		opacity := 0.75
 		if label.FromString(connection.LabelPosition).IsOnEdge() {
-			labelMask = makeLabelMask(maskTL, width, height, 1)
-		} else {
-			labelMask = makeLabelMask(maskTL, width, height, 0.75)
+			opacity = 1
 		}
+		labelMask = makeMaskRect(connection.LabelMaskBox(labelTL), opacity)
 	} else if connection.Icon != nil {
 		iconPos := connection.GetIconPosition()
 		if iconPos != nil {
@@ -1169,7 +1174,10 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 
 	srcAdj, dstAdj := getArrowheadAdjustments(connection, idToShape)
 	path := pathData(connection, srcAdj, dstAdj)
-	mask := svg.Attr("mask", svg.LocalIRI(svg.LiteralID(diagramHash)))
+	if maskID == "" {
+		maskID = diagramHash
+	}
+	mask := svg.Attr("mask", svg.LocalIRI(svg.LiteralID(maskID)))
 
 	if sketch {
 		out, err := d2sketch.ConnectionWithAttributes(connection, path, []svg.Attribute{mask})
@@ -1255,6 +1263,17 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 			if err != nil {
 				return labelMask, err
 			}
+			background := connection.Fill
+			if connection.LabelPadding > 0 && hasMarkdownBackground(background) {
+				// The background covers the padding too.
+				p := connection.LabelPadding
+				rectEl := d2themes.NewThemableElement("rect", inlineTheme)
+				rectEl.X, rectEl.Y = labelTL.X-float64(p), labelTL.Y-float64(p)
+				rectEl.Width, rectEl.Height = float64(connection.LabelWidth+2*p), float64(connection.LabelHeight+2*p)
+				rectEl.Fill = background
+				fmt.Fprint(writer, rectEl.Render())
+				background = ""
+			}
 			fmt.Fprint(writer, markdown.render(
 				layout,
 				labelTL.X,
@@ -1262,7 +1281,7 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				connection.LabelWidth,
 				connection.LabelHeight,
 				connection.GetFontColor(),
-				connection.Fill,
+				background,
 				connection.Link != "",
 				connection.Underline,
 			))
@@ -1327,10 +1346,11 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				fontClass += " text-underline"
 			}
 			if connection.Fill != color.Empty {
+				fillBox := connection.LabelFillBox(labelTL)
 				rectEl := d2themes.NewThemableElement("rect", inlineTheme)
 				rectEl.Rx = 10
-				rectEl.X, rectEl.Y = labelTL.X-4, labelTL.Y-3
-				rectEl.Width, rectEl.Height = float64(connection.LabelWidth)+8, float64(connection.LabelHeight)+6
+				rectEl.X, rectEl.Y = fillBox.TopLeft.X, fillBox.TopLeft.Y
+				rectEl.Width, rectEl.Height = fillBox.Width, fillBox.Height
 				rectEl.Fill = connection.Fill
 				fmt.Fprint(writer, rectEl.Render())
 			}
@@ -2980,6 +3000,15 @@ func renderValidated(diagram *d2target.Diagram, opts *RenderOpts) ([]byte, error
 
 	sortObjects(allObjects)
 
+	var gaps map[string][]crossgaps.Gap
+	if opts.IntersectionGaps != nil && *opts.IntersectionGaps {
+		gaps, err = crossgaps.Find(context.Background(), diagram, crossgaps.Options{Sketch: sketch})
+		if err != nil {
+			return nil, err
+		}
+	}
+	var gapMasks []string
+
 	appendixItemBuf := &bytes.Buffer{}
 
 	var labelMasks []string
@@ -2993,7 +3022,12 @@ func renderValidated(diagram *d2target.Diagram, opts *RenderOpts) ([]byte, error
 	markdown := newMarkdownRenderer(diagram.FontFamily, diagram.MonoFontFamily, inlineTheme)
 	for _, obj := range allObjects {
 		if c, is := obj.(d2target.Connection); is {
-			labelMask, err := drawConnection(buf, isolatedDiagramHash, c, markers, idToShape, sketch, inlineTheme, markdown)
+			maskID := ""
+			if connectionGaps := gaps[c.ID]; len(connectionGaps) > 0 {
+				maskID = gapMaskID(isolatedDiagramHash, len(gapMasks))
+				gapMasks = append(gapMasks, gapMask(maskID, isolatedDiagramHash, &c, connectionGaps, sketch))
+			}
+			labelMask, err := drawConnection(buf, isolatedDiagramHash, maskID, c, markers, idToShape, sketch, inlineTheme, markdown)
 			if err != nil {
 				return nil, err
 			}
@@ -3105,6 +3139,9 @@ func renderValidated(diagram *d2target.Diagram, opts *RenderOpts) ([]byte, error
 		strings.Join(labelMasks, "\n"),
 		`</mask>`,
 	}, "\n"))
+	for _, m := range gapMasks {
+		buf.WriteString(m)
+	}
 
 	// Validate the theme before expanding the background, preserving error order.
 	var themeStylesheet string

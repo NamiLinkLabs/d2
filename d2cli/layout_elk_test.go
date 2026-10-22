@@ -73,3 +73,50 @@ func TestELKLayoutOptions(t *testing.T) {
 		t.Fatal("nil CLI state did not select ELK defaults")
 	}
 }
+
+func TestELKInLayerSpacingFlags(t *testing.T) {
+	const src = "a -> b -> c -> d -> e\na -> e\na -> d\nb -> e\nq -> c\nq -> e"
+	native := func(opts d2elklayout.ConfigurableOpts) string {
+		return layoutSourceJSON(t, func(ctx context.Context, g *d2graph.Graph) error {
+			return d2elklayout.Layout(ctx, g, &opts)
+		}, src, nil)
+	}
+	resolved := func(data map[string]any, args ...string) string {
+		layout, err := LayoutResolver(t.Context(), layoutOptionsState(t, args...))("elk")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return layoutSourceJSON(t, layout, src, data)
+	}
+
+	defaults := native(d2elklayout.DefaultOpts)
+	if got := resolved(nil); got != defaults {
+		t.Fatal("unset in-layer flags changed the ELK layout")
+	}
+	// Passing the defaults explicitly matches leaving them out.
+	if got := resolved(nil, "--elk-nodeNode=20", "--elk-edgeNode=40", "--elk-edgeEdge=10"); got != defaults {
+		t.Fatal("explicit default in-layer flags changed the ELK layout")
+	}
+
+	opts := d2elklayout.DefaultOpts
+	opts.InLayerNodeSpacing = go2.Pointer(60)
+	opts.InLayerEdgeNodeSpacing = go2.Pointer(5)
+	opts.InLayerEdgeSpacing = go2.Pointer(30)
+	want := native(opts)
+	if want == defaults {
+		t.Fatal("test graph does not exercise in-layer spacing")
+	}
+	if got := resolved(nil, "--elk-nodeNode=60", "--elk-edgeNode=5", "--elk-edgeEdge=30"); got != want {
+		t.Fatal("ELK in-layer flags differ from native options")
+	}
+
+	// Diagram data takes precedence over flags.
+	data := map[string]any{"elk-nodeNode": "60", "elk-edgeNode": "5", "elk-edgeEdge": "30"}
+	if got := resolved(data, "--elk-nodeNode=1", "--elk-edgeNode=1", "--elk-edgeEdge=1"); got != want {
+		t.Fatal("diagram data did not override ELK flags")
+	}
+
+	if _, err := LayoutResolver(t.Context(), layoutOptionsState(t, "--elk-nodeNode=-1"))("elk"); err == nil {
+		t.Fatal("negative --elk-nodeNode was accepted")
+	}
+}

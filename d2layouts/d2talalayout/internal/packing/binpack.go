@@ -16,6 +16,9 @@ import (
 const (
 	subgraphPadding        = 20.0
 	subgraphSquareDampener = 0.5
+	// pinnedRouteReach is the space kept free outside a subgraph that holds
+	// pinned routes, so a route can run around it clear of other subgraphs.
+	pinnedRouteReach = 2 * layoutgraph.MinRouteNodeClearance
 )
 
 // Pack recursively arranges disconnected subgraphs into compact containers.
@@ -1287,6 +1290,9 @@ func estimateEdgeSegments(e *layoutgraph.Edge, g *layoutgraph.Graph, smallestXGa
 	if e == nil || e.From == nil || e.To == nil || e.From.TopLeft == nil || e.To.TopLeft == nil {
 		return nil, invariant.New("BinPack segment estimate encountered an incomplete edge")
 	}
+	if e.HasPinnedSide() && !e.IsLoop() {
+		return estimatePinnedEdgeSegments(e), guard.Finish()
+	}
 	o := e.From.Orientation(e.To)
 
 	// Straight lines only matter if they're long (can potentially fit other subgraphs)
@@ -1375,4 +1381,46 @@ func estimateEdgeSegments(e *layoutgraph.Edge, g *layoutgraph.Graph, smallestXGa
 	}
 
 	return segments, guard.Finish()
+}
+
+// estimatePinnedEdgeSegments estimates the route of an edge with a pinned
+// side (D2's source-port / target-port). Such a route leaves its node through
+// that side even when it faces away from the other end, so a short stub out
+// of each pinned side and both L-shaped joins between the stubs are reserved;
+// without them, another subgraph may be packed right against the pinned side,
+// where the route has to run.
+func estimatePinnedEdgeSegments(e *layoutgraph.Edge) []*geo.Segment {
+	stub := func(n *layoutgraph.Node, side *geo.Orientation) (*geo.Point, *geo.Point) {
+		center := n.Center()
+		if side == nil {
+			return center, center
+		}
+		reach := 2 * layoutgraph.MinRouteNodeClearance
+		switch *side {
+		case geo.Top:
+			return center, geo.NewPoint(center.X, n.TopLeft.Y-reach)
+		case geo.Bottom:
+			return center, geo.NewPoint(center.X, n.TopLeft.Y+n.Height+reach)
+		case geo.Left:
+			return center, geo.NewPoint(n.TopLeft.X-reach, center.Y)
+		default:
+			return center, geo.NewPoint(n.TopLeft.X+n.Width+reach, center.Y)
+		}
+	}
+	fromCenter, from := stub(e.From, e.FromSide)
+	toCenter, to := stub(e.To, e.ToSide)
+	segments := make([]*geo.Segment, 0, 6)
+	if from != fromCenter {
+		segments = append(segments, geo.NewSegment(fromCenter, from))
+	}
+	if to != toCenter {
+		segments = append(segments, geo.NewSegment(to, toCenter))
+	}
+	segments = append(segments,
+		geo.NewSegment(from, geo.NewPoint(from.X, to.Y)),
+		geo.NewSegment(geo.NewPoint(from.X, to.Y), to),
+		geo.NewSegment(from, geo.NewPoint(to.X, from.Y)),
+		geo.NewSegment(geo.NewPoint(to.X, from.Y), to),
+	)
+	return segments
 }

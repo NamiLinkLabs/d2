@@ -698,7 +698,12 @@ func newOVGPortIndex(ports map[*layoutgraph.Node][]*OVGNode, graph *layoutgraph.
 		verticalBlockers:   make(map[float64][]*layoutgraph.Node),
 		horizontalBlockers: make(map[float64][]*layoutgraph.Node),
 	}
-	for owner, nodePorts := range ports {
+	owners, err := portOwnersInGraphOrder(ports, graph, guard)
+	if err != nil {
+		return nil, err
+	}
+	for _, owner := range owners {
+		nodePorts := ports[owner]
 		if err := guard.step(); err != nil {
 			return nil, err
 		}

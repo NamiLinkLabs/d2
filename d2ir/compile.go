@@ -15,8 +15,10 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2format"
 	"github.com/d2lang/d2/d2parser"
+	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/d2themes"
 	"github.com/d2lang/d2/d2themes/d2themescatalog"
+	"github.com/d2lang/d2/lib/layoutdata"
 	"github.com/d2lang/d2/lib/textmeasure"
 )
 
@@ -378,7 +380,7 @@ func (c *compiler) validateConfigs(configs *Field) {
 		}
 
 		switch f.Name.ScalarString() {
-		case "sketch", "isometric", "center":
+		case "sketch", "isometric", "center", "intersection-gaps":
 			_, err := strconv.ParseBool(val)
 			if err != nil {
 				c.errorf(f.LastRef().AST(), `expected a boolean for "%s", got "%s"`, f.Name.ScalarString(), val)
@@ -388,6 +390,9 @@ func (c *compiler) validateConfigs(configs *Field) {
 			if f.Map() == nil {
 				c.errorf(f.LastRef().AST(), `"%s" needs a map`, f.Name.ScalarString())
 				continue
+			}
+			if f.Name.ScalarString() == "data" {
+				c.validateLayoutData(f.Map())
 			}
 		case "theme-id", "dark-theme-id":
 			valInt, err := strconv.Atoi(val)
@@ -406,10 +411,61 @@ func (c *compiler) validateConfigs(configs *Field) {
 				continue
 			}
 		case "layout-engine":
+		case "nested-edge-routing":
+			if !d2target.ValidNestedEdgeRouting(val) {
+				c.errorf(f.LastRef().AST(), `expected "%s" or "%s" for "%s", got "%s"`, d2target.NestedEdgeRoutingAroundShapes, d2target.NestedEdgeRoutingStraight, f.Name.ScalarString(), val)
+				continue
+			}
 		default:
 			c.errorf(f.LastRef().AST(), `"%s" is not a valid config`, f.Name.ScalarString())
 		}
 	}
+}
+
+// validateLayoutData checks the layout-engine options a diagram sets under
+// vars.d2-config.data, such as elk-nodeNode or dagre-ranksep, so a bad value is
+// reported where it is written rather than when a layout runs. Unknown elk-*
+// and dagre-* keys are errors; other keys are free-form data for other tools.
+func (c *compiler) validateLayoutData(data *Map) {
+	for _, f := range data.Fields {
+		key := f.Name.ScalarString()
+		if err := layoutdata.CheckKey(key); err != nil {
+			c.errorf(f.LastRef().AST(), "%s", err)
+			continue
+		}
+		spec, ok := layoutdata.Lookup(key)
+		if !ok {
+			continue
+		}
+		if err := layoutdata.Validate(spec, layoutDataValue(f)); err != nil {
+			c.errorf(f.LastRef().AST(), "%s", err)
+		}
+	}
+}
+
+// layoutDataValue returns f's value in the shape d2compiler gives config data
+// to layout engines: a string for a scalar and a list of strings for an array.
+// Nested maps and arrays, which config data drops, are kept as maps so they
+// fail validation instead.
+func layoutDataValue(f *Field) any {
+	if f.Primary() != nil {
+		return f.Primary().Value.ScalarString()
+	}
+	switch v := f.Composite.(type) {
+	case *Array:
+		list := make([]any, 0, len(v.Values))
+		for _, item := range v.Values {
+			if s, ok := item.(*Scalar); ok {
+				list = append(list, s.Value.ScalarString())
+			} else {
+				list = append(list, map[string]any{})
+			}
+		}
+		return list
+	case *Map:
+		return map[string]any{}
+	}
+	return nil
 }
 
 func (c *compiler) resolveSubstitutions(varsStack []*Map, node Node) (removedField bool) {

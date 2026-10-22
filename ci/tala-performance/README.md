@@ -41,7 +41,8 @@ reports nanoseconds per diagram for:
 
 - `layout_ns`: time inside TALA `Layout`, including layout's own edge routing,
   adapter work and complete deterministic seed selection.
-- `routing_ns`: additional `RouteEdges` callbacks requested by D2's nested
+- `routing_ns`: additional edge-router callbacks (`d2layouts.RouterFor("tala")`,
+  as in the CLI) requested by D2's nested
   layout integration during compilation.
 - `compile_ns`: the whole compile operation, including parser, text measurement,
   nested-layout orchestration, TALA and target export.

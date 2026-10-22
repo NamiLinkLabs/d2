@@ -386,7 +386,7 @@ func TestCompileTALAQuality(t *testing.T) {
 	if _, werr := compileSourceForTest(t, talaQualitySource, `{"layout":"tala","tala":{"quality":7}}`); werr == nil {
 		t.Fatal("a non-string quality must be rejected")
 	}
-	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-quality: turbo}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, `unknown tala quality "turbo"`) {
+	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-quality: turbo}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, `"range":"index,0:26:26-0:38:38"`) || !strings.Contains(werr.Message, "expected one of full, balanced, fast for") {
 		t.Fatalf("invalid diagram tala-quality: error = %v", werr)
 	}
 }
@@ -434,7 +434,138 @@ func TestCompileTALASeparateEdges(t *testing.T) {
 	if _, werr := compileSourceForTest(t, talaFansSource, `{"layout":"tala","tala":{"separateEdges":"yes"}}`); werr == nil || werr.Code != 400 {
 		t.Fatalf("a non-boolean separateEdges: error = %v, want a 400", werr)
 	}
-	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-separate-edges: yes}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, "tala-separate-edges must be true or false") {
+	if _, werr := compileSourceForTest(t, "vars: {d2-config: {data: {tala-separate-edges: yes}}}\na -> b\n", `{"layout":"tala"}`); werr == nil || !strings.Contains(werr.Message, `"range":"index,0:26:26-0:45:45"`) || !strings.Contains(werr.Message, "expected true or false for") {
 		t.Fatalf("invalid diagram tala-separate-edges: error = %v", werr)
+	}
+}
+
+func TestCompileNestedEdgeRouting(t *testing.T) {
+	// From d2lang/d2#1994: the connection from the near shape used to be a
+	// straight line through the shapes between.
+	const source = `a; b
+legend: {near: top-right}
+target
+* -> target
+`
+	route := func(r CompileResponse) int {
+		for _, c := range r.Diagram.Connections {
+			if c.Src == "legend" {
+				return len(c.Route)
+			}
+		}
+		t.Fatalf("no connection from legend in %v", r.Diagram.Connections)
+		return 0
+	}
+	for _, layout := range []string{"dagre", "elk", "tala"} {
+		routed, werr := compileSourceForTest(t, source, `{"layout":"`+layout+`"}`)
+		if werr != nil {
+			t.Fatalf("%s: %v", layout, werr.Message)
+		}
+		if n := route(routed); n <= 2 {
+			t.Errorf("%s: route from the near shape has %d points, want it routed around the shapes", layout, n)
+		}
+		straight, werr := compileSourceForTest(t, source, `{"layout":"`+layout+`","nestedEdgeRouting":"straight"}`)
+		if werr != nil {
+			t.Fatalf("%s straight: %v", layout, werr.Message)
+		}
+		if n := route(straight); n != 2 {
+			t.Errorf("%s straight: route from the near shape has %d points, want 2", layout, n)
+		}
+	}
+	if _, werr := compileSourceForTest(t, source, `{"nestedEdgeRouting":"curved"}`); werr == nil || werr.Code != 400 {
+		t.Fatalf("an unknown nestedEdgeRouting should be rejected, got %v", werr)
+	}
+
+	// The diagram can pin it, as in the CLI, and the option overrides that.
+	pinned := "vars: {d2-config: {nested-edge-routing: straight}}\n" + source
+	r, werr := compileSourceForTest(t, pinned, `{"layout":"elk"}`)
+	if werr != nil {
+		t.Fatal(werr.Message)
+	}
+	if n := route(r); n != 2 {
+		t.Errorf("nested-edge-routing: straight: route from the near shape has %d points, want 2", n)
+	}
+	r, werr = compileSourceForTest(t, pinned, `{"layout":"elk","nestedEdgeRouting":"around-shapes"}`)
+	if werr != nil {
+		t.Fatal(werr.Message)
+	}
+	if n := route(r); n <= 2 {
+		t.Errorf("nestedEdgeRouting over the diagram's straight: route from the near shape has %d points", n)
+	}
+	_, werr = compileSourceForTest(t, "vars: {d2-config: {nested-edge-routing: curved}}\nx\n", `{}`)
+	if werr == nil || !strings.Contains(werr.Message, `"range":"index,0:19:19-0:38:38"`) || !strings.Contains(werr.Message, "nested-edge-routing") {
+		t.Fatalf("invalid diagram nested-edge-routing = %v, want a compile error at the key", werr)
+	}
+}
+
+func shapeByID(t *testing.T, r CompileResponse, id string) d2target.Shape {
+	t.Helper()
+	for _, s := range r.Diagram.Shapes {
+		if s.ID == id {
+			return s
+		}
+	}
+	t.Fatalf("shape %q not found", id)
+	return d2target.Shape{}
+}
+
+func TestCompileLayoutSpacingOptions(t *testing.T) {
+	const siblings = "x -> a\nx -> b\n"
+	gap := func(r CompileResponse) int {
+		a, b := shapeByID(t, r, "a"), shapeByID(t, r, "b")
+		if a.Pos.X > b.Pos.X {
+			a, b = b, a
+		}
+		return b.Pos.X - (a.Pos.X + a.Width)
+	}
+	elk, werr := compileSourceForTest(t, siblings, `{"layout":"elk","elk":{"inLayerNodeSpacing":80,"inLayerEdgeSpacing":5,"inLayerEdgeNodeSpacing":5}}`)
+	if werr != nil {
+		t.Fatalf("elk: %v", werr.Message)
+	}
+	if got := gap(elk); got != 80 {
+		t.Fatalf("elk.inLayerNodeSpacing gap = %d, want 80", got)
+	}
+	// Diagram data takes precedence over compile options.
+	withData, werr := compileSourceForTest(t, "vars: {d2-config: {data: {elk-nodeNode: 30}}}\n"+siblings, `{"layout":"elk","elk":{"inLayerNodeSpacing":80}}`)
+	if werr != nil {
+		t.Fatalf("elk with data: %v", werr.Message)
+	}
+	if got := gap(withData); got != 30 {
+		t.Fatalf("diagram elk-nodeNode gap = %d, want 30", got)
+	}
+
+	const container = "c: {\n  i\n}\nx -> c.i\n"
+	leftPadding := func(r CompileResponse) int {
+		return shapeByID(t, r, "c.i").Pos.X - shapeByID(t, r, "c").Pos.X
+	}
+	for options, want := range map[string]int{
+		`{"layout":"dagre"}`: 30,
+		`{"layout":"dagre","dagre":{"padding":8,"rankSep":60}}`:                      8,
+		`{"layout":"dagre","dagre":{"padding":"[top=20,left=6,bottom=20,right=6]"}}`: 6,
+		`{"layout":"elk","elk":{"padding":15}}`:                                      15,
+	} {
+		r, werr := compileSourceForTest(t, container, options)
+		if werr != nil {
+			t.Fatalf("%s: %v", options, werr.Message)
+		}
+		if got := leftPadding(r); got != want {
+			t.Errorf("%s: left padding = %d, want %d", options, got, want)
+		}
+	}
+
+	for _, options := range []string{
+		`{"layout":"elk","elk":{"inLayerNodeSpacing":-1}}`,
+		`{"layout":"elk","elk":{"padding":"[top=x]"}}`,
+		`{"layout":"dagre","dagre":{"rankSep":-1}}`,
+		`{"layout":"dagre","dagre":{"padding":"lots"}}`,
+	} {
+		if _, werr := compileSourceForTest(t, container, options); werr == nil || werr.Code != 400 {
+			t.Errorf("%s should be rejected with a 400, got %v", options, werr)
+		}
+	}
+	// Bad layout data in the diagram is a compile error with a source range.
+	_, werr = compileSourceForTest(t, "vars: {d2-config: {data: {dagre-ranksep: -3}}}\nx\n", `{"layout":"dagre"}`)
+	if werr == nil || !strings.Contains(werr.Message, `"range":"index,0:26:26-0:39:39"`) || !strings.Contains(werr.Message, "dagre-ranksep") {
+		t.Fatalf("invalid diagram layout data = %v, want a compile error at the key", werr)
 	}
 }

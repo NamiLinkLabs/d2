@@ -19,6 +19,50 @@ func IsThemeColor(colorString string) bool {
 	return themeColorRegex.MatchString(colorString)
 }
 
+// ThemeColorCodes lists every theme color code, in palette order.
+var ThemeColorCodes = []string{
+	N1, N2, N3, N4, N5, N6, N7,
+	B1, B2, B3, B4, B5, B6,
+	AA2, AA4, AA5,
+	AB4, AB5,
+}
+
+// themeColorLookalikeRegex matches strings shaped like a theme color code, in any
+// case and with any digit, such as "n1", "B7" or "AA3".
+var themeColorLookalikeRegex = regexp.MustCompile(`(?i)^(N|B|AA|AB)[0-9]$`)
+
+// LooksLikeThemeColor reports whether s is shaped like a theme color code but is
+// not one, such as "n1" (codes are uppercase), "B7" or "AA3".
+func LooksLikeThemeColor(s string) bool {
+	return !IsThemeColor(s) && themeColorLookalikeRegex.MatchString(s)
+}
+
+// ValidStyleColor reports whether s can be used as a style color (fill, stroke,
+// font-color): a theme color code such as "B2", or anything ValidColor accepts.
+// Theme color codes stay unresolved until rendering, so they follow the active
+// theme and switch with the dark theme.
+func ValidStyleColor(s string) bool {
+	return IsThemeColor(s) || ValidColor(s)
+}
+
+// GradientHasThemeColor reports whether s is a gradient with a theme color code
+// as one of its color stops. Gradient stops must be concrete colors.
+func GradientHasThemeColor(s string) bool {
+	if !IsGradient(s) {
+		return false
+	}
+	gradient, err := ParseGradient(s)
+	if err != nil {
+		return false
+	}
+	for _, stop := range gradient.ColorStops {
+		if IsThemeColor(stop.Color) {
+			return true
+		}
+	}
+	return false
+}
+
 func Darken(colorString string) (string, error) {
 	if IsThemeColor(colorString) {
 		switch {

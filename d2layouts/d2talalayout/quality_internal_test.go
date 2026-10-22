@@ -7,7 +7,28 @@ import (
 
 	"github.com/d2lang/d2/d2graph"
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/engine"
+	"github.com/d2lang/d2/lib/layoutdata"
 )
+
+// The compiler validates tala-quality with layoutdata, which keeps its own
+// list of the levels; it must accept exactly the levels TALA does.
+func TestLayoutDataAcceptsTALAQualities(t *testing.T) {
+	spec, ok := layoutdata.Lookup(layoutdata.TALAQuality)
+	if !ok {
+		t.Fatal("layoutdata does not know tala-quality")
+	}
+	for _, q := range []Quality{QualityFull, QualityBalanced, QualityFast} {
+		if err := layoutdata.Validate(spec, string(q)); err != nil {
+			t.Errorf("layoutdata rejects TALA quality %q: %v", q, err)
+		}
+	}
+	for _, q := range []string{"turbo", "Full", ""} {
+		_, tala := qualityFromData(q)
+		if (layoutdata.Validate(spec, q) == nil) != (tala == nil) {
+			t.Errorf("layoutdata and TALA disagree on quality %q", q)
+		}
+	}
+}
 
 func TestQualityProfiles(t *testing.T) {
 	full, err := QualityFull.profile()

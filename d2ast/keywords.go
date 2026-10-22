@@ -26,6 +26,10 @@ var SimpleReservedKeywords = map[string]struct{}{
 	"horizontal-gap": {},
 	"class":          {},
 	"vars":           {},
+
+	// Only for edges
+	"source-port": {},
+	"target-port": {},
 }
 
 // ReservedKeywordHolders are reserved keywords that are meaningless on its own and must hold composites
@@ -91,6 +95,15 @@ var NearConstantsArray = []string{
 	"bottom-right",
 }
 var NearConstants map[string]struct{}
+
+// PortSidesArray are the values that source-port and target-port can be set to.
+// Each one pins that end of a connection to one side of its shape.
+var PortSidesArray = []string{
+	"top",
+	"right",
+	"bottom",
+	"left",
+}
 
 // LabelPositionsArray are the values that labels and icons can set `near` to
 var LabelPositionsArray = []string{
