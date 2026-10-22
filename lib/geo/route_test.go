@@ -55,6 +55,11 @@ func TestRouteRoundCorners(t *testing.T) {
 		if !curve[0].Equals(route[0]) || !curve[len(curve)-1].Equals(route[len(route)-1]) {
 			t.Fatalf("%v: curve does not start and end with the route", route)
 		}
+		for i := 1; i < len(curve); i++ {
+			if curve[i-1].Equals(curve[i]) {
+				t.Fatalf("%v: curve has a zero-length segment at %d: %v", route, i, *curve[i])
+			}
+		}
 		for i := 0; i+3 < len(curve); i += 3 {
 			bezier := NewBezierCurve(curve[i : i+4])
 			for s := 0.; s <= 1; s += 1. / 64 {

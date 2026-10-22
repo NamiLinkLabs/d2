@@ -102,7 +102,7 @@ func (route Route) Curve() Route {
 func (route Route) RoundCorners(radius float64) Route {
 	points := make(Route, 0, len(route))
 	for _, p := range route {
-		if len(points) == 0 || !points[len(points)-1].Equals(p) {
+		if len(points) == 0 || EuclideanDistance(points[len(points)-1].X, points[len(points)-1].Y, p.X, p.Y) > PRECISION {
 			points = append(points, p)
 		}
 	}
@@ -124,5 +124,14 @@ func (route Route) RoundCorners(radius float64) Route {
 		)
 	}
 	dense = append(dense, points[len(points)-1])
-	return dense.Curve()
+	// A segment no longer than twice radius is split at its middle from both
+	// of its corners; keep one point there, as a zero-length segment would
+	// give the curve no direction.
+	distinct := dense[:1]
+	for _, p := range dense[1:] {
+		if last := distinct[len(distinct)-1]; EuclideanDistance(last.X, last.Y, p.X, p.Y) > PRECISION {
+			distinct = append(distinct, p)
+		}
+	}
+	return distinct.Curve()
 }

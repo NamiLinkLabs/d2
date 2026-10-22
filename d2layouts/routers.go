@@ -97,7 +97,7 @@ func isInvisibleRelay(obj *d2graph.Object) bool {
 }
 
 // curveCornerRadius is how far from each corner of a route CurvedRouter
-// starts to round it.
+// starts to round it when dagre's curve would cut through a shape.
 const curveCornerRadius = 40
 
 // curveSamples is how many points of each cubic of a curved route
@@ -105,8 +105,9 @@ const curveCornerRadius = 40
 const curveSamples = 32
 
 // CurvedRouter returns a router that routes edges with router and then curves
-// every route that bends, rounding its corners as dagre's curves do. A route
-// whose curve would enter a shape its corners went around keeps its corners.
+// every route that bends, as dagre curves its own routes. Where that curve
+// would cut through a shape the route went around, it rounds only the
+// route's corners instead, and where even that would, it keeps the corners.
 func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 	return func(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
 		if err := router(ctx, g, edges); err != nil {
@@ -116,9 +117,12 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 			if e.IsCurve || len(e.Route) < 3 {
 				continue
 			}
-			curve := geo.Route(e.Route).RoundCorners(curveCornerRadius)
-			if len(curve) < 4 || curveEntersNewShape(g, e, curve) {
-				continue
+			curve := geo.Route(e.Route).Curve()
+			if curveEntersNewShape(g, e, curve) {
+				curve = geo.Route(e.Route).RoundCorners(curveCornerRadius)
+				if len(curve) < 4 || curveEntersNewShape(g, e, curve) {
+					continue
+				}
 			}
 			e.Route = curve
 			e.IsCurve = true
