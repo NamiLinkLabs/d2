@@ -33,16 +33,24 @@ func RouterFor(engine string) d2graph.RouteEdges {
 	}
 }
 
-// defaultRouteWork keeps routing edges together cheap: up to a few hundred
-// thousand work units in common diagrams, about 0.1 s on one core when it
-// runs out.
-var defaultRouteWork = &d2talalayout.BestEffortOptions{TogetherWork: 2_000_000}
+// defaultTogetherWork keeps routing edges together cheap: up to a few
+// hundred thousand work units in common diagrams, about 0.1 s on one core
+// when it runs out.
+const defaultTogetherWork = 2_000_000
 
 // DefaultRouter routes edges around the shapes already placed, with TALA's
 // edge router, and draws the edges that router cannot route within its work
-// budget in a straight line, as StraightRouter does.
+// budget in a straight line, as StraightRouter does. The calls for one
+// LayoutNested share one budget, which grows with the size of the diagram,
+// so a diagram with many such edges gets the rest drawn straight once it is
+// spent. The budget counts work rather than time: the same diagram always
+// gets the same routes.
 func DefaultRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) error {
-	return routeAroundShapes(ctx, g, edges, defaultRouteWork)
+	return routeAroundShapes(ctx, g, edges, &d2talalayout.BestEffortOptions{
+		TogetherWork: defaultTogetherWork,
+		Budget:       routeBudget(ctx, g),
+		Prefer:       func(e *d2graph.Edge) bool { return straightLineCrossesShape(g, e) },
+	})
 }
 
 // talaRouter is DefaultRouter with the work budget of d2talalayout.RouteEdges,
@@ -135,6 +143,25 @@ func CurvedRouter(router d2graph.RouteEdges) d2graph.RouteEdges {
 		}
 		return nil
 	}
+}
+
+// straightLineCrossesShape reports whether the straight line between the
+// centers of e's ends enters a shape other than those ends and the
+// containers they are in: whether e needs routing at all.
+func straightLineCrossesShape(g *d2graph.Graph, e *d2graph.Edge) bool {
+	if e.Src.Box == nil || e.Src.TopLeft == nil || e.Dst.Box == nil || e.Dst.TopLeft == nil {
+		return true
+	}
+	line := []*geo.Point{e.Src.Center(), e.Dst.Center()}
+	for _, obj := range g.Objects {
+		if obj.Box == nil || obj.TopLeft == nil || e.Src.IsDescendantOf(obj) || e.Dst.IsDescendantOf(obj) {
+			continue
+		}
+		if routeEnters(line, obj.Box) {
+			return true
+		}
+	}
+	return false
 }
 
 // curveEntersNewShape reports whether curve, the curve of e's route, enters

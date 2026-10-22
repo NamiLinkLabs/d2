@@ -489,7 +489,10 @@ func shapesEntered(g *d2graph.Graph, e *d2graph.Edge) map[string]bool {
 }
 
 func TestRouterForDagreCurvesEnterNoNewShape(t *testing.T) {
-	t.Parallel()
+	// Not parallel: this checks curves, not the budget, which this diagram
+	// outgrows.
+	defer func(base uint64) { routeWorkBase = base }(routeWorkBase)
+	routeWorkBase = 1 << 40
 	polylines := layOutForTest(t, curvesAroundShapesSource, "dagre", DefaultRouter)
 	curves := layOutForTest(t, curvesAroundShapesSource, "dagre", RouterFor("dagre"))
 	curved := 0

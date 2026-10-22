@@ -74,6 +74,7 @@ func SaveOrder(g *d2graph.Graph) (restoreOrder func()) {
 }
 
 func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, coreLayout d2graph.LayoutGraph, edgeRouter d2graph.RouteEdges) error {
+	ctx = withRoutingRun(ctx, g)
 	g.Root.Box = &geo.Box{}
 
 	// Before we can layout these nodes, we need to handle all nested diagrams first.
