@@ -240,3 +240,25 @@ func TestRouteClear(t *testing.T) {
 		})
 	}
 }
+
+func TestPinRouteTouchingSides(t *testing.T) {
+	// Grid cells with grid-gap 0: a's right side is b's left side.
+	g := portGraph(t, "a -> b: {source-port: right; target-port: left}")
+	a, b := g.Objects[0], g.Objects[1]
+	a.TopLeft = geo.NewPoint(0, 0)
+	b.TopLeft = geo.NewPoint(100, 0)
+	e := g.Edges[0]
+	anchors := d2graph.PortAnchors(g.Edges)
+	e.Route = e.PinRoute([]*geo.Point{a.Center(), b.Center()}, anchors[d2graph.PortEnd{Edge: e, Src: true}], anchors[d2graph.PortEnd{Edge: e, Src: false}])
+	for _, p := range e.Route {
+		if p.X != 100 {
+			t.Fatalf("route leaves the shared side: %v", e.Route)
+		}
+	}
+	if err := e.PortsHonored(); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.RouteClear(); err != nil {
+		t.Fatal(err)
+	}
+}
