@@ -34,10 +34,10 @@ g.c -> y
 
 func TestRouteWorkBudget(t *testing.T) {
 	t.Parallel()
-	if got := routeWorkBudget(0); got != 400_000 {
+	if got := routeWorkBudget(0); got != 2_500_000 {
 		t.Fatalf("budget of an empty diagram = %d", got)
 	}
-	if got := routeWorkBudget(150); got != 3_400_000 {
+	if got := routeWorkBudget(150); got != 4_300_000 {
 		t.Fatalf("budget of 150 shapes = %d", got)
 	}
 }
@@ -103,7 +103,8 @@ func routesOf(g *d2graph.Graph) [][]geo.Point {
 
 func TestDefaultRouterBudgetFallsBackDeterministically(t *testing.T) {
 	// Not parallel: changes the budget.
-	defer func(base, perShape uint64) { routeWorkBase, routeWorkPerShape = base, perShape }(routeWorkBase, routeWorkPerShape)
+	base, perShape := routeWorkBase, routeWorkPerShape
+	defer func() { routeWorkBase, routeWorkPerShape = base, perShape }()
 	for _, engine := range []string{"dagre", "elk"} {
 		// The edges routed are those not drawn as StraightRouter draws them.
 		straight := routesOf(layOutForTest(t, budgetSource, engine, StraightRouter))
@@ -124,7 +125,7 @@ func TestDefaultRouterBudgetFallsBackDeterministically(t *testing.T) {
 			if got := routesOf(layOutForTest(t, source, engine, RouterFor(engine))); !reflect.DeepEqual(got, want) {
 				t.Fatalf("%s: a bigger budget changed the routes of\n%s", engine, source)
 			}
-			routeWorkBase = 400_000
+			routeWorkBase = base
 		}
 
 		routeWorkBase = 1 << 40
@@ -153,7 +154,7 @@ func TestDefaultRouterBudgetFallsBackDeterministically(t *testing.T) {
 		if n := routed(none); n != 0 {
 			t.Fatalf("%s: an empty budget routed %d edges", engine, n)
 		}
-		routeWorkBase, routeWorkPerShape = 400_000, 20_000
+		routeWorkBase, routeWorkPerShape = base, perShape
 	}
 }
 

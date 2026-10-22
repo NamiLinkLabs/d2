@@ -1585,11 +1585,11 @@
       "route": [
         {
           "x": 178,
-          "y": 486
+          "y": 498
         },
         {
           "x": 308,
-          "y": 486
+          "y": 498
         },
         {
           "x": 308,
@@ -1713,17 +1713,21 @@
       "underline": false,
       "labelWidth": 99,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
+      "labelPosition": "OUTSIDE_BOTTOM_LEFT",
       "labelPercentage": 0,
       "link": "",
       "route": [
         {
-          "x": 518,
-          "y": 538.5
+          "x": 603,
+          "y": 500
+        },
+        {
+          "x": 603,
+          "y": 475
         },
         {
           "x": 178,
-          "y": 494.5
+          "y": 475
         }
       ],
       "animated": false,

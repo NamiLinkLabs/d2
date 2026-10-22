@@ -9,18 +9,20 @@ import (
 
 // DefaultRouter's routing work in one diagram is bounded by a budget that
 // grows with the diagram, in d2talalayout.WorkBudget's units: about 15 ns
-// each on one core and about five times that in WebAssembly. A pair of
-// shapes in a diagram of 150 shapes takes about a million. Layout costs grow
-// with the diagram too, so this keeps routing to a bounded share of compile
-// time: at most about as long again as master took to lay out the big
-// diagrams this was measured on, and a few tens of milliseconds in
-// WebAssembly for small ones. The budget counts work, not time, so the same
-// diagram always routes the same edges, on any machine.
+// each on one core and three to five times that in WebAssembly. Routing the
+// connections that cross into and out of grids, near shapes and sequence
+// diagrams in a diagram of up to about 40 shapes takes up to about 2 million,
+// which the base covers, so such diagrams route fully, for about 0.1 s more
+// in WebAssembly. A pair of shapes in a diagram of 150 shapes takes about a
+// million, so big diagrams route some of theirs and draw the rest straight:
+// this keeps their compile time within about twice master's. The budget
+// counts work, not time, so the same diagram always routes the same edges,
+// on any machine.
 var (
 	// routeWorkBase is the budget of every diagram.
-	routeWorkBase uint64 = 400_000
+	routeWorkBase uint64 = 2_500_000
 	// routeWorkPerShape is added to the budget for each shape in the diagram.
-	routeWorkPerShape uint64 = 20_000
+	routeWorkPerShape uint64 = 12_000
 )
 
 // routeWorkBudget returns the routing budget of a diagram of shapes shapes.

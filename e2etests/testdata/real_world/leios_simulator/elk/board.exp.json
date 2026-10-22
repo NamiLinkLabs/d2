@@ -1757,16 +1757,16 @@
       "underline": false,
       "labelWidth": 180,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
+      "labelPosition": "OUTSIDE_TOP_CENTER",
       "labelPercentage": 0,
       "link": "",
       "route": [
         {
-          "x": 521,
-          "y": 402.5
+          "x": 499,
+          "y": 403
         },
         {
-          "x": 514,
+          "x": 499,
           "y": 580.5
         }
       ],
@@ -1796,17 +1796,17 @@
       "underline": false,
       "labelWidth": 146,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
+      "labelPosition": "OUTSIDE_TOP_CENTER",
       "labelPercentage": 0,
       "link": "",
       "route": [
         {
           "x": 245,
-          "y": 917
+          "y": 813.5
         },
         {
           "x": -245,
-          "y": 850
+          "y": 813.5
         }
       ],
       "animated": false,
@@ -1835,17 +1835,21 @@
       "underline": false,
       "labelWidth": 125,
       "labelHeight": 21,
-      "labelPosition": "INSIDE_MIDDLE_CENTER",
+      "labelPosition": "OUTSIDE_TOP_CENTER",
       "labelPercentage": 0,
       "link": "",
       "route": [
         {
           "x": 245,
-          "y": 759
+          "y": 1184.5
         },
         {
-          "x": -245,
-          "y": 387
+          "x": -1020,
+          "y": 1184.5
+        },
+        {
+          "x": -1020,
+          "y": 560.5
         }
       ],
       "animated": false,
