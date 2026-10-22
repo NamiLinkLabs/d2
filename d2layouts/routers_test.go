@@ -541,3 +541,55 @@ func TestCurvedRouterKeepsCornersNearShapes(t *testing.T) {
 		t.Fatalf("the route was not curved: %v", e.Route)
 	}
 }
+
+func TestIsInvisibleRelay(t *testing.T) {
+	t.Parallel()
+	g := compileLayoutTestGraph(t, `
+hidden: "" {style.opacity: 0}
+relay: "" {width: 1; height: 1; style: {fill: transparent; stroke-width: 0}}
+clear: "" {style: {fill: transparent; stroke: transparent}}
+labeled: {style.opacity: 0}
+nofill: "" {style.stroke-width: 0}
+stroked: "" {style.fill: transparent}
+parent: "" {style.opacity: 0; child}
+plain
+`)
+	want := map[string]bool{"hidden": true, "relay": true, "clear": true}
+	for _, obj := range g.Objects {
+		if got := isInvisibleRelay(obj); got != want[obj.AbsID()] {
+			t.Errorf("isInvisibleRelay(%s) = %v", obj.AbsID(), got)
+		}
+	}
+}
+
+// From real_world/jupyter_k8s_oidc: a chain of edges bent through an
+// invisible relay shape in a grid.
+const relaySource = `
+grid-rows: 1
+a
+m
+b
+relay: "" {width: 1; height: 1; style: {fill: transparent; stroke-width: 0}}
+d
+a -> relay -> d
+a -> b
+`
+
+func TestDefaultRouterKeepsRelayEdgesStraight(t *testing.T) {
+	t.Parallel()
+	for _, engine := range []string{"dagre", "elk", "tala"} {
+		t.Run(engine, func(t *testing.T) {
+			t.Parallel()
+			g := layOutForTest(t, relaySource, engine, RouterFor(engine))
+			relay := findEdge(t, g, "(relay -> d)[0]")
+			for _, e := range []*d2graph.Edge{findEdge(t, g, "(a -> relay)[0]"), relay} {
+				if len(e.Route) != 2 || e.IsCurve {
+					t.Errorf("%s is not straight: %v", e.AbsID(), e.Route)
+				}
+			}
+			if e := findEdge(t, g, "(a -> b)[0]"); len(e.Route) < 3 {
+				t.Errorf("%s was not routed: %v", e.AbsID(), e.Route)
+			}
+		})
+	}
+}

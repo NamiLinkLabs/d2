@@ -3,6 +3,7 @@ package d2layouts
 import (
 	"context"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/d2lang/d2/d2graph"
@@ -54,11 +55,45 @@ func talaRouter(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge) er
 var routeBestEffort = d2talalayout.RouteEdgesBestEffort
 
 func routeAroundShapes(ctx context.Context, g *d2graph.Graph, edges []*d2graph.Edge, opts *d2talalayout.BestEffortOptions) error {
-	unrouted, err := routeBestEffort(ctx, g, edges, opts)
+	var routable, straight []*d2graph.Edge
+	for _, e := range edges {
+		if isInvisibleRelay(e.Src) || isInvisibleRelay(e.Dst) {
+			straight = append(straight, e)
+		} else {
+			routable = append(routable, e)
+		}
+	}
+	unrouted, err := routeBestEffort(ctx, g, routable, opts)
 	if err != nil {
 		return err
 	}
-	return StraightRouter(ctx, g, unrouted)
+	return StraightRouter(ctx, g, append(straight, unrouted...))
+}
+
+// isInvisibleRelay reports whether obj is a shape that cannot be seen, with
+// no label, icon or children: the kind of shape diagrams place to bend a
+// chain of straight edges through it, as in a -> relay -> b. Edges to and
+// from such a shape stay straight lines, so the chain still meets at it.
+// Shapes are invisible as TALA's adapter counts them: at opacity 0, or with
+// a transparent fill and no stroke.
+func isInvisibleRelay(obj *d2graph.Object) bool {
+	if obj == nil || obj.Label.Value != "" || obj.Icon != nil || len(obj.ChildrenArray) > 0 {
+		return false
+	}
+	style := obj.Style
+	if style.Opacity != nil {
+		if f, err := strconv.ParseFloat(style.Opacity.Value, 64); err == nil && f == 0 {
+			return true
+		}
+	}
+	noFill := style.Fill != nil && strings.EqualFold(style.Fill.Value, "transparent")
+	noStroke := style.Stroke != nil && strings.EqualFold(style.Stroke.Value, "transparent")
+	if style.StrokeWidth != nil {
+		if f, err := strconv.ParseFloat(style.StrokeWidth.Value, 64); err == nil && f == 0 {
+			noStroke = true
+		}
+	}
+	return noFill && noStroke
 }
 
 // curveCornerRadius is how far from each corner of a route CurvedRouter
