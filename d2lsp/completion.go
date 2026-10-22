@@ -82,7 +82,7 @@ func getCompletionItems(text string, line, column int, utf16Pos bool) ([]Complet
 	case "source-arrowhead.shape:", "target-arrowhead.shape:":
 		return getArrowheadShapeCompletions(), nil
 	case "label", "label.":
-		return getLabelCompletions(), nil
+		return getLabelCompletions(isPositionInConnection(ast, line, column, false)), nil
 	case "icon", "icon:":
 		return getIconCompletions(), nil
 	case "icon.":
@@ -419,18 +419,63 @@ func getTextTransformCompletions() []CompletionItem {
 	return items
 }
 
-func getLabelCompletions() []CompletionItem {
-	return []CompletionItem{{
+// getLabelCompletions returns the fields of a label. padding is only offered
+// for connection labels, the only labels the compiler accepts it on.
+func getLabelCompletions(connection bool) []CompletionItem {
+	items := []CompletionItem{{
 		Label:      "near",
 		Kind:       StyleCompletion,
 		Detail:     "label position",
 		InsertText: "near: ",
-	}, {
-		Label:      "padding",
-		Kind:       StyleCompletion,
-		Detail:     "connection label padding in pixels (0-100)",
-		InsertText: "padding: ",
 	}}
+	if connection {
+		items = append(items, CompletionItem{
+			Label:      "padding",
+			Kind:       StyleCompletion,
+			Detail:     "connection label padding in pixels (0-100)",
+			InsertText: "padding: ",
+		})
+	}
+	return items
+}
+
+// isPositionInConnection reports whether the position is on a connection's
+// key or inside a connection's map, and not inside one of its arrowheads
+// (arrowhead labels take no padding).
+func isPositionInConnection(m *d2ast.Map, line, column int, inEdge bool) bool {
+	if m == nil {
+		return false
+	}
+	for _, n := range m.Nodes {
+		if n.MapKey == nil {
+			continue
+		}
+		edge := inEdge || len(n.MapKey.Edges) > 0
+		if edge && n.MapKey.Key != nil && len(n.MapKey.Edges) == 0 && len(n.MapKey.Key.Path) > 0 {
+			switch n.MapKey.Key.Path[0].Unbox().ScalarString() {
+			case "source-arrowhead", "target-arrowhead":
+				edge = false
+			}
+		}
+		if n.MapKey.Value.Map != nil && isPositionInMap(line, column, n.MapKey.Value.Map) {
+			return isPositionInConnection(n.MapKey.Value.Map, line, column, edge)
+		}
+		r := n.MapKey.Range
+		if line < r.Start.Line || line > r.End.Line ||
+			(line == r.Start.Line && column < r.Start.Column) ||
+			(line == r.End.Line && column > r.End.Column+1) {
+			continue
+		}
+		if edge && len(n.MapKey.Edges) > 0 && n.MapKey.EdgeKey != nil && len(n.MapKey.EdgeKey.Path) > 0 {
+			switch n.MapKey.EdgeKey.Path[0].Unbox().ScalarString() {
+			case "source-arrowhead", "target-arrowhead":
+				return false
+			}
+		}
+		return edge
+	}
+	// On no key of this map, e.g. a blank line inside it.
+	return inEdge
 }
 
 func getIconSubCompletions() []CompletionItem {
