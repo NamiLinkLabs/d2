@@ -57,6 +57,7 @@ var isometricResourceErrors = map[string]string{
 	"themes/origami/isometric":                            "has no available font for U+901A; configure a font or fallback resolver covering this character",
 	"todo/container_icon_label/isometric":                 "isometric surface icon requires an explicit asset resolver for external sources",
 	"txtar/connection-icons/isometric":                    "isometric surface icon requires an explicit asset resolver for external sources",
+	"txtar/edge-label-padding-glob/isometric":             "isometric surface icon requires an explicit asset resolver for external sources",
 	"txtar/icon-style/isometric":                          "isometric surface icon requires an explicit asset resolver for external sources",
 	"txtar/legend-leak/isometric":                         "has no available font for U+51E1; configure a font or fallback resolver covering this character",
 	"txtar/legend/isometric":                              "has no available font for U+51E1; configure a font or fallback resolver covering this character",
