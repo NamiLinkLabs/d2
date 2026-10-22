@@ -140,7 +140,8 @@ func Layout(ctx context.Context, g *d2graph.Graph) error {
 		}
 	}
 
-	// simple straight line edge routing between grid objects
+	// simple straight line edge routing between grid objects, which LayoutNested
+	// then replaces with the edge router's routes
 	for _, e := range g.Edges {
 		if !e.Src.Parent.IsDescendantOf(obj) && !e.Dst.Parent.IsDescendantOf(obj) {
 			continue

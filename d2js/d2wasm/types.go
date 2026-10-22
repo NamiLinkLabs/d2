@@ -73,6 +73,13 @@ type CompileOptions struct {
 	FontItalic   *[]byte       `json:"FontItalic"`
 	FontBold     *[]byte       `json:"FontBold"`
 	FontSemibold *[]byte       `json:"FontSemibold"`
+
+	// NestedEdgeRouting picks how to draw the connections that cross into or
+	// out of a grid, a constant near or a sequence diagram, and those between
+	// grid cells: "around-shapes" [default] routes them around the other
+	// shapes, and "straight" draws straight lines, which is faster.
+	NestedEdgeRouting *string `json:"nestedEdgeRouting"`
+
 	// EmbedSource makes the compile response's render options embed the
 	// original D2 files and the options set here in the rendered SVG.
 	EmbedSource *bool `json:"embedSource"`

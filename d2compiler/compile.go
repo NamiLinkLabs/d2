@@ -1961,6 +1961,11 @@ func compileConfig(ir *d2ir.Map) (*d2target.Config, error) {
 		config.IntersectionGaps = &val
 	}
 
+	f = configMap.GetField(d2ast.FlatUnquotedString("nested-edge-routing"))
+	if f != nil {
+		config.NestedEdgeRouting = go2.Pointer(f.Primary().Value.ScalarString())
+	}
+
 	f = configMap.GetField(d2ast.FlatUnquotedString("theme-overrides"))
 	if f != nil {
 		overrides, err := compileThemeOverrides(f.Map())

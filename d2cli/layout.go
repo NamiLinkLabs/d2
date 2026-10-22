@@ -7,7 +7,8 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/d2lang/d2/d2graph"
-	"github.com/d2lang/d2/d2layouts/d2talalayout"
+	"github.com/d2lang/d2/d2layouts"
+	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/util-go/xmain"
 )
 
@@ -70,16 +71,40 @@ func LayoutResolver(_ context.Context, ms *xmain.State) func(string) (d2graph.La
 	}
 }
 
-// RouterResolver selects the built-in engine's optional edge router.
+const (
+	nestedEdgeRoutingAroundShapes = d2target.NestedEdgeRoutingAroundShapes
+	nestedEdgeRoutingStraight     = d2target.NestedEdgeRoutingStraight
+)
+
+// nestedEdgeRoutingOption returns --nested-edge-routing (or
+// D2_NESTED_EDGE_ROUTING) when it is set, and nil to leave it to the
+// diagram's vars.d2-config.nested-edge-routing and then the default.
+func nestedEdgeRoutingOption(ms *xmain.State) (*string, error) {
+	const name = "nested-edge-routing"
+	if !hasLayoutFlag(ms, name) {
+		return nil, nil
+	}
+	if !ms.Opts.Flags.Lookup(name).Changed && ms.Env.Getenv("D2_NESTED_EDGE_ROUTING") == "" {
+		return nil, nil
+	}
+	routing, err := ms.Opts.Flags.GetString(name)
+	if err != nil {
+		return nil, err
+	}
+	if !d2target.ValidNestedEdgeRouting(routing) {
+		return nil, xmain.UsageErrorf("--nested-edge-routing must be %q or %q, not %q", nestedEdgeRoutingAroundShapes, nestedEdgeRoutingStraight, routing)
+	}
+	return &routing, nil
+}
+
+// RouterResolver selects the edge router for the edges a built-in engine
+// does not route itself.
 func RouterResolver(_ context.Context, _ *xmain.State) func(string) (d2graph.RouteEdges, error) {
 	return func(name string) (d2graph.RouteEdges, error) {
 		if !isBuiltinLayout(name) {
 			return nil, layoutNotFound(name)
 		}
-		if strings.EqualFold(name, "tala") {
-			return d2talalayout.RouteEdges, nil
-		}
-		return nil, nil
+		return d2layouts.RouterFor(name), nil
 	}
 }
 

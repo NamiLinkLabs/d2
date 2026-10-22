@@ -166,7 +166,7 @@ func TestOVGNearPortSearchCanceledDuringBFS(t *testing.T) {
 		},
 	}
 
-	err := ovg.flagNodesNearPorts(newOVGBuildGuardForTest(ctx, t))
+	err := ovg.flagNodesNearPorts(layoutgraph.NewGraph(), newOVGBuildGuardForTest(ctx, t))
 	if _, flagged := adjacent.IsNearPort[owner]; !flagged {
 		t.Fatal("near-port BFS did no work before cancellation")
 	}

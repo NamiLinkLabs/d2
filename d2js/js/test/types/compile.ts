@@ -30,6 +30,10 @@ for (const layout of ["dagre", "elk", "tala"] as const) {
   d2.compile({ ...request, inputPath: "index", options: { layout } });
 }
 
+for (const nestedEdgeRouting of ["around-shapes", "straight"] as const) {
+  d2.compile(source, { layout: "elk", nestedEdgeRouting });
+}
+
 configured.then((response) => {
   const shapeIconWidth: number | undefined = response.diagram.shapes[0].iconWidth;
   const shapeIconHeight: number | undefined = response.diagram.shapes[0].iconHeight;
@@ -58,6 +62,8 @@ d2.compile(source, { options: { layout: "tala" } });
 d2.compile(request, { options: { layout: "tala" } });
 // @ts-expect-error Unsupported layout names are rejected.
 d2.compile(source, { layout: "unknown" });
+// @ts-expect-error Unsupported nested edge routing modes are rejected.
+d2.compile(source, { nestedEdgeRouting: "curved" });
 // @ts-expect-error An object input must supply its file contents.
 d2.compile({ inputPath: "index" });
 // @ts-expect-error Layout options belong in input.options, not the request root.

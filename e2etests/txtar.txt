@@ -1774,6 +1774,91 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 a->b
 
 
+-- near-edge-routing --
+# d2lang/d2#1994: the connection from the near shape is routed around the
+# others in each engine's style instead of a straight line.
+example-no-near-1: {
+  label: No Near 1
+}
+example-no-near-2: {
+  label: No Near 2
+}
+example-near: {
+  label: Near
+  near: top-right
+}
+target
+* -> target
+
+-- grid-container-edge-routing --
+# d2lang/d2#1994: the connection from inside the grid is routed around the
+# other containers.
+example-table: {
+  grid-rows: 1
+  label: Table
+  child
+}
+example-no-table-1: {
+  label: No Table 1
+  child
+}
+example-no-table-2: {
+  label: No Table 2
+  child
+}
+target
+*.* -> target
+
+-- grid-parallel-edges --
+# d2lang/d2#1741: connections between the same two grid cells stay apart.
+grid-columns: 3
+a
+b
+c
+d
+e
+f
+a -> b
+b -> a
+a -> b: also
+b -> e: one
+b -> e: two
+c -> f
+f -> c: back
+a -> f
+d -> b
+
+-- near-container-edges --
+# d2lang/d2#1285: connections into and out of a container with a constant near.
+A: {
+  near: top-center
+  a
+  b
+}
+B: {
+  x
+  y
+}
+A.a -> B.x
+A.b -> B.y: sync
+legend: {
+  near: bottom-right
+  l1: cache
+  l2: queue
+}
+legend.l1 -> B.y
+B.x -> legend.l2
+
+-- grid-gap0-adjacent-edges --
+# Connections between touching grid cells.
+grid-columns: 3
+grid-gap: 0
+a; b; c; d; e; f
+a -> b
+b -> a
+a -> f: x
+d -> c
+
 -- theme-color-codes --
 vars: {
   d2-config: {

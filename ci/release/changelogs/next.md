@@ -2,6 +2,7 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
+- layouts: route the connections that cross into or out of grids, `near` shapes and sequence diagrams, and the connections between grid cells, around the other shapes with every layout engine, in the engine's style (curved with dagre) instead of straight lines through them. This changes how existing diagrams with such connections render. Routing works within a budget that grows with the diagram and counts work, not time, so a diagram always renders the same; past it, the remaining connections are drawn straight, those crossing no shape last. Diagrams of up to about 40 shapes route all such connections, which adds a few tens of milliseconds to their compile, or about 0.1 s in D2.js; large diagrams route as many as fit, which keeps their compiles within about twice the old time (`nesting_power`: 0.11 s to 0.17 s, or 0.24 s to 0.47 s in D2.js). Connections to an invisible, unlabeled shape, often used as a relay to bend a chain of connections, stay straight. `--nested-edge-routing=straight` (D2.js: `nestedEdgeRouting: "straight"`), or `vars: {d2-config: {nested-edge-routing: straight}}` in the diagram, brings back the straight lines everywhere, and the old speed; a flag or option takes precedence over the diagram. [#1994](https://github.com/d2lang/d2/issues/1994), [#1285](https://github.com/d2lang/d2/issues/1285)
 - style: `fill`, `stroke` and `font-color` accept theme color codes (`N1`-`N7`,
   `B1`-`B6`, `AA2`, `AA4`, `AA5`, `AB4`, `AB5`), e.g. `style.fill: B2`. They
   follow the active theme and its `theme-overrides`, switch with the dark theme,
@@ -61,6 +62,13 @@
 
 #### Bugfixes ⛑️
 
+- grids:
+  - Draw several connections between the same two grid cells apart instead of on
+    top of each other. [#1741](https://github.com/d2lang/d2/issues/1741)
+  - Compile connections between touching cells of a grid with `grid-gap: 0`.
+- tala: Route many connections that cross into or out of grids, nears and
+  sequence diagrams one pair of shapes at a time instead of failing with
+  "TALA route-search work limit exceeded".
 - elk: an `--elk-padding` value without a `right=` side no longer panics; missing sides are 0, as in ELK.
 - compiler:
   - Limit combined map/array nesting to 128. [#2894](https://github.com/d2lang/d2/pull/2894)

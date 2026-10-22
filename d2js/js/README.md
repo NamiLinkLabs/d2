@@ -199,6 +199,7 @@ resources are released. Calling `dispose()` more than once is safe.
 All [RenderOptions](#renderoptions) properties in addition to:
 
 - `layout`: Layout engine to use (`'dagre' | 'elk' | 'tala'`) [default: `'dagre'`]
+- `nestedEdgeRouting`: How to draw the connections that cross into or out of a grid, a `near` shape or a sequence diagram, and those between grid cells, which the layout engine does not route (`'around-shapes' | 'straight'`) [default: `'around-shapes'`]. `'around-shapes'` routes them around the other shapes with TALA's edge router; routing stops at a work budget that grows with the diagram, past which the rest are drawn straight, the same way every time. `'straight'` draws straight lines, which compiles faster when a diagram has many such connections and suits callers that reroute connections themselves. When unset, a diagram's `vars: {d2-config: {nested-edge-routing: straight}}` (or `around-shapes`) applies.
 - `elk`: ELK spacing and padding, used when `layout` is `'elk'`: `nodeSpacing`,
   `edgeNodeSpacing`, `edgeEdgeSpacing`, `selfLoopSpacing`, `inLayerNodeSpacing`,
   `inLayerEdgeSpacing`, `inLayerEdgeNodeSpacing` and `padding`.

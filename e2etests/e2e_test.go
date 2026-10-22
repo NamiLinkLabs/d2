@@ -20,6 +20,7 @@ import (
 
 	"github.com/d2lang/d2/d2compiler"
 	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/d2layouts"
 	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
@@ -336,10 +337,7 @@ func run(t *testing.T, tc testCase) {
 		return layout, nil
 	}
 	routerResolver := func(engine string) (d2graph.RouteEdges, error) {
-		if strings.EqualFold(engine, "tala") {
-			return d2talalayout.RouteEdges, nil
-		}
-		return nil, nil
+		return d2layouts.RouterFor(engine), nil
 	}
 
 	for _, layoutName := range layoutsTested {
