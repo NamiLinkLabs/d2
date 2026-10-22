@@ -3,6 +3,8 @@ package routing
 import (
 	"errors"
 	"math"
+	"slices"
+	"sort"
 
 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/layoutgraph"
 	"github.com/d2lang/d2/lib/geo"
@@ -56,18 +58,36 @@ func (router *ovgEdgeRouter) pinnedFallbackRoute(edge *layoutgraph.Edge) ([]*OVG
 
 	var best []*geo.Point
 	bestCost := math.Inf(1)
-	for _, candidate := range candidates {
-		if err := router.work.step(); err != nil {
-			return nil, 0, err
+	try := func(candidates [][]*geo.Point) error {
+		for _, candidate := range candidates {
+			if err := router.work.step(); err != nil {
+				return err
+			}
+			path := append([]*geo.Point{fromPort}, dedupePoints(candidate)...)
+			path = append(path, toPort)
+			cost, ok, err := router.pinnedFallbackCost(edge, path, fromNormal, toNormal)
+			if err != nil {
+				return err
+			}
+			if ok && cost < bestCost {
+				best, bestCost = path, cost
+			}
 		}
-		path := append([]*geo.Point{fromPort}, dedupePoints(candidate)...)
-		path = append(path, toPort)
-		cost, ok, err := router.pinnedFallbackCost(edge, path, fromNormal, toNormal)
+		return nil
+	}
+	if err := try(candidates); err != nil {
+		return nil, 0, err
+	}
+	if best == nil || bestCost >= pinnedCrossingCost {
+		// Every join with at most two bends crosses a node or is rejected,
+		// e.g. when another node sits right in front of the pinned side.
+		// Try three bends, through the gaps between the nearby nodes.
+		candidates, err := router.pinnedThreeBendCandidates(edge, a, b)
 		if err != nil {
 			return nil, 0, err
 		}
-		if ok && cost < bestCost {
-			best, bestCost = path, cost
+		if err := try(candidates); err != nil {
+			return nil, 0, err
 		}
 	}
 	if best == nil {
@@ -79,6 +99,67 @@ func (router *ovgEdgeRouter) pinnedFallbackRoute(edge *layoutgraph.Edge) ([]*OVG
 	}
 	nodes = append(nodes, toCenter)
 	return nodes, pathLength(best), nil
+}
+
+// maxPinnedGapLines caps the coordinates per axis that
+// pinnedThreeBendCandidates combines, so its work stays bounded.
+const maxPinnedGapLines = 48
+
+// pinnedThreeBendCandidates returns joins of the stub ends a and b with three
+// bends: a, (x, a.Y), (x, y), (b.X, y), b and its transpose. x and y run over
+// lines clear of the nodes near the edge: MinRouteNodeClearance outside each
+// node's sides, and the middle of every gap between two node sides.
+func (router *ovgEdgeRouter) pinnedThreeBendCandidates(edge *layoutgraph.Edge, a, b *geo.Point) ([][]*geo.Point, error) {
+	c := layoutgraph.MinRouteNodeClearance
+	nodes := []*layoutgraph.Node{edge.From, edge.To}
+	minX := math.Min(edge.From.TopLeft.X, edge.To.TopLeft.X) - 4*c
+	maxX := math.Max(edge.From.TopLeft.X+edge.From.Width, edge.To.TopLeft.X+edge.To.Width) + 4*c
+	minY := math.Min(edge.From.TopLeft.Y, edge.To.TopLeft.Y) - 4*c
+	maxY := math.Max(edge.From.TopLeft.Y+edge.From.Height, edge.To.TopLeft.Y+edge.To.Height) + 4*c
+	for _, node := range router.pinnedObstacles(edge) {
+		if err := router.work.step(); err != nil {
+			return nil, err
+		}
+		if node.TopLeft.X < maxX && node.TopLeft.X+node.Width > minX &&
+			node.TopLeft.Y < maxY && node.TopLeft.Y+node.Height > minY {
+			nodes = append(nodes, node)
+		}
+	}
+	lines := func(lo func(*layoutgraph.Node) float64, size func(*layoutgraph.Node) float64, keep ...float64) []float64 {
+		var sides []float64
+		for _, node := range nodes {
+			sides = append(sides, lo(node), lo(node)+size(node))
+		}
+		sort.Float64s(sides)
+		out := append([]float64(nil), keep...)
+		for i, v := range sides {
+			out = append(out, v-c, v+c)
+			if i > 0 && sides[i] > sides[i-1] {
+				out = append(out, (sides[i-1]+v)/2)
+			}
+		}
+		sort.Float64s(out)
+		out = slices.Compact(out)
+		if len(out) > maxPinnedGapLines {
+			// Keep the lines nearest the stubs.
+			mid := (keep[0] + keep[1]) / 2
+			sort.SliceStable(out, func(i, j int) bool { return math.Abs(out[i]-mid) < math.Abs(out[j]-mid) })
+			out = out[:maxPinnedGapLines]
+		}
+		return out
+	}
+	xs := lines(func(n *layoutgraph.Node) float64 { return n.TopLeft.X }, func(n *layoutgraph.Node) float64 { return n.Width }, a.X, b.X)
+	ys := lines(func(n *layoutgraph.Node) float64 { return n.TopLeft.Y }, func(n *layoutgraph.Node) float64 { return n.Height }, a.Y, b.Y)
+	candidates := make([][]*geo.Point, 0, 2*len(xs)*len(ys))
+	for _, x := range xs {
+		for _, y := range ys {
+			candidates = append(candidates,
+				[]*geo.Point{a, geo.NewPoint(x, a.Y), geo.NewPoint(x, y), geo.NewPoint(b.X, y), b},
+				[]*geo.Point{a, geo.NewPoint(a.X, y), geo.NewPoint(x, y), geo.NewPoint(x, b.Y), b},
+			)
+		}
+	}
+	return candidates, nil
 }
 
 // pinnedFallbackCost rejects paths that double back over a stub or cut
@@ -125,7 +206,7 @@ func (router *ovgEdgeRouter) pinnedFallbackCost(edge *layoutgraph.Edge, path []*
 
 // pinnedCrossingCost is what pinnedFallbackCost charges for each node a
 // segment passes through.
-const pinnedCrossingCost = basicallyInfinity / 1e6
+const pinnedCrossingCost = basicallyInfinity / 100
 
 // pinnedObstacles returns the nodes a route of edge must not pass through:
 // every node the OVG was built around, including the nodes of other
