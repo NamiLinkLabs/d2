@@ -1847,6 +1847,195 @@ orders.user_id -> users.id
 users -> audit: {source-port: bottom; target-port: top}
 audit -> orders: {source-port: right; target-port: left}
 
+-- theme-color-codes --
+vars: {
+  d2-config: {
+    dark-theme-id: 200
+  }
+  brand: AA4
+}
+
+classes: {
+  accent: {
+    style: {
+      fill: AB4
+      stroke: AB5
+    }
+  }
+}
+
+style.fill: N6
+
+dark: Dark {
+  style: {
+    fill: N1
+    stroke: B2
+    font-color: N7
+    3d: true
+  }
+}
+multi: Multiple {
+  style: {
+    fill: ${brand}
+    stroke: B1
+    multiple: true
+  }
+}
+db: {
+  shape: cylinder
+  style: {
+    fill: AB5
+    shadow: true
+  }
+}
+user: {
+  shape: person
+  style.fill: AA5
+}
+ring: Double {
+  style: {
+    fill: B2
+    stroke: N5
+    font-color: N7
+    double-border: true
+  }
+}
+group: Container {
+  style: {
+    fill: B5
+    stroke: AA2
+    stroke-dash: 3
+  }
+  inner.class: accent
+}
+users: {
+  shape: sql_table
+  id: int {constraint: primary_key}
+  name: string
+  style: {
+    fill: B1
+    stroke: B4
+    font-color: N7
+  }
+}
+Polygon: {
+  shape: class
+  +area(): float
+  style: {
+    fill: AA2
+    font-color: N1
+  }
+}
+note: |md
+  # Theme colors
+  follow the **theme**
+| {
+  style.font-color: AA2
+}
+caption: plain text {
+  shape: text
+  style.font-color: B2
+}
+
+dark -> multi: themed {
+  style: {
+    stroke: AA2
+    font-color: B2
+  }
+  source-arrowhead: 1 {
+    style.font-color: N3
+  }
+  target-arrowhead: * {
+    shape: diamond
+    style.filled: true
+    style.font-color: AA2
+  }
+}
+multi -> group.inner: {style.stroke: B4}
+users -> Polygon: {style.stroke: N3}
+user -> db: {style.stroke: B2; style.stroke-width: 3}
+
+-- intersection-gaps --
+vars: {
+  d2-config: {
+    intersection-gaps: true
+  }
+}
+
+orthogonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  b -> h
+  d -> f
+}
+
+diagonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  a -> i
+  c -> g
+}
+
+network: {
+  style.fill: honeydew
+  p -> r
+  q -> s
+  p -> s: crossing {style.stroke-dash: 3}
+  q -> r: {style.stroke-width: 5}
+  u -> x
+  v -> w
+  u -> w: {style.animated: true}
+  v -> x
+}
+
+sequence: {
+  shape: sequence_diagram
+  alice; bob; carol
+  alice -> carol: over bob
+  carol -> alice
+}
+
+-- intersection-gaps-sketch --
+vars: {
+  d2-config: {
+    intersection-gaps: true
+    sketch: true
+  }
+}
+
+orthogonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  b -> h
+  d -> f
+}
+
+diagonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  a -> i
+  c -> g
+}
+
+network: {
+  style.fill: honeydew
+  p -> r
+  q -> s
+  p -> s: crossing {style.stroke-dash: 3}
+  q -> r: {style.stroke-width: 5}
+  u -> x
+  v -> w
+  u -> w: {style.animated: true}
+  v -> x
+}
+
+sequence: {
+  shape: sequence_diagram
+  alice; bob; carol
+  alice -> carol: over bob
+  carol -> alice
+}
+
 -- edge-label-padding --
 direction: right
 classes: {
@@ -1888,6 +2077,37 @@ bob -> alice: padding 12 {label.padding: 12; style.fill: "#dbe8ff"}
 alice -> alice: self, padding 8 {label.padding: 8}
 alice -> carol: padding 8 {label.padding: 8}
 carol -> bob: no padding
+
+-- layout-options-data --
+vars: {
+  d2-config: {
+    data: {
+      elk-nodeNode: 10
+      elk-edgeNode: 10
+      elk-padding: 15
+      dagre-ranksep: 60
+      dagre-padding: 10
+    }
+  }
+}
+
+frame: {
+  picture: {
+    shape: image
+    icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHJlY3Qgd2lkdGg9JzY0JyBoZWlnaHQ9JzY0JyByeD0nOCcgZmlsbD0nIzRhOTBkOScvPjxjaXJjbGUgY3g9JzIwJyBjeT0nMjInIHI9JzcnIGZpbGw9JyNmZmYnLz48cGF0aCBkPSdNNiA1NGwxOC0yMCAxMCAxMCA4LTggMTYgMTh6JyBmaWxsPScjZmZmJy8+PC9zdmc+"
+  }
+}
+services: {
+  api
+  worker
+  cache
+}
+client -> frame.picture
+client -> services.api: requests
+services.api -> services.cache
+services.api -> services.worker
+services.worker -> db
+client -> db
 
 -- icon-size --
 vars: {

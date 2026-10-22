@@ -13,6 +13,7 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2parser"
 	"github.com/d2lang/d2/d2target"
+	"github.com/d2lang/d2/lib/color"
 )
 
 type CompletionKind int
@@ -345,12 +346,13 @@ func getValueCompletions(property string) []CompletionItem {
 			InsertText: "",
 		}}
 	case "font-color", "stroke", "fill":
-		return []CompletionItem{{
-			Label:      "(color name or hex code)",
+		items := []CompletionItem{{
+			Label:      "(color name, hex code or theme color code)",
 			Kind:       KeywordCompletion,
-			Detail:     "e.g. blue, #ff0000",
+			Detail:     "e.g. blue, #ff0000, B2",
 			InsertText: "",
 		}}
+		return append(items, getThemeColorCompletions()...)
 	case "width", "height", "top", "left":
 		return []CompletionItem{{
 			Label:      "(pixels)",
@@ -360,6 +362,36 @@ func getValueCompletions(property string) []CompletionItem {
 		}}
 	}
 	return nil
+}
+
+// getThemeColorCompletions offers the theme color codes, which follow the
+// diagram's theme and dark theme.
+func getThemeColorCompletions() []CompletionItem {
+	items := make([]CompletionItem, 0, len(color.ThemeColorCodes))
+	for _, code := range color.ThemeColorCodes {
+		var detail string
+		switch {
+		case code == color.N1:
+			detail = "theme color (neutral, foreground)"
+		case code == color.N7:
+			detail = "theme color (neutral, background)"
+		case code[0] == 'N':
+			detail = "theme color (neutral)"
+		case code[0] == 'B':
+			detail = "theme color (base)"
+		case strings.HasPrefix(code, "AA"):
+			detail = "theme color (alternative A)"
+		default:
+			detail = "theme color (alternative B)"
+		}
+		items = append(items, CompletionItem{
+			Label:      code,
+			Kind:       KeywordCompletion,
+			Detail:     detail,
+			InsertText: code,
+		})
+	}
+	return items
 }
 
 func getStyleCompletions() []CompletionItem {

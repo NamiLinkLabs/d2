@@ -273,9 +273,9 @@ func BuildScene(diagram *d2target.Diagram, opts *RenderOpts) (*Scene, error) {
 		indices[s.ID] = i
 		keys[key] = i
 		n := Node{ID: s.ID, Label: s.Label, Type: s.Type, Fill: paint(s.Fill), Stroke: paint(s.Stroke), FontColor: paint(s.GetFontColor()), Opacity: s.Opacity, StrokeWidth: s.StrokeWidth, StrokeDash: s.StrokeDash, Tooltip: s.Tooltip, Link: s.Link, Metadata: NodeMetadata{Original: s}}
-		n.FillExplicit = overrides != nil || (s.Fill != "" && !color.IsThemeColor(s.Fill))
-		n.StrokeExplicit = overrides != nil || (s.Stroke != "" && !color.IsThemeColor(s.Stroke))
-		n.FontExplicit = overrides != nil || (s.Color != "" && !color.IsThemeColor(s.Color))
+		n.FillExplicit = overrides != nil || s.ExplicitThemeFill || (s.Fill != "" && !color.IsThemeColor(s.Fill))
+		n.StrokeExplicit = overrides != nil || s.ExplicitThemeStroke || (s.Stroke != "" && !color.IsThemeColor(s.Stroke))
+		n.FontExplicit = overrides != nil || s.ExplicitThemeFontColor || (s.Color != "" && !color.IsThemeColor(s.Color))
 		if s.Icon != nil {
 			n.Icon = s.Icon.String()
 		}
@@ -302,8 +302,8 @@ func BuildScene(diagram *d2target.Diagram, opts *RenderOpts) (*Scene, error) {
 		}
 		edgeIDs[c.ID] = true
 		e := Edge{ID: c.ID, Source: c.Src, Target: c.Dst, Label: c.Label, SourceLabel: c.SrcLabel, TargetLabel: c.DstLabel, SourceArrow: c.SrcArrow, TargetArrow: c.DstArrow, Stroke: paint(c.Stroke), FontColor: paint(c.Color), StrokeWidth: c.StrokeWidth, StrokeDash: c.StrokeDash, Opacity: c.Opacity, Link: c.Link, Tooltip: c.Tooltip, Metadata: EdgeMetadata{Original: c}}
-		e.StrokeExplicit = overrides != nil || (c.Stroke != "" && !color.IsThemeColor(c.Stroke))
-		e.FontExplicit = overrides != nil || (c.Color != "" && !color.IsThemeColor(c.Color))
+		e.StrokeExplicit = overrides != nil || c.ExplicitThemeStroke || (c.Stroke != "" && !color.IsThemeColor(c.Stroke))
+		e.FontExplicit = overrides != nil || c.ExplicitThemeFontColor || (c.Color != "" && !color.IsThemeColor(c.Color))
 		if c.Icon != nil {
 			e.Icon = c.Icon.String()
 		}

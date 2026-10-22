@@ -2025,6 +2025,12 @@ func compileConfig(ir *d2ir.Map) (*d2target.Config, error) {
 		config.Center = &val
 	}
 
+	f = configMap.GetField(d2ast.FlatUnquotedString("intersection-gaps"))
+	if f != nil {
+		val, _ := strconv.ParseBool(f.Primary().Value.ScalarString())
+		config.IntersectionGaps = &val
+	}
+
 	f = configMap.GetField(d2ast.FlatUnquotedString("theme-overrides"))
 	if f != nil {
 		overrides, err := compileThemeOverrides(f.Map())

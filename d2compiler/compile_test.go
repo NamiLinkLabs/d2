@@ -4825,7 +4825,67 @@ svc_1.t2 -> b: do with B
 				x
 				x.style.fill: "linear-gradient(#ggg, #000)"
 			`,
-			expErr: `d2/testdata/d2compiler/TestCompile/invalid_gradient_color_stop.d2:3:19: expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), or a gradient ("linear-gradient(red, blue)")`,
+			expErr: `d2/testdata/d2compiler/TestCompile/invalid_gradient_color_stop.d2:3:19: expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)")`,
+		},
+		{
+			name: "theme_color_style_values",
+			text: `vars: {
+  brand: B3
+}
+classes: {
+  accent: {style.fill: B6}
+}
+style.fill: N7
+a: {
+  style.fill: N1
+  style.stroke: B2
+  style.font-color: AA4
+}
+b.class: accent
+c.style.fill: ${brand}
+t: {
+  shape: sql_table
+  id: int
+  style.font-color: N7
+}
+a -> b: {
+  style.stroke: AB5
+  style.font-color: AB4
+  target-arrowhead.label: 1
+  target-arrowhead.style.font-color: AA5
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, "N7", g.Root.Style.Fill.Value)
+				objs := make(map[string]*d2graph.Object, len(g.Objects))
+				for _, obj := range g.Objects {
+					objs[obj.AbsID()] = obj
+				}
+				tassert.Equal(t, "N1", objs["a"].Style.Fill.Value)
+				tassert.Equal(t, "B2", objs["a"].Style.Stroke.Value)
+				tassert.Equal(t, "AA4", objs["a"].Style.FontColor.Value)
+				tassert.Equal(t, "B6", objs["b"].Style.Fill.Value)
+				tassert.Equal(t, "B3", objs["c"].Style.Fill.Value)
+				tassert.Equal(t, "N7", objs["t"].Style.FontColor.Value)
+				tassert.Equal(t, 1, len(g.Edges))
+				tassert.Equal(t, "AB5", g.Edges[0].Style.Stroke.Value)
+				tassert.Equal(t, "AB4", g.Edges[0].Style.FontColor.Value)
+				tassert.Equal(t, "AA5", g.Edges[0].DstArrowhead.Style.FontColor.Value)
+			},
+		},
+		{
+			name: "invalid_theme_color_style_values",
+			text: `a.style.fill: N8
+b.style.stroke: AA3
+c.style.font-color: n1
+d.style.fill: "linear-gradient(B1, N7)"
+e.style.fill: notacolor
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:1:15: expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)"); theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase
+d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:2:17: expected "stroke" to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)"); theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase
+d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:3:21: expected "font-color" to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)"); theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase
+d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:4:15: expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)"); gradient color stops cannot be theme color codes
+d2/testdata/d2compiler/TestCompile/invalid_theme_color_style_values.d2:5:15: expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)")`,
 		},
 	}
 
@@ -6135,6 +6195,35 @@ x -> y
 				},
 			},
 			{
+				name: "intersection-gaps",
+				run: func(t *testing.T) {
+					_, config := assertCompile(t, `
+vars: {
+	d2-config: {
+    intersection-gaps: true
+  }
+}
+
+x -> y
+`, "")
+					assert.Equal(t, true, *config.IntersectionGaps)
+				},
+			},
+			{
+				name: "intersection-gaps-invalid",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+    intersection-gaps: lol
+  }
+}
+
+x -> y
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/intersection-gaps-invalid.d2:4:5: expected a boolean for "intersection-gaps", got "lol"`)
+				},
+			},
+			{
 				name: "not-root",
 				run: func(t *testing.T) {
 					assertCompile(t, `
@@ -6164,6 +6253,76 @@ vars: {
 					assert.Equal(t, 2, len(config.Data))
 					assert.Equal(t, "hat", config.Data["cat"])
 					assert.Equal(t, "1", (config.Data["later"]).([]interface{})[0])
+				},
+			},
+			{
+				name: "data-layout",
+				run: func(t *testing.T) {
+					_, config := assertCompile(t, `
+vars: {
+	d2-config: {
+		data: {
+      elk-algorithm: layered
+      elk-nodeNode: 30
+      elk-nodeNodeBetweenLayers: 50
+      elk-edgeNode: 20
+      elk-edgeEdge: 10
+      elk-padding: 15
+      dagre-nodesep: 40
+      dagre-ranksep: 60
+      dagre-padding: "[top=20,left=10,bottom=10,right=10]"
+      tala-seeds: [1; -2]
+      tala-future-option: anything
+      cat: hat
+    }
+  }
+}
+`, ``)
+					assert.Equal(t, 12, len(config.Data))
+					assert.Equal(t, "30", config.Data["elk-nodeNode"])
+					assert.Equal(t, "15", config.Data["elk-padding"])
+					assert.Equal(t, "[top=20,left=10,bottom=10,right=10]", config.Data["dagre-padding"])
+					assert.Equal(t, "-2", (config.Data["tala-seeds"]).([]interface{})[1])
+				},
+			},
+			{
+				name: "data-layout-invalid",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+		data: {
+      elk-nodeNode: -3
+      elk-edgeNode: lol
+      elk-padding: "[top=x]"
+      dagre-ranksep: [1; 2]
+      tala-seeds: [1; nope]
+      elk-algorithm: disco
+    }
+  }
+}
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:5:7: expected a whole number of pixels from 0 to 10000 for "elk-nodeNode", got "-3"
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:6:7: expected a whole number of pixels from 0 to 10000 for "elk-edgeNode", got "lol"
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:7:7: expected a number or "[top=..,left=..,bottom=..,right=..]" for "elk-padding", got "[top=x]": top: "x" is not a whole number
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:8:7: expected a whole number of pixels from 0 to 10000 for "dagre-ranksep", got "[1; 2]"
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:9:7: invalid "tala-seeds" entry at index 1 (nope): must be a signed 64-bit integer
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-invalid.d2:10:7: expected one of layered, mrtree, radial, force, stress, rectpacking, sporeOverlap, sporeCompaction, box, fixed, random for "elk-algorithm", got "disco"`)
+				},
+			},
+			{
+				name: "data-layout-unknown",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+		data: {
+      elk-nodeSpacing: 30
+      dagre-rnaksep: 60
+    }
+  }
+}
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-unknown.d2:5:7: "elk-nodeSpacing" is not a valid ELK option
+d2/testdata/d2compiler/TestCompile2/vars/config/data-layout-unknown.d2:6:7: "dagre-rnaksep" is not a valid dagre option, did you mean "dagre-ranksep"?`)
 				},
 			},
 		}

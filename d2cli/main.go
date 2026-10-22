@@ -138,6 +138,10 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 	if err != nil {
 		return err
 	}
+	intersectionGapsFlag, err := ms.Opts.Bool("D2_INTERSECTION_GAPS", "intersection-gaps", "", false, "leave an empty gap in a connection where another one drawn above it crosses; also configurable through vars.d2-config.intersection-gaps")
+	if err != nil {
+		return err
+	}
 	scaleFlag, err := ms.Opts.Float64("SCALE", "scale", "", -1, "scale the output. E.g., 0.5 to halve the default size. Default -1 means that SVG's will fit to screen and all others will use their default render size. Setting to 1 turns off SVG fitting to screen.")
 	if err != nil {
 		return err
@@ -402,6 +406,11 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 			centerFlag = nil
 		}
 	}
+	if ms.Env.Getenv("D2_INTERSECTION_GAPS") == "" {
+		if _, ok := flagSet["intersection-gaps"]; !ok {
+			intersectionGapsFlag = nil
+		}
+	}
 
 	if *darkThemeFlag == -1 {
 		darkThemeFlag = nil // TODO this is a temporary solution: https://github.com/d2lang/util-go/issues/7
@@ -456,6 +465,8 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 		NoXMLTag:    noXMLTagFlag,
 		Salt:        saltFlag,
 		OmitVersion: omitVersionFlag,
+
+		IntersectionGaps: intersectionGapsFlag,
 	}
 
 	// Embedding is sticky: rendering an image with an embedded source embeds
@@ -1154,6 +1165,7 @@ func _renderWithPNGEncoder(ctx context.Context, ms *xmain.State, opts d2svg.Rend
 		Salt:               opts.Salt,
 		Scale:              scale,
 		OmitVersion:        opts.OmitVersion,
+		IntersectionGaps:   opts.IntersectionGaps,
 	}
 	if toPNG {
 		returnSVG := wantPreview || opts.MasterID != ""

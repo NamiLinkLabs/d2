@@ -57,6 +57,8 @@ export interface RenderOptions {
   darkThemeID?: number;
   /** Center the SVG in the containing viewbox [default: false] */
   center?: boolean;
+  /** Leave an empty gap in a connection where another one drawn above it crosses, as `vars: {d2-config: {intersection-gaps: true}}` does. Connections are drawn by z-index, then in declaration order; the later one stays whole. Ignored by isometric and ASCII output [default: false] */
+  intersectionGaps?: boolean;
   /** Pixels padded around the rendered diagram [default: 100] */
   pad?: number;
   /** Scale the output. E.g., 0.5 to halve the default size. The default will render SVG's that will fit to screen. Setting to 1 turns off SVG fitting to screen. */
@@ -146,24 +148,51 @@ export interface ExtractedSource extends CompileRequest {
   source: EmbeddedSource;
 }
 
+/**
+ * ELK tuning. A diagram can set the same options itself under
+ * `vars.d2-config.data` (e.g. `elk-nodeNode: 30`, named like the CLI flags),
+ * and values set there take precedence over these.
+ */
 export interface ELKOptions {
   /** Space between nodes in neighbouring layers [default: 70] */
   nodeSpacing?: number;
-  /** Space between edges and nodes [default: 40] */
+  /** Space between edges and nodes in neighbouring layers [default: 40] */
   edgeNodeSpacing?: number;
-  /** Space between parallel edges [default: 50] */
+  /** Space between edges routed between the same pair of layers [default: 50] */
   edgeEdgeSpacing?: number;
   /** Space around self-loops [default: 50] */
   selfLoopSpacing?: number;
-  /** Container padding in ELK syntax [default: '[top=50,left=50,bottom=50,right=50]'] */
-  padding?: string;
+  /** Space between nodes of the same layer [default: 20] */
+  inLayerNodeSpacing?: number;
+  /** Space between edges running through the same layer [default: 10] */
+  inLayerEdgeSpacing?: number;
+  /** Space between nodes and edges running past them in the same layer [default: 40] */
+  inLayerEdgeNodeSpacing?: number;
+  /**
+   * Container padding: one number for all four sides, or
+   * '[top=..,left=..,bottom=..,right=..]' [default: 50]
+   */
+  padding?: number | string;
 }
 
+/**
+ * dagre tuning. A diagram can set the same options itself under
+ * `vars.d2-config.data` (e.g. `dagre-ranksep: 60`, named like the CLI flags),
+ * and values set there take precedence over these.
+ */
 export interface DagreOptions {
   /** Horizontal space between nodes of the same rank [default: 60] */
   nodeSep?: number;
   /** Horizontal space between edges [default: 20] */
   edgeSep?: number;
+  /** Space between ranks. Edge labels can make it larger [default: 100] */
+  rankSep?: number;
+  /**
+   * Padding containers are fitted to around their contents: one number, or
+   * '[top=..,left=..,bottom=..,right=..]'. Containers never grow beyond the
+   * room dagre gives them [default: 30]
+   */
+  padding?: number | string;
 }
 
 export interface TALAOptions {
@@ -328,6 +357,14 @@ export interface ShapeBase {
   primaryAccentColor?: string;
   secondaryAccentColor?: string;
   neutralAccentColor?: string;
+  /**
+   * Theme defaults are theme color codes (such as "B2") too, so these mark the
+   * colors that hold a theme color code chosen in the source
+   * (style.fill: B2). Omitted when false.
+   */
+  explicitThemeFill?: boolean;
+  explicitThemeStroke?: boolean;
+  explicitThemeFontColor?: boolean;
 }
 
 export interface Point {
@@ -424,6 +461,11 @@ export interface Connection extends Text {
   iconWidth?: number /* int */;
   iconHeight?: number /* int */;
   zIndex: number /* int */;
+  /**
+   * See ShapeBase.explicitThemeFill.
+   */
+  explicitThemeStroke?: boolean;
+  explicitThemeFontColor?: boolean;
 }
 
 /** A side of a shape that `source-port` / `target-port` can pin a connection end to. */

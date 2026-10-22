@@ -126,6 +126,50 @@ local.code -> aws.ec2: {
 			},
 		},
 		{
+			name: "intersection-gaps",
+			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
+				const crossing = "grid-columns: 3\na; b; c; d; e; f; g; h; i\nb -> h\nd -> f\n"
+				writeFile(t, dir, "plain.d2", crossing)
+				writeFile(t, dir, "config.d2", "vars: {d2-config: {intersection-gaps: true}}\n"+crossing)
+				svg := func(args ...string) string {
+					t.Helper()
+					assert.Success(t, runTestMainPersist(t, ctx, dir, env, append(args, "out.svg")...))
+					return string(readFile(t, dir, "out.svg"))
+				}
+				png := func(args ...string) []byte {
+					t.Helper()
+					assert.Success(t, runTestMainPersist(t, ctx, dir, env, append(args, "out.png")...))
+					out := readFile(t, dir, "out.png")
+					validatePNG(t, out, 0, 0)
+					return out
+				}
+				if out := svg("plain.d2"); strings.Contains(out, "-gap-") {
+					t.Fatal("gaps by default")
+				}
+				if out := svg("--intersection-gaps", "plain.d2"); !strings.Contains(out, "-gap-0") {
+					t.Fatal("--intersection-gaps left no gap")
+				}
+				if out := svg("config.d2"); !strings.Contains(out, "-gap-0") {
+					t.Fatal("d2-config intersection-gaps left no gap")
+				}
+				if out := svg("--intersection-gaps=false", "config.d2"); strings.Contains(out, "-gap-") {
+					t.Fatal("--intersection-gaps=false didn't override d2-config")
+				}
+				plain := png("plain.d2")
+				gapped := png("--intersection-gaps", "plain.d2")
+				if bytes.Equal(plain, gapped) {
+					t.Fatal("--intersection-gaps didn't change the PNG")
+				}
+				if !bytes.Equal(png("--intersection-gaps=false", "config.d2"), plain) {
+					t.Fatal("--intersection-gaps=false didn't override d2-config in PNG")
+				}
+				env.Setenv("D2_INTERSECTION_GAPS", "1")
+				if !bytes.Equal(png("plain.d2"), gapped) {
+					t.Fatal("D2_INTERSECTION_GAPS didn't leave the same gaps")
+				}
+			},
+		},
+		{
 			name: "layout-extra-args",
 			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
 				writeFile(t, dir, "hello-world.d2", `x -> y`)
@@ -486,6 +530,55 @@ layers: {
 				assert.Success(t, err)
 				svg := readFile(t, dir, "target-nested-index2.svg")
 				assert.Testdata(t, ".svg", svg)
+			},
+		},
+		{
+			name: "theme-color-codes",
+			run: func(t *testing.T, ctx context.Context, dir string, env *xos.Env) {
+				writeFile(t, dir, "in.d2", `a: {style.fill: AA2}
+b: {
+  shape: sql_table
+  id: int
+  style.font-color: AA2
+}
+a -> b: {style.stroke: AA2}
+`)
+				err := runTestMainPersist(t, ctx, dir, env, "--theme=0", "--dark-theme=200", "in.d2", "out.svg")
+				assert.Success(t, err)
+				svg := string(readFile(t, dir, "out.svg"))
+				// Theme color codes stay classes, so the active theme and the dark
+				// theme pick the color.
+				for _, want := range []string{
+					`class=" stroke-B1 fill-AA2"`,
+					`class="connection stroke-AA2"`,
+					`class="text fill-AA2"`,
+					`.fill-AA2{fill:#4A6FF3;}`,
+					`prefers-color-scheme:dark`,
+					`.fill-AA2{fill:#f38BA8;}`,
+				} {
+					if !strings.Contains(svg, want) {
+						t.Errorf("SVG is missing %q", want)
+					}
+				}
+
+				err = runTestMain(t, ctx, dir, env, "--theme=200", "in.d2", "out.png")
+				assert.Success(t, err)
+				decoded, err := png.Decode(bytes.NewReader(readFile(t, dir, "out.png")))
+				assert.Success(t, err)
+				// Dark Mauve's AA2 is #f38BA8.
+				matches := 0
+				bounds := decoded.Bounds()
+				for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+					for x := bounds.Min.X; x < bounds.Max.X; x++ {
+						r, g, b, _ := decoded.At(x, y).RGBA()
+						if r>>8 == 0xf3 && g>>8 == 0x8b && b>>8 == 0xa8 {
+							matches++
+						}
+					}
+				}
+				if matches < 1000 {
+					t.Errorf("PNG has %d pixels of Dark Mauve's AA2, want the filled shape", matches)
+				}
 			},
 		},
 		{

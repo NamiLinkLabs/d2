@@ -105,6 +105,11 @@ func compileInput(ctx context.Context, input string, compileOpts *CompileOptions
 	if isometricConfig != nil && !*isometricConfig {
 		isometricConfig = nil
 	}
+	// Likewise for gaps at crossings.
+	gapsConfig := renderOpts.IntersectionGaps
+	if gapsConfig != nil && !*gapsConfig {
+		gapsConfig = nil
+	}
 	applyDefaults(compileOpts, renderOpts)
 	if *renderOpts.Sketch && *renderOpts.Isometric {
 		return nil, nil, errors.New("sketch cannot be combined with isometric rendering")
@@ -125,6 +130,7 @@ func compileInput(ctx context.Context, input string, compileOpts *CompileOptions
 		config.DarkThemeID = renderOpts.DarkThemeID
 		config.Sketch = renderOpts.Sketch
 		config.Isometric = isometricConfig
+		config.IntersectionGaps = gapsConfig
 		d.Config = config
 	}
 	return d, g, err
@@ -353,6 +359,9 @@ func applyConfigs(config *d2target.Config, compileOpts *CompileOptions, renderOp
 	if renderOpts.Center == nil {
 		renderOpts.Center = config.Center
 	}
+	if renderOpts.IntersectionGaps == nil {
+		renderOpts.IntersectionGaps = config.IntersectionGaps
+	}
 	if renderOpts.ThemeOverrides == nil {
 		renderOpts.ThemeOverrides = config.ThemeOverrides
 	}
@@ -383,5 +392,8 @@ func applyDefaults(compileOpts *CompileOptions, renderOpts *d2svg.RenderOpts) {
 	}
 	if renderOpts.Center == nil {
 		renderOpts.Center = go2.Pointer(false)
+	}
+	if renderOpts.IntersectionGaps == nil {
+		renderOpts.IntersectionGaps = go2.Pointer(false)
 	}
 }

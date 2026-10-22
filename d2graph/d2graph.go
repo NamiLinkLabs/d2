@@ -318,6 +318,18 @@ func (s Style) NoneTextTransform() bool {
 	return s.TextTransform != nil && s.TextTransform.Value == "none"
 }
 
+// styleColorError explains why value is not a valid color for the style key.
+func styleColorError(key, value string) error {
+	msg := fmt.Sprintf(`expected %q to be a valid named color ("orange"), a hex code ("#f0ff3a"), a theme color code ("B2"), or a gradient ("linear-gradient(red, blue)")`, key)
+	switch {
+	case color.LooksLikeThemeColor(value):
+		msg += "; theme color codes are N1-N7, B1-B6, AA2, AA4, AA5, AB4 and AB5, in uppercase"
+	case color.GradientHasThemeColor(value):
+		msg += "; gradient color stops cannot be theme color codes"
+	}
+	return errors.New(msg)
+}
+
 func (s *Style) Apply(key, value string) error {
 	switch key {
 	case "opacity":
@@ -333,16 +345,16 @@ func (s *Style) Apply(key, value string) error {
 		if s.Stroke == nil {
 			break
 		}
-		if !color.ValidColor(value) {
-			return errors.New(`expected "stroke" to be a valid named color ("orange"), a hex code ("#f0ff3a"), or a gradient ("linear-gradient(red, blue)")`)
+		if !color.ValidStyleColor(value) {
+			return styleColorError(key, value)
 		}
 		s.Stroke.Value = value
 	case "fill":
 		if s.Fill == nil {
 			break
 		}
-		if !color.ValidColor(value) {
-			return errors.New(`expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), or a gradient ("linear-gradient(red, blue)")`)
+		if !color.ValidStyleColor(value) {
+			return styleColorError(key, value)
 		}
 		s.Fill.Value = value
 	case "fill-pattern":
@@ -428,8 +440,8 @@ func (s *Style) Apply(key, value string) error {
 		if s.FontColor == nil {
 			break
 		}
-		if !color.ValidColor(value) {
-			return errors.New(`expected "font-color" to be a valid named color ("orange"), a hex code ("#f0ff3a"), or a gradient ("linear-gradient(red, blue)")`)
+		if !color.ValidStyleColor(value) {
+			return styleColorError(key, value)
 		}
 		s.FontColor.Value = value
 	case "animated":
