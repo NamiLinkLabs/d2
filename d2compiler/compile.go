@@ -186,6 +186,10 @@ func (c *compiler) compileBoard(g *d2graph.Graph, ir *d2ir.Map) *d2graph.Graph {
 	if c.stopped() {
 		return g
 	}
+	c.validateLabelPadding(g)
+	if c.stopped() {
+		return g
+	}
 	c.validatePositionsCompatibility(g)
 	if c.stopped() {
 		return g
@@ -848,6 +852,10 @@ func (c *compiler) compilePosition(attrs *d2graph.Attributes, f *d2ir.Field) {
 						}
 					}
 				}
+			} else if name.ScalarString() == "label" && f.Name.ScalarString() == "padding" && f.Name.IsUnquoted() {
+				c.compileLabelPadding(attrs, f)
+			} else if name.ScalarString() == "icon" && f.Name.IsUnquoted() && (f.Name.ScalarString() == "width" || f.Name.ScalarString() == "height") {
+				c.compileIconDimension(attrs, f)
 			} else {
 				if f.LastPrimaryKey() != nil {
 					c.errorf(f.LastPrimaryKey(), `unexpected field %s`, f.Name.ScalarString())
@@ -857,6 +865,58 @@ func (c *compiler) compilePosition(attrs *d2graph.Attributes, f *d2ir.Field) {
 		if len(f.Map().Edges) > 0 {
 			c.errorf(f.LastPrimaryKey(), "unexpected edges in map")
 		}
+	}
+}
+
+// compileLabelPadding compiles label.padding. validateLabelPadding rejects it
+// on anything but a connection once the graph is known.
+func (c *compiler) compileLabelPadding(attrs *d2graph.Attributes, f *d2ir.Field) {
+	if f.Primary() == nil {
+		c.errorf(f.LastRef().AST(), `"label.padding" must be set to a value`)
+		return
+	}
+	scalar := f.Primary().Value
+	if _, ok := scalar.(*d2ast.Null); ok {
+		attrs.LabelPadding = nil
+		return
+	}
+	v, err := strconv.Atoi(scalar.ScalarString())
+	if err != nil || v < 0 || v > d2target.MAX_CONNECTION_LABEL_PADDING {
+		c.errorf(scalar, `expected "label.padding" to be an integer between 0 and %d`, d2target.MAX_CONNECTION_LABEL_PADDING)
+		return
+	}
+	attrs.LabelPadding = &d2graph.Scalar{
+		Value:  strconv.Itoa(v),
+		MapKey: f.LastPrimaryKey(),
+	}
+}
+
+// compileIconDimension compiles icon.width and icon.height.
+func (c *compiler) compileIconDimension(attrs *d2graph.Attributes, f *d2ir.Field) {
+	dimension := f.Name.ScalarString()
+	target := &attrs.IconWidth
+	if dimension == "height" {
+		target = &attrs.IconHeight
+	}
+	if f.Primary() == nil {
+		if f.Composite != nil {
+			c.errorf(f.LastPrimaryKey(), "icon.%s must be a positive integer", dimension)
+		}
+		return
+	}
+	scalar := f.Primary().Value
+	if _, ok := scalar.(*d2ast.Null); ok {
+		*target = nil
+		return
+	}
+	v, err := strconv.Atoi(scalar.ScalarString())
+	if err != nil || v <= 0 {
+		c.errorf(scalar, "icon.%s must be a positive integer: %#v", dimension, scalar.ScalarString())
+		return
+	}
+	*target = &d2graph.Scalar{
+		Value:  scalar.ScalarString(),
+		MapKey: f.LastPrimaryKey(),
 	}
 }
 
@@ -1719,6 +1779,31 @@ func (c *compiler) validateEdges(g *d2graph.Graph) {
 		if edge.Dst.IsSequenceDiagram() && edge.Src.IsDescendantOf(edge.Dst) {
 			c.errorf(edge.GetAstEdge(), "edge from sequence diagram %#v cannot enter itself", edge.Dst.AbsID())
 			continue
+		}
+	}
+}
+
+// validateLabelPadding rejects label.padding outside connection labels. Only
+// connection labels have the space reserved, so shapes and arrowhead labels
+// are left free to give it a meaning of their own later.
+func (c *compiler) validateLabelPadding(g *d2graph.Graph) {
+	objects := append([]*d2graph.Object{g.Root}, g.Objects...)
+	for _, obj := range objects {
+		if c.stopped() {
+			return
+		}
+		if obj.LabelPadding != nil {
+			c.errorf(obj.LabelPadding.MapKey, `"label.padding" can only be used on connections`)
+		}
+	}
+	for _, edge := range g.Edges {
+		if c.stopped() {
+			return
+		}
+		for _, arrowhead := range []*d2graph.Attributes{edge.SrcArrowhead, edge.DstArrowhead} {
+			if arrowhead != nil && arrowhead.LabelPadding != nil {
+				c.errorf(arrowhead.LabelPadding.MapKey, `"label.padding" cannot be used on arrowhead labels`)
+			}
 		}
 	}
 }

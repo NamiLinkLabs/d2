@@ -7,6 +7,13 @@
   follow the active theme and its `theme-overrides`, switch with the dark theme,
   and are suggested by language-server completions. Gradient stops still need
   concrete colors. [#896](https://github.com/d2lang/d2/issues/896)
+- connections: set the space kept free around a connection's label with
+  `label.padding`, e.g. `a -> b: hi {label.padding: 8}`, or
+  `(** -> **)[*].label.padding: 8` for every connection. Dagre, ELK, TALA and
+  sequence diagrams reserve the padded box, the line stops at it and
+  `style.fill` covers it. [#2097](https://github.com/d2lang/d2/issues/2097)
+- exports: `--embed-source` stores the D2 source, the files it imports and the render flags in SVG and PNG exports. Such an image is valid input, so `d2 diagram.svg diagram.pdf` renders it again and `d2 extract diagram.png` writes its source back out. D2.js gets the `embedSource` option and `extractSource`/`embedSource` functions. It is off by default because the embedded text includes comments and boards the image does not show. [#680](https://github.com/d2lang/d2/issues/680)
+- icons: set an explicit icon size with `icon.width` and `icon.height`, on shapes, containers and connections. Setting one of them gives a square icon. Layouts reserve the explicit size and leaf shapes grow to fit an inside icon. [#1331](https://github.com/d2lang/d2/issues/1331)
 
 #### Improvements 🧹
 
@@ -27,6 +34,7 @@
     policy for local imports and image assets. CLI and watch retain trusted
     local-file access. [#2901](https://github.com/d2lang/d2/pull/2901)
 - Remove the legacy `d2plugin` system; Dagre, ELK, and TALA remain built in. [#2920](https://github.com/d2lang/d2/pull/2920)
+- PNG, PDF and PPTX exports accept SVG icons that carry an embedded D2 source.
 - watch: authenticate HTTP and WebSocket access with a fresh per-process
   capability, exchanged for a token-free browser session. [#2910](https://github.com/d2lang/d2/pull/2910)
 - exports:
@@ -79,6 +87,10 @@
   - Reject external SVG paint URLs and unsafe fill-pattern or theme values in raw
     render targets. [#2916](https://github.com/d2lang/d2/pull/2916)
   - Apply the dangerous-link policy to legend shapes. [#2917](https://github.com/d2lang/d2/pull/2917)
+- icons:
+  - Place `border-*` icons on the shape's outer box like border labels, so corner and edge icons on circles, cylinders and other non-rectangular shapes sit on the shape's edge, and reserve the half that sticks out in dagre, ELK, grid and TALA layouts so neighbours don't overlap it. [#1653](https://github.com/d2lang/d2/issues/1653)
+  - Include every drawn icon in the diagram bounds: border icons, connection icons and the 5 px overhang of `outside-top-left` icons are no longer cut off with `--pad 0`, and `shape: image` objects no longer reserve space for an outside icon that is never drawn.
+  - d2oracle: setting `icon.near`, `icon.width`, `icon.height` or `icon.style.border-radius` edits the existing key, and deleting a nested `icon.*` or `label.near` field no longer deletes the object's own `near` or `width`.
 - d2svg:
   - Escape custom shape and connection classes. [#2895](https://github.com/d2lang/d2/pull/2895)
   - Sanitize bundled-image media types and escape serialized image URLs. [#2898](https://github.com/d2lang/d2/pull/2898)

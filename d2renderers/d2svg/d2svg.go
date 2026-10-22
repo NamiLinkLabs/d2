@@ -994,12 +994,22 @@ func makeLabelMask(labelTL *geo.Point, width, height int, opacity float64) strin
 	return makeLabelMaskWithTransform(labelTL, width, height, opacity, nil)
 }
 
-func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity float64, shapePos *geo.Point) string {
+// makeMaskRect cuts box out of the connections, e.g. a connection's
+// d2target.Connection.LabelMaskBox.
+func makeMaskRect(box *geo.Box, opacity float64) string {
 	fill := "black"
 	if opacity != 1 {
 		fill = fmt.Sprintf("rgba(0,0,0,%.2f)", opacity)
 	}
+	return fmt.Sprintf(`<rect x="%s" y="%s" width="%d" height="%d" fill="%s"></rect>`,
+		svg.FormatFloat(box.TopLeft.X), svg.FormatFloat(box.TopLeft.Y),
+		int(box.Width),
+		int(box.Height),
+		fill,
+	)
+}
 
+func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity float64, shapePos *geo.Point) string {
 	x := labelTL.X - 2
 	y := labelTL.Y
 
@@ -1010,12 +1020,7 @@ func makeLabelMaskWithTransform(labelTL *geo.Point, width, height int, opacity f
 		y -= shapePos.Y
 	}
 
-	return fmt.Sprintf(`<rect x="%s" y="%s" width="%d" height="%d" fill="%s"></rect>`,
-		svg.FormatFloat(x), svg.FormatFloat(y),
-		width+4,
-		height,
-		fill,
-	)
+	return makeMaskRect(geo.NewBox(geo.NewPoint(x, y), float64(width+4), float64(height)), opacity)
 }
 
 // border label mask is minimal, intending to only cover the portion of the border that passes through the label
@@ -1114,6 +1119,7 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 		markerEnd = []svg.Attribute{svg.Attr("marker-end", svg.LocalIRI(svg.LiteralID(id)))}
 	}
 
+	iconWidth, iconHeight := connection.IconSize()
 	if connection.Icon != nil {
 		iconPos := connection.GetIconPosition()
 		if iconPos != nil {
@@ -1121,8 +1127,8 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				svg.Attr("href", connection.Icon.String()),
 				svg.FloatAttr("x", iconPos.X),
 				svg.FloatAttr("y", iconPos.Y),
-				svg.IntAttr("width", d2target.DEFAULT_ICON_SIZE),
-				svg.IntAttr("height", d2target.DEFAULT_ICON_SIZE),
+				svg.FloatAttr("width", iconWidth),
+				svg.FloatAttr("height", iconHeight),
 			}
 			if connection.IconBorderRadius != 0 {
 				attributes = append(attributes, svg.Attr("clip-path", "inset(0 round "+svg.FormatFloat(connection.IconBorderRadius)+"px)"))
@@ -1137,20 +1143,11 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 		labelTL.X = math.Round(labelTL.X)
 		labelTL.Y = math.Round(labelTL.Y)
 
-		maskTL := labelTL.Copy()
-		width := connection.LabelWidth
-		height := connection.LabelHeight
-
-		if connection.Icon != nil {
-			width += d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE
-			maskTL.X -= float64(d2target.CONNECTION_ICON_LABEL_GAP + d2target.DEFAULT_ICON_SIZE)
-		}
-
+		opacity := 0.75
 		if label.FromString(connection.LabelPosition).IsOnEdge() {
-			labelMask = makeLabelMask(maskTL, width, height, 1)
-		} else {
-			labelMask = makeLabelMask(maskTL, width, height, 0.75)
+			opacity = 1
 		}
+		labelMask = makeMaskRect(connection.LabelMaskBox(labelTL), opacity)
 	} else if connection.Icon != nil {
 		iconPos := connection.GetIconPosition()
 		if iconPos != nil {
@@ -1159,9 +1156,9 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				Y: iconPos.Y,
 			}
 			if label.FromString(connection.IconPosition).IsOnEdge() {
-				labelMask = makeLabelMask(maskTL, d2target.DEFAULT_ICON_SIZE, d2target.DEFAULT_ICON_SIZE, 1)
+				labelMask = makeLabelMask(maskTL, int(iconWidth), int(iconHeight), 1)
 			} else {
-				labelMask = makeLabelMask(maskTL, d2target.DEFAULT_ICON_SIZE, d2target.DEFAULT_ICON_SIZE, 0.75)
+				labelMask = makeLabelMask(maskTL, int(iconWidth), int(iconHeight), 0.75)
 			}
 		}
 	}
@@ -1254,6 +1251,17 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 			if err != nil {
 				return labelMask, err
 			}
+			background := connection.Fill
+			if connection.LabelPadding > 0 && hasMarkdownBackground(background) {
+				// The background covers the padding too.
+				p := connection.LabelPadding
+				rectEl := d2themes.NewThemableElement("rect", inlineTheme)
+				rectEl.X, rectEl.Y = labelTL.X-float64(p), labelTL.Y-float64(p)
+				rectEl.Width, rectEl.Height = float64(connection.LabelWidth+2*p), float64(connection.LabelHeight+2*p)
+				rectEl.Fill = background
+				fmt.Fprint(writer, rectEl.Render())
+				background = ""
+			}
 			fmt.Fprint(writer, markdown.render(
 				layout,
 				labelTL.X,
@@ -1261,7 +1269,7 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				connection.LabelWidth,
 				connection.LabelHeight,
 				connection.GetFontColor(),
-				connection.Fill,
+				background,
 				connection.Link != "",
 				connection.Underline,
 			))
@@ -1326,10 +1334,11 @@ func drawConnection(writer io.Writer, diagramHash string, connection d2target.Co
 				fontClass += " text-underline"
 			}
 			if connection.Fill != color.Empty {
+				fillBox := connection.LabelFillBox(labelTL)
 				rectEl := d2themes.NewThemableElement("rect", inlineTheme)
 				rectEl.Rx = 10
-				rectEl.X, rectEl.Y = labelTL.X-4, labelTL.Y-3
-				rectEl.Width, rectEl.Height = float64(connection.LabelWidth)+8, float64(connection.LabelHeight)+6
+				rectEl.X, rectEl.Y = fillBox.TopLeft.X, fillBox.TopLeft.Y
+				rectEl.Width, rectEl.Height = fillBox.Width, fillBox.Height
 				rectEl.Fill = connection.Fill
 				fmt.Fprint(writer, rectEl.Render())
 			}
@@ -2019,23 +2028,14 @@ func drawShape(writer, appendixWriter io.Writer, diagramHash string, targetShape
 	fmt.Fprint(writer, `</g>`)
 
 	if targetShape.Icon != nil && targetShape.Type != d2target.ShapeImage && targetShape.Opacity != 0 {
-		iconPosition := label.FromString(targetShape.IconPosition)
-		var box *geo.Box
-		if iconPosition.IsOutside() {
-			box = s.GetBox()
-		} else {
-			box = s.GetInnerBox()
-		}
-		iconSize := d2target.GetIconSize(box, targetShape.IconPosition)
-
-		tl := iconPosition.GetPointOnBox(box, label.PADDING, float64(iconSize), float64(iconSize))
+		iconBox := d2target.IconBox(s.GetBox(), s.GetInnerBox(), targetShape.IconPosition, targetShape.IconWidth, targetShape.IconHeight)
 
 		attributes := []svg.Attribute{
 			svg.Attr("href", targetShape.Icon.String()),
-			svg.FloatAttr("x", tl.X),
-			svg.FloatAttr("y", tl.Y),
-			svg.IntAttr("width", iconSize),
-			svg.IntAttr("height", iconSize),
+			svg.FloatAttr("x", iconBox.TopLeft.X),
+			svg.FloatAttr("y", iconBox.TopLeft.Y),
+			svg.FloatAttr("width", iconBox.Width),
+			svg.FloatAttr("height", iconBox.Height),
 		}
 		if targetShape.IconBorderRadius != 0 {
 			attributes = append(attributes, svg.Attr("clip-path", fmt.Sprintf("inset(0 round %dpx)", targetShape.IconBorderRadius)))

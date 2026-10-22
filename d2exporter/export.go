@@ -302,6 +302,7 @@ func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
 	if obj.IconPosition != nil {
 		shape.IconPosition = *obj.IconPosition
 	}
+	shape.IconWidth, shape.IconHeight = obj.IconSize()
 
 	return *shape
 }
@@ -439,6 +440,7 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 		} else {
 			connection.IconPosition = label.InsideMiddleCenter.String()
 		}
+		connection.IconWidth, connection.IconHeight = edge.ExplicitIconSize()
 	}
 
 	if edge.IconStyle.BorderRadius != nil {
@@ -471,6 +473,13 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 	connection.Label = text.Text
 	connection.LabelWidth = text.Dimensions.Width
 	connection.LabelHeight = text.Dimensions.Height
+	if p := edge.LabelPaddingPx(); p > 0 && text.Text != "" {
+		// LabelDimensions holds the padded box the layout reserved. The
+		// diagram keeps the text size and the padding apart.
+		connection.LabelPadding = p
+		connection.LabelWidth = max(0, connection.LabelWidth-2*p)
+		connection.LabelHeight = max(0, connection.LabelHeight-2*p)
+	}
 	connection.Language = edge.Language
 
 	if edge.LabelPosition != nil {
