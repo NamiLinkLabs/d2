@@ -128,6 +128,14 @@ export class D2 {
     return this.sendMessage("routeEdges", request);
   }
 
+  async extractSource(image) {
+    return this.sendMessage("extractSource", image);
+  }
+
+  async embedSource(image, source) {
+    return this.sendMessage("embedSource", { image, source });
+  }
+
   async encode(script) {
     return this.sendMessage("encode", script);
   }
