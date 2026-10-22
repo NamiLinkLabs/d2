@@ -1821,6 +1821,17 @@ board: {
   one -> two: {source-port: bottom; target-port: bottom}
 }
 board.two -> lb: {source-port: right; target-port: left}
+-- edge-ports-grid-facing --
+g: {
+  grid-rows: 2
+  p
+  q
+  r
+  s
+}
+g.p -> g.s: {source-port: right; target-port: left}
+g.p -> g.r: {source-port: bottom; target-port: top}
+g.q -> g.s: {source-port: bottom; target-port: top}
 -- edge-ports-sql --
 users: {
   shape: sql_table

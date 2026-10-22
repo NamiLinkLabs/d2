@@ -159,3 +159,47 @@ func TestPinRouteJoinsStubsSquare(t *testing.T) {
 		}
 	}
 }
+
+// assertNoHairpin fails when a segment of route runs back over the one before
+// it.
+func assertNoHairpin(t *testing.T, route []*geo.Point) {
+	t.Helper()
+	for i := 2; i < len(route); i++ {
+		a, b, c := route[i-2], route[i-1], route[i]
+		if (b.X-a.X)*(c.X-b.X)+(b.Y-a.Y)*(c.Y-b.Y) < 0 {
+			t.Errorf("route doubles back at %v: %v", b, route)
+		}
+	}
+}
+
+func TestPinRouteFacingNarrowGap(t *testing.T) {
+	// Adjacent grid cells 40px apart: a right -> b left (offset diagonally)
+	// and c bottom -> d top (straight across).
+	g := portGraph(t, "a -> b: {source-port: right; target-port: left}\nc -> d: {source-port: bottom; target-port: top}")
+	a, b, c, d := g.Objects[0], g.Objects[1], g.Objects[2], g.Objects[3]
+	a.TopLeft = geo.NewPoint(0, 0)
+	b.TopLeft = geo.NewPoint(140, 106)
+	c.TopLeft = geo.NewPoint(400, 0)
+	d.TopLeft = geo.NewPoint(400, 100)
+	anchors := d2graph.PortAnchors(g.Edges)
+	for _, e := range g.Edges {
+		e.Route = e.PinRoute([]*geo.Point{e.Src.Center(), e.Dst.Center()}, anchors[d2graph.PortEnd{Edge: e, Src: true}], anchors[d2graph.PortEnd{Edge: e, Src: false}])
+		if err := e.PortsHonored(); err != nil {
+			t.Fatalf("%v: %v", err, e.Route)
+		}
+		assertNoHairpin(t, e.Route)
+		for i := 1; i < len(e.Route); i++ {
+			p, q := e.Route[i-1], e.Route[i]
+			if p.X != q.X && p.Y != q.Y {
+				t.Errorf("segment %v -> %v is diagonal: %v", p, q, e.Route)
+			}
+		}
+	}
+	// a's right side is at x 100 and b's left at 140: the stubs meet at 120.
+	if r := g.Edges[0].Route; r[1].X != 120 || r[len(r)-2].X != 120 {
+		t.Errorf("a -> b stubs do not meet in the gap: %v", r)
+	}
+	if r := g.Edges[1].Route; len(r) != 3 || r[0].X != 450 || r[2].X != 450 {
+		t.Errorf("c -> d is not a straight line: %v", r)
+	}
+}

@@ -247,18 +247,23 @@ func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*
 	srcOK = srcOK && srcAnchor != nil
 	dstOK = dstOK && dstAnchor != nil
 
+	srcStub, dstStub := float64(PortStubLen), float64(PortStubLen)
+	if srcOK && dstOK {
+		srcStub, dstStub = facingStubLens(srcAnchor, srcSide, dstAnchor, dstSide)
+	}
+
 	interior := append([]*geo.Point(nil), route[1:len(route)-1]...)
 	head := []*geo.Point{route[0]}
 	tail := []*geo.Point{route[len(route)-1]}
 	if srcOK {
-		stub := portStub(srcAnchor, srcSide)
+		stub := portStub(srcAnchor, srcSide, srcStub)
 		head = []*geo.Point{srcAnchor.Copy(), stub}
 		for len(interior) > 0 && behind(interior[0], stub, srcSide) {
 			interior = interior[1:]
 		}
 	}
 	if dstOK {
-		stub := portStub(dstAnchor, dstSide)
+		stub := portStub(dstAnchor, dstSide, dstStub)
 		tail = []*geo.Point{stub, dstAnchor.Copy()}
 		for len(interior) > 0 && behind(interior[len(interior)-1], stub, dstSide) {
 			interior = interior[:len(interior)-1]
@@ -288,17 +293,39 @@ func (e *Edge) PinRoute(route []*geo.Point, srcAnchor, dstAnchor *geo.Point) []*
 	if srcOK && dstOK && len(interior) == 0 {
 		// Join the two stubs square, like the rest of a pinned route, rather
 		// than with one long diagonal.
-		out = append(out, portConnector(e, head[len(head)-2], head[len(head)-1], tail[0])...)
+		out = append(out, portConnector(e, head[len(head)-2], head[len(head)-1], tail[0], tail[1])...)
 	}
-	return append(out, tail...)
+	out = append(out, tail...)
+	// Stubs that meet (see facingStubLens) leave the same point twice.
+	return slices.CompactFunc(out, func(p, q *geo.Point) bool { return *p == *q })
+}
+
+// facingStubLens returns the stub lengths for two pinned ends. When the
+// sides face each other across a gap too narrow for two full stubs (adjacent
+// grid cells, say), each stub takes half the gap so that they meet instead of
+// overlapping and the route doubling back on itself.
+func facingStubLens(src *geo.Point, srcSide geo.Orientation, dst *geo.Point, dstSide geo.Orientation) (float64, float64) {
+	n, m := PortSideNormal(srcSide), PortSideNormal(dstSide)
+	l := float64(PortStubLen)
+	if n[0] != -m[0] || n[1] != -m[1] {
+		return l, l
+	}
+	gap := (dst.X-src.X)*n[0] + (dst.Y-src.Y)*n[1]
+	if gap <= 0 || gap >= 2*l {
+		return l, l
+	}
+	return gap / 2, gap / 2
 }
 
 // portConnector returns the corners to insert between h (reached from prev)
-// and t, the ends of two pinned stubs: an L, a Z through the midline, or none
-// (a diagonal). Candidates that cut through either endpoint are skipped; of
-// the rest, the one crossing the fewest other shapes wins, then the one with
-// the fewest bends, then the L that continues the route's direction.
-func portConnector(e *Edge, prev, h, t *geo.Point) []*geo.Point {
+// and t (left towards next), the ends of two pinned stubs: an L, a Z through
+// the midline, or none (a diagonal). Candidates that cut through either endpoint are
+// skipped; of the rest, the one crossing the fewest other shapes wins, then
+// the one with the fewest bends, then the L that continues the route's
+// direction. A candidate whose first leg turns back over the source stub, or
+// whose last leg runs out past the target stub and back, draws a hairpin and
+// is only taken when nothing else fits.
+func portConnector(e *Edge, prev, h, t, next *geo.Point) []*geo.Point {
 	if h.X == t.X || h.Y == t.Y {
 		return nil
 	}
@@ -307,6 +334,11 @@ func portConnector(e *Edge, prev, h, t *geo.Point) []*geo.Point {
 	verticalFirst := []*geo.Point{geo.NewPoint(h.X, t.Y)}
 	if prev.X == h.X {
 		horizontalFirst, verticalFirst = verticalFirst, horizontalFirst
+	}
+	backtracks := func(path []*geo.Point) bool {
+		first, last := path[1], path[len(path)-2]
+		return (first.X-h.X)*(h.X-prev.X)+(first.Y-h.Y)*(h.Y-prev.Y) < 0 ||
+			(t.X-last.X)*(next.X-t.X)+(t.Y-last.Y)*(next.Y-t.Y) < 0
 	}
 	candidates := [][]*geo.Point{
 		horizontalFirst,
@@ -348,16 +380,20 @@ func portConnector(e *Edge, prev, h, t *geo.Point) []*geo.Point {
 		if corners == nil {
 			bends = 3 // a diagonal is the last resort
 		}
-		if cost := float64(crossings*10 + bends); cost < bestCost {
+		cost := float64(crossings*10 + bends)
+		if backtracks(path) {
+			cost += 1000
+		}
+		if cost < bestCost {
 			best, bestCost = corners, cost
 		}
 	}
 	return best
 }
 
-func portStub(anchor *geo.Point, side geo.Orientation) *geo.Point {
+func portStub(anchor *geo.Point, side geo.Orientation, length float64) *geo.Point {
 	n := PortSideNormal(side)
-	return geo.NewPoint(anchor.X+n[0]*PortStubLen, anchor.Y+n[1]*PortStubLen)
+	return geo.NewPoint(anchor.X+n[0]*length, anchor.Y+n[1]*length)
 }
 
 // behind reports whether p is on the shape's side of the line through stub
