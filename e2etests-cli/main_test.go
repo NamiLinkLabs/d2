@@ -132,6 +132,15 @@ local.code -> aws.ec2: {
 				if routed != 1 || straight != 2 {
 					t.Fatalf("straight connections: %d routed, %d with --nested-edge-routing=straight; want 1 and 2", routed, straight)
 				}
+				// The diagram can pin it, and an explicit flag overrides that.
+				writeFile(t, dir, "near.d2", "vars: {d2-config: {nested-edge-routing: straight}}\na -> b\nlegend: {near: top-right}\nlegend -> a\n")
+				if pinned := count("--layout=elk"); pinned != 2 {
+					t.Fatalf("nested-edge-routing: straight left %d straight connections, want 2", pinned)
+				}
+				if overridden := count("--layout=elk", "--nested-edge-routing=around-shapes"); overridden != 1 {
+					t.Fatalf("--nested-edge-routing=around-shapes over the diagram's straight left %d straight connections, want 1", overridden)
+				}
+				writeFile(t, dir, "near.d2", "a -> b\nlegend: {near: top-right}\nlegend -> a\n")
 				env.Setenv("D2_NESTED_EDGE_ROUTING", "straight")
 				if fromEnv := count("--layout=elk"); fromEnv != 2 {
 					t.Fatalf("D2_NESTED_EDGE_ROUTING=straight left %d straight connections, want 2", fromEnv)

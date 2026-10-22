@@ -356,6 +356,27 @@ target
 	if _, werr := compileSourceForTest(t, source, `{"nestedEdgeRouting":"curved"}`); werr == nil || werr.Code != 400 {
 		t.Fatalf("an unknown nestedEdgeRouting should be rejected, got %v", werr)
 	}
+
+	// The diagram can pin it, as in the CLI, and the option overrides that.
+	pinned := "vars: {d2-config: {nested-edge-routing: straight}}\n" + source
+	r, werr := compileSourceForTest(t, pinned, `{"layout":"elk"}`)
+	if werr != nil {
+		t.Fatal(werr.Message)
+	}
+	if n := route(r); n != 2 {
+		t.Errorf("nested-edge-routing: straight: route from the near shape has %d points, want 2", n)
+	}
+	r, werr = compileSourceForTest(t, pinned, `{"layout":"elk","nestedEdgeRouting":"around-shapes"}`)
+	if werr != nil {
+		t.Fatal(werr.Message)
+	}
+	if n := route(r); n <= 2 {
+		t.Errorf("nestedEdgeRouting over the diagram's straight: route from the near shape has %d points", n)
+	}
+	_, werr = compileSourceForTest(t, "vars: {d2-config: {nested-edge-routing: curved}}\nx\n", `{}`)
+	if werr == nil || !strings.Contains(werr.Message, `"range":"index,0:19:19-0:38:38"`) || !strings.Contains(werr.Message, "nested-edge-routing") {
+		t.Fatalf("invalid diagram nested-edge-routing = %v, want a compile error at the key", werr)
+	}
 }
 
 func shapeByID(t *testing.T, r CompileResponse, id string) d2target.Shape {

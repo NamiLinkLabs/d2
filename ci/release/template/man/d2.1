@@ -187,7 +187,9 @@ diagrams, and those between grid cells, which the layout engine does not route.
 .Ar around-shapes
 routes them around the other shapes;
 .Ar straight
-draws straight lines, which is faster on very large diagrams
+draws straight lines. Routing stops once a work budget that grows with the diagram is spent,
+and the connections left are drawn straight. Can also be set with
+vars: {d2-config: {nested-edge-routing: straight}} in D2 source; the flag takes precedence
 .Ns .
 .It Fl b , -bundle Ar true
 Bundle all assets and layers into the output svg

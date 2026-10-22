@@ -15,6 +15,7 @@ import (
 	"github.com/d2lang/d2/d2ast"
 	"github.com/d2lang/d2/d2format"
 	"github.com/d2lang/d2/d2parser"
+	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/d2themes"
 	"github.com/d2lang/d2/d2themes/d2themescatalog"
 	"github.com/d2lang/d2/lib/layoutdata"
@@ -410,6 +411,11 @@ func (c *compiler) validateConfigs(configs *Field) {
 				continue
 			}
 		case "layout-engine":
+		case "nested-edge-routing":
+			if !d2target.ValidNestedEdgeRouting(val) {
+				c.errorf(f.LastRef().AST(), `expected "%s" or "%s" for "%s", got "%s"`, d2target.NestedEdgeRoutingAroundShapes, d2target.NestedEdgeRoutingStraight, f.Name.ScalarString(), val)
+				continue
+			}
 		default:
 			c.errorf(f.LastRef().AST(), `"%s" is not a valid config`, f.Name.ScalarString())
 		}

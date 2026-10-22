@@ -6100,6 +6100,35 @@ x -> y
 				},
 			},
 			{
+				name: "nested-edge-routing",
+				run: func(t *testing.T) {
+					_, config := assertCompile(t, `
+vars: {
+	d2-config: {
+    nested-edge-routing: straight
+  }
+}
+
+x -> y
+`, "")
+					assert.Equal(t, "straight", *config.NestedEdgeRouting)
+				},
+			},
+			{
+				name: "nested-edge-routing-invalid",
+				run: func(t *testing.T) {
+					assertCompile(t, `
+vars: {
+	d2-config: {
+    nested-edge-routing: curved
+  }
+}
+
+x -> y
+`, `d2/testdata/d2compiler/TestCompile2/vars/config/nested-edge-routing-invalid.d2:4:5: expected "around-shapes" or "straight" for "nested-edge-routing", got "curved"`)
+				},
+			},
+			{
 				name: "not-root",
 				run: func(t *testing.T) {
 					assertCompile(t, `

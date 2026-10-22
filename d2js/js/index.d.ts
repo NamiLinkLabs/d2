@@ -94,8 +94,10 @@ export interface CompileOptions extends RenderOptions {
    * How to draw the connections that cross into or out of a grid, a `near`
    * shape or a sequence diagram, and those between grid cells, which the layout
    * engine does not route: 'around-shapes' routes them around the other shapes
-   * with TALA's edge router, 'straight' draws straight lines, which is faster on
-   * very large diagrams [default: 'around-shapes']
+   * with TALA's edge router, within a work budget that grows with the diagram,
+   * past which the rest are drawn straight; 'straight' draws straight lines.
+   * When unset, the diagram's `vars.d2-config.nested-edge-routing` applies
+   * [default: 'around-shapes']
    */
   nestedEdgeRouting?: "around-shapes" | "straight";
   /** A byte array containing .ttf file to use for the regular font. If none provided, Source Sans Pro Regular is used. */

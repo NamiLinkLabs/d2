@@ -226,7 +226,8 @@ func Compile(args []js.Value) (interface{}, error) {
 		return nil, err
 	}
 	compileOpts.LayoutResolver = resolver
-	compileOpts.RouterResolver, err = routerResolver(input.Opts)
+	compileOpts.RouterResolver = routerResolver
+	compileOpts.NestedEdgeRouting, err = nestedEdgeRouting(input.Opts)
 	if err != nil {
 		return nil, err
 	}

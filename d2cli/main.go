@@ -95,7 +95,7 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 		return err
 	}
 	layoutFlag := ms.Opts.String("D2_LAYOUT", "layout", "l", "dagre", `the layout engine used`)
-	ms.Opts.String("D2_NESTED_EDGE_ROUTING", "nested-edge-routing", "", nestedEdgeRoutingAroundShapes, "how to draw the connections that cross into or out of grids, constant nears and sequence diagrams, and those between grid cells, which the layout engine does not route: 'around-shapes' routes them around the other shapes, 'straight' draws straight lines, which is faster on very large diagrams")
+	ms.Opts.String("D2_NESTED_EDGE_ROUTING", "nested-edge-routing", "", nestedEdgeRoutingAroundShapes, "how to draw the connections that cross into or out of grids, constant nears and sequence diagrams, and those between grid cells, which the layout engine does not route: 'around-shapes' routes them around the other shapes, 'straight' draws straight lines, which is faster on very large diagrams; also configurable through vars.d2-config.nested-edge-routing")
 	themeFlag, err := ms.Opts.Int64("D2_THEME", "theme", "t", 0, "the diagram theme ID")
 	if err != nil {
 		return err
@@ -201,7 +201,7 @@ func Run(ctx context.Context, ms *xmain.State) (err error) {
 	if err != nil {
 		return xmain.UsageErrorf("%v", err)
 	}
-	if _, err := nestedEdgeRouter(ms); err != nil {
+	if _, err := nestedEdgeRoutingOption(ms); err != nil {
 		return err
 	}
 
@@ -618,16 +618,21 @@ func compile(ctx context.Context, ms *xmain.State, fs fs.FS, layout *string, ren
 		return nil, false, err
 	}
 
+	nestedEdgeRouting, err := nestedEdgeRoutingOption(ms)
+	if err != nil {
+		return nil, false, err
+	}
 	opts := &d2lib.CompileOptions{
-		Ruler:          ruler,
-		FontFamily:     fontFamily,
-		MonoFontFamily: monoFontFamily,
-		InputPath:      compilerInputPath,
-		LayoutResolver: LayoutResolver(ctx, ms),
-		Layout:         layout,
-		RouterResolver: RouterResolver(ctx, ms),
-		FS:             fs,
-		LayoutReuse:    true,
+		NestedEdgeRouting: nestedEdgeRouting,
+		Ruler:             ruler,
+		FontFamily:        fontFamily,
+		MonoFontFamily:    monoFontFamily,
+		InputPath:         compilerInputPath,
+		LayoutResolver:    LayoutResolver(ctx, ms),
+		Layout:            layout,
+		RouterResolver:    RouterResolver(ctx, ms),
+		FS:                fs,
+		LayoutReuse:       true,
 	}
 
 	if os.Getenv("D2_LSP_MODE") == "1" {

@@ -13,6 +13,7 @@ import (
 	"github.com/d2lang/d2/d2layouts/d2dagrelayout"
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
+	"github.com/d2lang/d2/d2target"
 	"github.com/d2lang/d2/lib/layoutdata"
 )
 
@@ -176,21 +177,23 @@ func (o *TALAOptions) resolve() *d2talalayout.Options {
 	return &opts
 }
 
+// nestedEdgeRouting validates the nestedEdgeRouting compile option. Unset,
+// it leaves the choice to the diagram's vars.d2-config.nested-edge-routing,
+// then the default, as the CLI does.
+func nestedEdgeRouting(opts *CompileOptions) (*string, error) {
+	if opts == nil || opts.NestedEdgeRouting == nil {
+		return nil, nil
+	}
+	if !d2target.ValidNestedEdgeRouting(*opts.NestedEdgeRouting) {
+		return nil, &WASMError{Message: fmt.Sprintf(`nestedEdgeRouting must be %q or %q, not %q`, d2target.NestedEdgeRoutingAroundShapes, d2target.NestedEdgeRoutingStraight, *opts.NestedEdgeRouting), Code: 400}
+	}
+	return opts.NestedEdgeRouting, nil
+}
+
 // routerResolver picks the router for the connections a layout engine does
 // not route itself.
-func routerResolver(opts *CompileOptions) (func(string) (d2graph.RouteEdges, error), error) {
-	routing := "around-shapes"
-	if opts != nil && opts.NestedEdgeRouting != nil {
-		routing = *opts.NestedEdgeRouting
-	}
-	switch routing {
-	case "around-shapes":
-		return func(engine string) (d2graph.RouteEdges, error) { return d2layouts.RouterFor(engine), nil }, nil
-	case "straight":
-		return func(string) (d2graph.RouteEdges, error) { return d2layouts.StraightRouter, nil }, nil
-	default:
-		return nil, &WASMError{Message: fmt.Sprintf(`nestedEdgeRouting must be "around-shapes" or "straight", not %q`, routing), Code: 400}
-	}
+func routerResolver(engine string) (d2graph.RouteEdges, error) {
+	return d2layouts.RouterFor(engine), nil
 }
 
 // layoutResolver picks the layout engine and applies the caller's tuning.

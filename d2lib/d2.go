@@ -46,6 +46,13 @@ type CompileOptions struct {
 	Ruler          *textmeasure.Ruler
 	RouterResolver func(engine string) (d2graph.RouteEdges, error)
 	LayoutResolver func(engine string) (d2graph.LayoutGraph, error)
+	// NestedEdgeRouting is how to draw the connections that cross into or out
+	// of a grid, a constant near or a sequence diagram, and those between grid
+	// cells: d2target.NestedEdgeRoutingStraight draws them with
+	// d2layouts.StraightRouter, and d2target.NestedEdgeRoutingAroundShapes, the
+	// default, with RouterResolver's router or d2layouts.RouterFor. When nil,
+	// the diagram's vars.d2-config.nested-edge-routing applies.
+	NestedEdgeRouting *string
 
 	// LayoutReuse allows scenarios and steps whose layout inputs are unchanged
 	// to reuse the geometry of their base board. Callers should enable this only
@@ -318,6 +325,15 @@ func getLayout(opts *CompileOptions) (d2graph.LayoutGraph, error) {
 }
 
 func getEdgeRouter(opts *CompileOptions) (d2graph.RouteEdges, error) {
+	if opts.NestedEdgeRouting != nil {
+		switch *opts.NestedEdgeRouting {
+		case d2target.NestedEdgeRoutingStraight:
+			return d2layouts.StraightRouter, nil
+		case d2target.NestedEdgeRoutingAroundShapes:
+		default:
+			return nil, fmt.Errorf("nested edge routing must be %q or %q, not %q", d2target.NestedEdgeRoutingAroundShapes, d2target.NestedEdgeRoutingStraight, *opts.NestedEdgeRouting)
+		}
+	}
 	if opts.Layout != nil && opts.RouterResolver != nil {
 		router, err := opts.RouterResolver(*opts.Layout)
 		if err != nil {
@@ -342,6 +358,9 @@ func applyConfigs(config *d2target.Config, compileOpts *CompileOptions, renderOp
 
 	if compileOpts.Layout == nil {
 		compileOpts.Layout = config.LayoutEngine
+	}
+	if compileOpts.NestedEdgeRouting == nil {
+		compileOpts.NestedEdgeRouting = config.NestedEdgeRouting
 	}
 
 	if renderOpts.ThemeID == nil {
