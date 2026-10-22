@@ -387,3 +387,43 @@ func compile(ctx context.Context, d2 string) (*d2target.Diagram, error) {
 	d, _, e := d2lib.Compile(ctx, d2, opts, nil)
 	return d, e
 }
+
+// TestExportLabelPadding checks that layouts get the padded label box while
+// the diagram keeps the text size and the padding apart.
+func TestExportLabelPadding(t *testing.T) {
+	t.Parallel()
+	ctx := log.With(context.Background(), testlog.New(t))
+
+	g, _, err := d2compiler.Compile("", strings.NewReader(`a -> b: hello {label.padding: 9}
+c -> d: hello
+e -> f: "" {label.padding: 9}
+`), nil)
+	assert.Success(t, err)
+	ruler, err := textmeasure.NewRuler()
+	assert.Success(t, err)
+	assert.Success(t, g.SetDimensions(nil, ruler, nil, nil))
+	text := g.Edges[1].LabelDimensions
+	tassert.Equal(t, text.Width+18, g.Edges[0].LabelDimensions.Width)
+	tassert.Equal(t, text.Height+18, g.Edges[0].LabelDimensions.Height)
+	// SetDimensions measures the text again rather than growing the box twice.
+	assert.Success(t, g.SetDimensions(nil, ruler, nil, nil))
+	tassert.Equal(t, text.Width+18, g.Edges[0].LabelDimensions.Width)
+	tassert.Equal(t, text, g.Edges[1].LabelDimensions)
+	tassert.Equal(t, 0, g.Edges[2].LabelDimensions.Width)
+
+	graphInfo := d2layouts.NestedGraphInfo(g.Root)
+	assert.Success(t, d2layouts.LayoutNested(ctx, g, graphInfo, d2dagrelayout.DefaultLayout, d2layouts.DefaultRouter))
+	d, err := d2exporter.Export(ctx, g, nil, nil)
+	assert.Success(t, err)
+
+	padded, plain, empty := d.Connections[0], d.Connections[1], d.Connections[2]
+	tassert.Equal(t, 9, padded.LabelPadding)
+	tassert.Equal(t, text.Width, padded.LabelWidth)
+	tassert.Equal(t, text.Height, padded.LabelHeight)
+	tassert.Equal(t, 0, plain.LabelPadding)
+	tassert.Equal(t, text.Width, plain.LabelWidth)
+	tassert.Equal(t, 0, empty.LabelPadding)
+	box := padded.LabelBox()
+	tassert.Equal(t, float64(text.Width+18), box.Width)
+	tassert.Equal(t, float64(text.Height+18), box.Height)
+}

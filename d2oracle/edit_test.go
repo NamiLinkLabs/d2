@@ -2600,6 +2600,26 @@ layers: {
 			expErr:    `failed to set "asdf.link" to "\"_._\"": board [man 1] cannot be modified through this file`,
 		},
 		{
+			name: "edge-label-padding/1",
+
+			text: `a -> b: hi
+`,
+			key:   `(a -> b)[0].label.padding`,
+			value: go2.Pointer(`8`),
+			exp: `a -> b: hi {label.padding: 8}
+`,
+		},
+		{
+			name: "edge-label-padding/2",
+
+			text: `a -> b: hi {label.padding: 4}
+`,
+			key:   `(a -> b)[0].label.padding`,
+			value: go2.Pointer(`8`),
+			exp: `a -> b: hi {label.padding: 8}
+`,
+		},
+		{
 			name: "label-near/1",
 
 			text: `x
@@ -8098,6 +8118,68 @@ a.label.near: center-center
 `,
 			key: `yes.label.near`,
 			exp: `yes
+`,
+		},
+		{
+			name: "edge-label-padding/1",
+
+			text: `a -> b: hi {style.stroke: red; label.padding: 4}
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: hi {style.stroke: red}
+`,
+		},
+		{
+			name: "edge-label-padding/2",
+
+			text: `a -> b: {
+  label: hi {
+    padding: 4
+    near: top-center
+  }
+}
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: {
+  label: hi {
+    near: top-center
+  }
+}
+`,
+		},
+		{
+			name: "edge-label-padding/3",
+
+			text: `a -> b: hi
+(a -> b)[0].label.padding: 4
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: hi
+`,
+		},
+		{
+			name: "edge-label-padding/4",
+
+			text: `a -> b: hi {
+  label.padding: 4
+}
+`,
+			key: `(a -> b)[0].label.padding`,
+			exp: `a -> b: hi
+`,
+		},
+		{
+			name: "edge-label-padding/5",
+
+			text: `...@meow
+(a -> b)[0].label.padding: 4
+`,
+			fsTexts: map[string]string{
+				"meow.d2": `a -> b: hi
+`,
+			},
+			key: `(a -> b)[0].label.padding`,
+			exp: `...@meow
 `,
 		},
 		{

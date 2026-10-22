@@ -81,7 +81,7 @@ func (r *markdownRenderer) render(
 		svg.FormatFloat(x), svg.FormatFloat(y), width, height, width, height,
 	)
 
-	if background != "" && background != color.None && background != "transparent" {
+	if hasMarkdownBackground(background) {
 		backgroundEl := d2themes.NewThemableElement("rect", r.inlineTheme)
 		backgroundEl.Width = float64(width)
 		backgroundEl.Height = float64(height)
@@ -109,6 +109,12 @@ func (r *markdownRenderer) render(
 	}))
 	out.WriteString(`</svg>`)
 	return out.String()
+}
+
+// hasMarkdownBackground reports whether render paints background behind
+// Markdown.
+func hasMarkdownBackground(background string) bool {
+	return background != "" && background != color.None && background != "transparent"
 }
 
 func (r *markdownRenderer) fillPaint(value string) textmeasure.MarkdownSVGPaint {

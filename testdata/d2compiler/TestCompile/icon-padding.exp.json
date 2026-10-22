@@ -1,0 +1,11 @@
+{
+  "graph": null,
+  "err": {
+    "errs": [
+      {
+        "range": "d2/testdata/d2compiler/TestCompile/icon-padding.d2,0:68:68-0:78:78",
+        "errmsg": "d2/testdata/d2compiler/TestCompile/icon-padding.d2:1:69: unexpected field padding"
+      }
+    ]
+  }
+}

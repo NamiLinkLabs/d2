@@ -332,6 +332,9 @@ func validateRenderConnectionNumbers(connection Connection, path string) error {
 	if !finiteRenderNumber(connection.LabelPercentage) || connection.LabelPercentage < 0 || connection.LabelPercentage > 1 {
 		return invalidRenderField(path, "labelPercentage", connection.LabelPercentage, "must be finite and within [0,1]")
 	}
+	if connection.LabelPadding < 0 || connection.LabelPadding > MAX_CONNECTION_LABEL_PADDING {
+		return invalidRenderField(path, "labelPadding", connection.LabelPadding, fmt.Sprintf("must be within [0,%d]", MAX_CONNECTION_LABEL_PADDING))
+	}
 	if err := validateRenderTextNumbers(path, "", connection.Text); err != nil {
 		return err
 	}

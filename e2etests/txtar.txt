@@ -1773,6 +1773,47 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 
 a->b
 
+-- edge-label-padding --
+direction: right
+classes: {
+  roomy: {label.padding: 12}
+}
+
+src -> a: no padding {style.fill: "#dbe8ff"}
+src -> b: padding 12 {class: roomy; style.fill: "#dbe8ff"}
+src -> c: bold, padding 8 {label.padding: 8; style.bold: true}
+src -> d: |md
+  **Markdown**, padding 10
+| {label.padding: 10; style.fill: "#fff1cc"}
+src -> e: |go
+  padding(4)
+| {label.padding: 4}
+box: {
+  direction: down
+  x -> y: in a container, padding 10 {label.padding: 10; style.fill: "#ddf3dd"}
+}
+e -> box.x: padding 10 {label.padding: 10}
+
+-- edge-label-padding-glob --
+(** -> **)[*].label.padding: 8
+(** -> **)[*].style.fill: "#dbe8ff"
+
+client -> api: request
+api -> db: query {label.padding: 0}
+db -> api: rows
+api -> client: response
+api -> cache: write-through, padding 16 {
+  label.padding: 16
+  icon: https://icons.terrastruct.com/essentials%2F213-alarm.svg
+}
+
+-- edge-label-padding-sequence --
+shape: sequence_diagram
+alice -> bob: no padding {style.fill: "#dbe8ff"}
+bob -> alice: padding 12 {label.padding: 12; style.fill: "#dbe8ff"}
+alice -> alice: self, padding 8 {label.padding: 8}
+alice -> carol: padding 8 {label.padding: 8}
+carol -> bob: no padding
 
 -- layout-options-data --
 vars: {
