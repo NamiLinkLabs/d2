@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,9 @@ import (
 	"github.com/d2lang/d2/d2layouts/d2elklayout"
 	"github.com/d2lang/d2/d2layouts/d2talalayout"
 	"github.com/d2lang/d2/d2lib"
+	"github.com/d2lang/d2/d2renderers/d2scenebuild"
 	"github.com/d2lang/d2/d2renderers/d2svg"
+	"github.com/d2lang/d2/d2target"
 	d2log "github.com/d2lang/d2/lib/log"
 	"github.com/d2lang/d2/lib/textmeasure"
 )
@@ -61,6 +64,8 @@ func pinnedRouteEngines() []pinnedRouteEngine {
 		{name: "dagre", layout: d2dagrelayout.DefaultLayout},
 		{name: "elk", layout: d2elklayout.DefaultLayout},
 	}
+	// Each seed TALA tries by default on its own, and all of them together as
+	// the CLI runs it (the best attempt wins).
 	for _, seed := range []int64{1, 2, 3} {
 		engines = append(engines, pinnedRouteEngine{
 			name: fmt.Sprintf("tala seed %d", seed),
@@ -70,13 +75,20 @@ func pinnedRouteEngines() []pinnedRouteEngine {
 			router: d2talalayout.RouteEdges,
 		})
 	}
+	engines = append(engines, pinnedRouteEngine{
+		name:   "tala default",
+		layout: d2talalayout.DefaultLayout,
+		router: d2talalayout.RouteEdges,
+	})
 	return engines
 }
 
 // TestPinnedRoutesClear lays out every pinned-route diagram with each engine
 // and checks that each pinned connection leaves through its pinned sides,
-// heads away from its shapes, never runs back through them and crosses no
-// unrelated shape.
+// heads away from its shapes, never runs back through them, crosses no
+// unrelated shape and, unless it is drawn as a curve, has only horizontal and
+// vertical segments. Every board must also pass the SVG renderer and the
+// native (PNG, PDF, ...) scene builder.
 func TestPinnedRoutesClear(t *testing.T) {
 	ruler, err := textmeasure.NewRuler()
 	if err != nil {
@@ -98,7 +110,7 @@ func TestPinnedRoutesClear(t *testing.T) {
 				if engine.router != nil {
 					opts.RouterResolver = func(string) (d2graph.RouteEdges, error) { return engine.router, nil }
 				}
-				_, g, err := d2lib.Compile(ctx, source, opts, &d2svg.RenderOpts{})
+				diagram, g, err := d2lib.Compile(ctx, source, opts, &d2svg.RenderOpts{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -112,10 +124,62 @@ func TestPinnedRoutesClear(t *testing.T) {
 					if err := e.RouteClear(); err != nil {
 						t.Error(err)
 					}
+					if !e.IsCurve {
+						if err := routeOrthogonal(e); err != nil {
+							t.Error(err)
+						}
+					}
+				}
+				for _, board := range allBoards(diagram) {
+					if _, err := d2svg.Render(board, &d2svg.RenderOpts{}); err != nil {
+						t.Errorf("svg: %v", err)
+					}
+					if _, err := d2scenebuild.Build(ctx, sceneBoard(board), d2scenebuild.Options{}); err != nil {
+						t.Errorf("scene: %v", err)
+					}
 				}
 			})
 		}
 	}
+}
+
+// routeOrthogonal reports the first segment of e's route that is neither
+// horizontal nor vertical.
+func routeOrthogonal(e *d2graph.Edge) error {
+	const eps = 1.
+	for i := 1; i < len(e.Route); i++ {
+		a, b := e.Route[i-1], e.Route[i]
+		if math.Abs(a.X-b.X) > eps && math.Abs(a.Y-b.Y) > eps {
+			return fmt.Errorf("%s: segment %v -> %v is diagonal", e.AbsID(), a, b)
+		}
+	}
+	return nil
+}
+
+// sceneBoard returns board without its child boards and icons, which the
+// scene builder would have to fetch, for checking route geometry.
+func sceneBoard(board *d2target.Diagram) *d2target.Diagram {
+	scene := *board
+	scene.Layers, scene.Scenarios, scene.Steps = nil, nil, nil
+	scene.Shapes = append([]d2target.Shape(nil), board.Shapes...)
+	for i := range scene.Shapes {
+		scene.Shapes[i].Icon = nil
+	}
+	scene.Connections = append([]d2target.Connection(nil), board.Connections...)
+	for i := range scene.Connections {
+		scene.Connections[i].Icon = nil
+	}
+	return &scene
+}
+
+func allBoards(d *d2target.Diagram) []*d2target.Diagram {
+	boards := []*d2target.Diagram{d}
+	for _, children := range [][]*d2target.Diagram{d.Layers, d.Scenarios, d.Steps} {
+		for _, child := range children {
+			boards = append(boards, allBoards(child)...)
+		}
+	}
+	return boards
 }
 
 func allEdges(g *d2graph.Graph) []*d2graph.Edge {
