@@ -203,3 +203,40 @@ func TestPinRouteFacingNarrowGap(t *testing.T) {
 		t.Errorf("c -> d is not a straight line: %v", r)
 	}
 }
+
+func TestRouteClear(t *testing.T) {
+	// a at x 0-100, b at 200-300, c at 400-500, all y 0-60; p holds q.
+	g := portGraph(t, "a -> b: {source-port: right}\nc\na -> c\np: {q}\np.q -> a")
+	ab, ac, qa := g.Edges[0], g.Edges[1], g.Edges[2]
+	p, q := g.Objects[3], g.Objects[4]
+	p.Box = geo.NewBox(geo.NewPoint(0, 200), 300, 200)
+	q.Box = geo.NewBox(geo.NewPoint(100, 300), 100, 60)
+	cases := []struct {
+		name  string
+		e     *d2graph.Edge
+		route []*geo.Point
+		want  string
+	}{
+		{"straight", ab, []*geo.Point{geo.NewPoint(100, 30), geo.NewPoint(200, 30)}, ""},
+		{"through another shape", ac, []*geo.Point{geo.NewPoint(100, 30), geo.NewPoint(400, 30)}, "crosses b"},
+		{"around another shape", ac, []*geo.Point{geo.NewPoint(50, 0), geo.NewPoint(50, -20), geo.NewPoint(450, -20), geo.NewPoint(450, 0)}, ""},
+		{"heads into its source", ab, []*geo.Point{geo.NewPoint(100, 30), geo.NewPoint(90, 30), geo.NewPoint(90, 80), geo.NewPoint(250, 80), geo.NewPoint(250, 60)}, "heads into a"},
+		{"back through its source", ab, []*geo.Point{geo.NewPoint(100, 30), geo.NewPoint(120, 30), geo.NewPoint(120, -20), geo.NewPoint(50, -20), geo.NewPoint(50, 80), geo.NewPoint(250, 80), geo.NewPoint(250, 60)}, "back through a"},
+		{"out of its own container", qa, []*geo.Point{geo.NewPoint(150, 300), geo.NewPoint(150, 100), geo.NewPoint(50, 100), geo.NewPoint(50, 60)}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.e.Route = tc.route
+			err := tc.e.RouteClear()
+			if tc.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

@@ -123,6 +123,55 @@ func (e *Edge) PortsHonored() error {
 	return nil
 }
 
+// RouteClear reports the first place where e's route runs through a shape:
+// through the interior of any object other than its endpoints and their
+// ancestors, or, after leaving an endpoint, back through it. The first and
+// last segments must also head away from their shapes. Layout tests use it
+// next to PortsHonored, which checks only the ends.
+func (e *Edge) RouteClear() error {
+	if len(e.Route) < 2 || e.Src.Graph == nil {
+		return nil
+	}
+	n := len(e.Route)
+	ends := []struct {
+		obj, other *Object
+		end, next  *geo.Point
+		skip       int // the segment index that touches this end
+	}{
+		{e.Src, e.Dst, e.Route[0], e.Route[1], 1},
+		{e.Dst, e.Src, e.Route[n-1], e.Route[n-2], n - 1},
+	}
+	for _, end := range ends {
+		if end.obj.TopLeft == nil || (end.obj != end.other && end.other.IsDescendantOf(end.obj)) {
+			continue
+		}
+		c := end.obj.Center()
+		if (end.next.X-end.end.X)*(end.end.X-c.X)+(end.next.Y-end.end.Y)*(end.end.Y-c.Y) <= 0 {
+			return fmt.Errorf("%s: segment %v -> %v heads into %s", e.AbsID(), end.end, end.next, end.obj.AbsID())
+		}
+		for i := 1; i < n; i++ {
+			if i == end.skip {
+				continue
+			}
+			if segmentCrossesBox(end.obj.Box, e.Route[i-1], e.Route[i]) {
+				return fmt.Errorf("%s: segment %v -> %v runs back through %s", e.AbsID(), e.Route[i-1], e.Route[i], end.obj.AbsID())
+			}
+		}
+	}
+	for _, obj := range e.Src.Graph.Objects {
+		if obj == e.Src || obj == e.Dst || obj.TopLeft == nil ||
+			e.Src.IsDescendantOf(obj) || e.Dst.IsDescendantOf(obj) {
+			continue
+		}
+		for i := 1; i < n; i++ {
+			if segmentCrossesBox(obj.Box, e.Route[i-1], e.Route[i]) {
+				return fmt.Errorf("%s: segment %v -> %v crosses %s", e.AbsID(), e.Route[i-1], e.Route[i], obj.AbsID())
+			}
+		}
+	}
+	return nil
+}
+
 func portEndHonored(obj *Object, side geo.Orientation, end, next *geo.Point) error {
 	const eps = 1.
 	if obj.TopLeft == nil {
