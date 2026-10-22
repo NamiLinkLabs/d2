@@ -56,6 +56,7 @@ type RenderOptions struct {
 	NoXMLTag           *bool                    `json:"noXMLTag"`
 	ASCII              *bool                    `json:"ascii"`
 	ASCIIMode          *string                  `json:"asciiMode"`
+	IntersectionGaps   *bool                    `json:"intersectionGaps"`
 	// Source is embedded in the rendered SVG. Compile sets it when
 	// CompileOptions.EmbedSource is set.
 	Source *sourcemeta.Bundle `json:"source,omitempty"`

@@ -1773,6 +1773,87 @@ style: {fill-pattern: dots; fill:"radial-gradient(#fbfbf8, #e3e3f0)"; stroke: "#
 
 a->b
 
+-- intersection-gaps --
+vars: {
+  d2-config: {
+    intersection-gaps: true
+  }
+}
+
+orthogonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  b -> h
+  d -> f
+}
+
+diagonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  a -> i
+  c -> g
+}
+
+network: {
+  style.fill: honeydew
+  p -> r
+  q -> s
+  p -> s: crossing {style.stroke-dash: 3}
+  q -> r: {style.stroke-width: 5}
+  u -> x
+  v -> w
+  u -> w: {style.animated: true}
+  v -> x
+}
+
+sequence: {
+  shape: sequence_diagram
+  alice; bob; carol
+  alice -> carol: over bob
+  carol -> alice
+}
+
+-- intersection-gaps-sketch --
+vars: {
+  d2-config: {
+    intersection-gaps: true
+    sketch: true
+  }
+}
+
+orthogonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  b -> h
+  d -> f
+}
+
+diagonal: {
+  grid-columns: 3
+  a; b; c; d; e: ""; f; g; h; i
+  a -> i
+  c -> g
+}
+
+network: {
+  style.fill: honeydew
+  p -> r
+  q -> s
+  p -> s: crossing {style.stroke-dash: 3}
+  q -> r: {style.stroke-width: 5}
+  u -> x
+  v -> w
+  u -> w: {style.animated: true}
+  v -> x
+}
+
+sequence: {
+  shape: sequence_diagram
+  alice; bob; carol
+  alice -> carol: over bob
+  carol -> alice
+}
+
 -- edge-label-padding --
 direction: right
 classes: {

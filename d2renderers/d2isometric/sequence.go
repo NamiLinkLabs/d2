@@ -1,10 +1,7 @@
 package d2isometric
 
 import (
-	"github.com/d2lang/d2/d2ast"
-	"github.com/d2lang/d2/d2format"
 	"github.com/d2lang/d2/d2layouts/d2sequence"
-	"github.com/d2lang/d2/d2parser"
 	"github.com/d2lang/d2/d2target"
 )
 
@@ -28,24 +25,17 @@ func classifySequence(scene *Scene, indices map[string]int, parents []int) {
 			confirmed[i] = true
 		}
 	}
+	isNode := func(id string) bool {
+		_, exists := indices[id]
+		return exists
+	}
 	for i := range scene.Edges {
 		edge := &scene.Edges[i]
-		actor, exists := indices[edge.Source]
-		_, realTarget := indices[edge.Target]
-		if !exists || realTarget || edge.Metadata.Original.ZIndex != d2sequence.LIFELINE_Z_INDEX ||
-			edge.SourceArrow != d2target.NoArrowhead || edge.TargetArrow != d2target.NoArrowhead || len(edge.Metadata.Original.Route) != 2 {
+		// BuildScene copies Source, Target and the arrowheads from Original.
+		if !d2sequence.IsLifeline(edge.Metadata.Original, isNode) {
 			continue
 		}
-		// Object.ID is formatted D2 syntax, not the decoded IDVal. The
-		// synthetic hash retains quoting around dots, quotes and escapes.
-		key, err := d2parser.ParseKey(edge.Source)
-		if err != nil || len(key.Path) == 0 {
-			continue // BuildScene already validated every real source node ID.
-		}
-		local := d2format.Format(&d2ast.KeyPath{Path: key.Path[len(key.Path)-1:]})
-		if edge.Target != d2sequence.LifelineEndID(local) {
-			continue
-		}
+		actor := indices[edge.Source]
 		edge.SequenceRole = "lifeline"
 		scene.Nodes[actor].SequenceRole = "actor"
 		confirmed[scopes[actor]] = true
