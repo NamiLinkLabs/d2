@@ -2,7 +2,7 @@
 
 - elk: configure the spacing between edges routed between the same pair of layers with `--elk-edgeEdgeBetweenLayers`. It was previously fixed at 50, which forced large gaps between layers on graphs with many links between adjacent layers.
 - renders: add native isometric SVG, PNG, GIF, PDF, and PPTX exports with `--isometric`, source configuration, and Go/JavaScript options
-- layouts: route the connections that cross into or out of grids, `near` shapes and sequence diagrams, and the connections between grid cells, around the other shapes with every layout engine, in the engine's style (curved with dagre) instead of straight lines through them. `--nested-edge-routing=straight` (D2.js: `nestedEdgeRouting: "straight"`) keeps straight lines, which is faster on very large diagrams. [#1994](https://github.com/d2lang/d2/issues/1994), [#1285](https://github.com/d2lang/d2/issues/1285)
+- layouts: route the connections that cross into or out of grids, `near` shapes and sequence diagrams, and the connections between grid cells, around the other shapes with every layout engine, in the engine's style (curved with dagre) instead of straight lines through them. This changes how existing diagrams with such connections render, and compiles large ones more slowly (`nesting_power` with dagre: 0.07 s to 0.75 s). Connections to an invisible, unlabeled shape, often used as a relay to bend a chain of connections, stay straight. `--nested-edge-routing=straight` (D2.js: `nestedEdgeRouting: "straight"`) brings back the straight lines everywhere, and the old speed. [#1994](https://github.com/d2lang/d2/issues/1994), [#1285](https://github.com/d2lang/d2/issues/1285)
 
 #### Improvements 🧹
 

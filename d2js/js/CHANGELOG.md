@@ -6,7 +6,7 @@ include changes to the main d2 project.**
 ## Next
 
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
-- Route connections that cross into or out of grids, `near` shapes and sequence diagrams, and connections between grid cells, around the other shapes with every layout engine. Add the `nestedEdgeRouting` compile option to draw them as straight lines instead.
+- Route connections that cross into or out of grids, `near` shapes and sequence diagrams, and connections between grid cells, around the other shapes with every layout engine. This is on by default, as in the CLI, so `compile()` gives the same diagram as `d2`, but it makes compiling diagrams with many such connections several times slower, more so in WebAssembly, which routes on one thread (`nesting_power` with dagre: 0.07 s to 0.75 s natively). Add the `nestedEdgeRouting` compile option: `"straight"` draws them as straight lines through the other shapes again, at the old speed; use it when compile time matters more, or when the caller reroutes the connections itself, for example with `D2.routeEdges()`.
 
 ## [0.1.34]
 ### September 7, 2026
