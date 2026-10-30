@@ -29,6 +29,8 @@ class FakeGitHub:
         self.change_before_asset_read = None
         self.fail_upload_once = False
         self.next_asset_id = 1000
+        self.list_lag = 0
+        self.lag_after_create = 0
         for asset in assets:
             self.add_asset(*asset)
 
@@ -61,10 +63,14 @@ class FakeGitHub:
 
     def gh(self, *args):
         if args[:3] == ("api", "--paginate", "--slurp"):
+            if self.list_lag:
+                self.list_lag -= 1
+                return json.dumps([[]])
             return json.dumps([[self.release] if self.release else []])
         if args[:2] == ("release", "create"):
             self.assert_create(args)
             self.release = FakeGitHub().release
+            self.list_lag = self.lag_after_create
         elif args[:2] == ("release", "upload"):
             path = Path(args[3])
             assert "--clobber" not in args
@@ -330,6 +336,30 @@ class DraftUploadTests(unittest.TestCase):
         self.assertEqual(fake.writes[0][:2], ("release", "create"))
         self.assertNotIn("--prerelease", fake.writes[0])
         self.assertTrue(fake.release["draft"])
+
+    def create_with_lag(self, lag):
+        fake = FakeGitHub()
+        fake.release = None
+        fake.lag_after_create = lag
+        previous = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, previous)
+        notes = self.root / "ci/release/changelogs" / f"{VERSION}.md"
+        notes.parent.mkdir(parents=True)
+        notes.write_text("Release notes")
+        return fake
+
+    def test_created_draft_found_after_listing_lag(self):
+        fake = self.create_with_lag(3)
+        self.run_upload(fake)
+        self.assertEqual(sum(1 for w in fake.writes if w[:2] == ("release", "create")), 1)
+        self.assertTrue(fake.release["draft"])
+
+    def test_created_draft_missing_for_too_long_fails(self):
+        fake = self.create_with_lag(50)
+        with self.assertRaisesRegex(ValueError, "created draft release was not found"):
+            self.run_upload(fake)
+        self.assertEqual(sum(1 for w in fake.writes if w[:2] == ("release", "create")), 1)
 
 
 if __name__ == "__main__":
