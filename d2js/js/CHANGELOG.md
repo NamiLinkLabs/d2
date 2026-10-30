@@ -5,6 +5,11 @@ include changes to the main d2 project.**
 
 ## Next
 
+## [0.1.35-nl.1]
+### October 30, 2026
+
+Built by the NamiLinkLabs fork from D2 v0.10.0-nl.1 and attached to that GitHub release as `d2js-v0.10.0-nl.1.tgz`. It is not published to npm.
+
 - Add `D2.routeEdges()`, which routes connections with TALA's edge router around shapes placed by the caller
 - Add `tala.separateEdges` to compile and `routeEdges` options, which gives every connection its own route instead of bundling connections that share an endpoint
 - Support `source-port` / `target-port` connection pins: compiled connections carry `srcPort` / `dstPort` (`"top" | "right" | "bottom" | "left"`), `routeEdges` keeps rerouted connections on their pinned sides, and completions suggest the sides
