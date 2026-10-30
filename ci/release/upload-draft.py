@@ -11,6 +11,7 @@ import subprocess
 import time
 
 VERSION = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$")
+FORK_RELEASE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+-nl\.[1-9][0-9]*$")
 TARGETS = ("linux-amd64", "linux-arm64", "macos-amd64", "macos-arm64", "windows-amd64", "windows-arm64")
 
 
@@ -28,7 +29,7 @@ def digest(path):
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def local_assets(version, archives, msi, sbom):
+def local_assets(version, archives, msi, sbom, d2js=None):
     names = {f"d2-{version}-{target}.tar.gz" for target in TARGETS}
     if archives.is_symlink() or not archives.is_dir():
         raise ValueError("archive directory must be a real directory")
@@ -47,10 +48,25 @@ def local_assets(version, archives, msi, sbom):
     for name, expected in checksums.items():
         if digest(archives / name) != expected:
             raise ValueError(f"archive checksum mismatch: {name}")
-    if msi.name != f"d2-{version}-windows-amd64.msi" or sbom.name != "d2.spdx.json":
-        raise ValueError("unexpected MSI or SBOM filename")
-    paths = [archives / name for name in sorted(names)] + [manifest, msi, sbom]
+    # The MSI needs the owner's WiX EULA acceptance, so a release may go without it.
+    if msi is not None and msi.name != f"d2-{version}-windows-amd64.msi":
+        raise ValueError("unexpected MSI filename")
+    if d2js is not None and d2js.name != d2js_filename(version):
+        raise ValueError("unexpected D2.js package filename")
+    if sbom.name != "d2.spdx.json":
+        raise ValueError("unexpected SBOM filename")
+    optional = [path for path in (msi, d2js) if path is not None]
+    paths = [archives / name for name in sorted(names)] + [manifest, *optional, sbom]
     return [(path, digest(path), path.stat().st_size) for path in paths]
+
+
+def d2js_filename(version):
+    return f"d2js-{version}.tgz"
+
+
+def is_prerelease(version):
+    # NamiLinkLabs fork releases (v0.10.0-nl.1) are the fork's stable releases.
+    return "-" in version and not FORK_RELEASE.fullmatch(version)
 
 
 def verify_tag(repository, version, commit):
@@ -121,7 +137,7 @@ def upload(repository, version, commit, assets):
         if not notes.is_file():
             raise ValueError(f"release changelog is missing: {notes}")
         args = ["release", "create", version, "--repo", repository, "--verify-tag", "--draft", "--title", version, "--notes-file", str(notes)]
-        if "-" in version:
+        if is_prerelease(version):
             args.append("--prerelease")
         gh(*args)
         release = find_release(repository, version)
@@ -166,12 +182,15 @@ def upload(repository, version, commit, assets):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("repository", "version", "commit", "archives", "msi", "sbom"):
+    for name in ("repository", "version", "commit", "archives", "sbom"):
         parser.add_argument(f"--{name}", required=True)
+    parser.add_argument("--msi", help="Windows installer; omitted when the MSI was not built")
+    parser.add_argument("--d2js", help="D2.js npm tarball named d2js-<version>.tgz")
     args = parser.parse_args()
     if not VERSION.fullmatch(args.version) or not re.fullmatch(r"[0-9a-f]{40}", args.commit) or not re.fullmatch(r"[\w.-]+/[\w.-]+", args.repository):
         parser.error("invalid repository, version, or commit")
-    assets = local_assets(args.version, Path(args.archives), Path(args.msi), Path(args.sbom))
+    optional = {name: Path(value) if value else None for name, value in (("msi", args.msi), ("d2js", args.d2js))}
+    assets = local_assets(args.version, Path(args.archives), optional["msi"], Path(args.sbom), optional["d2js"])
     upload(args.repository, args.version, args.commit, assets)
 
 

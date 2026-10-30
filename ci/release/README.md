@@ -1,5 +1,35 @@
 # release
 
+## NamiLinkLabs fork releases
+
+Fork releases are tagged `v<next upstream minor>-nl.<N>`, for example `v0.10.0-nl.1`:
+the fork's work on top of what will become upstream `v0.10.0`. `d2 --version` reports
+the tag. The MSI's ProductVersion drops the suffix (`0.10.0`), as for any prerelease.
+GitHub does not mark `-nl.N` drafts as prereleases.
+
+1. On a branch from `master`, move `ci/release/changelogs/next.md` to
+   `ci/release/changelogs/<tag>.md` and reset `next.md` from `template.md`. Set
+   `d2js/js/package.json` and `package-lock.json` to a D2.js version with the same
+   `-nl.N` suffix, for example `0.1.35-nl.1`. Merge the branch.
+2. Tag the merge commit with an annotated tag and push it:
+   `git tag -a v0.10.0-nl.1 -m v0.10.0-nl.1 <commit> && git push origin v0.10.0-nl.1`.
+3. `release-archives.yml` runs the full CI, builds, smoke-tests and attests the archives
+   and D2.js, and creates a draft release with the archives, `SHA256SUMS`, the SBOM and
+   `d2js-<tag>.tgz`. The MSI is built and attached only when the repository variable
+   `WIX7_EULA_ACCEPTED` is `true`, which the repository owner sets after accepting the
+   WiX 7 EULA.
+4. Review the draft and publish it.
+
+`d2js-<tag>.tgz` is the `@d2lang/d2` npm package built from the tag. It is not
+published to npm. Install it by URL, so imports of `@d2lang/d2` do not change:
+
+```sh
+npm install https://github.com/NamiLinkLabs/d2/releases/download/v0.10.0-nl.1/d2js-v0.10.0-nl.1.tgz
+```
+
+The URL works once the release is published. The package's `version()` returns the
+tag and `jsVersion()` its package version.
+
 ## npm publishing
 
 `@d2lang/d2` is the canonical JavaScript package. `@terrastruct/d2` is published from the
