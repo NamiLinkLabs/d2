@@ -106,6 +106,8 @@ class DraftUploadTests(unittest.TestCase):
         (self.archives / "SHA256SUMS").write_text("".join(lines))
         self.msi = self.root / f"d2-{VERSION}-windows-amd64.msi"
         self.msi.write_bytes(b"verified installer")
+        self.d2js = self.root / f"d2js-{VERSION}.tgz"
+        self.d2js.write_bytes(b"verified package")
         self.sbom = self.root / "d2.spdx.json"
         self.sbom.write_text('{"spdxVersion":"SPDX-2.3"}')
         self.assets = self.read_assets()
@@ -139,6 +141,47 @@ class DraftUploadTests(unittest.TestCase):
         self.msi.symlink_to(replacement)
         with self.assertRaisesRegex(ValueError, "regular file"):
             self.read_assets()
+
+    def test_release_without_msi(self):
+        self.assets = uploader.local_assets(VERSION, self.archives, None, self.sbom)
+        self.assertEqual([path.name for path, _, _ in self.assets][-2:], ["SHA256SUMS", "d2.spdx.json"])
+        fake = FakeGitHub()
+        self.run_upload(fake)
+        self.assertEqual(len(fake.writes), 8)
+        self.assertFalse(any(asset["name"].endswith(".msi") for asset in fake.release["assets"]))
+
+    def test_release_with_d2js_package(self):
+        for msi in (self.msi, None):
+            with self.subTest(msi=msi):
+                self.assets = uploader.local_assets(VERSION, self.archives, msi, self.sbom, self.d2js)
+                fake = FakeGitHub()
+                self.run_upload(fake)
+                names = [asset["name"] for asset in fake.release["assets"]]
+                self.assertIn(f"d2js-{VERSION}.tgz", names)
+                self.assertEqual(len(names), 10 if msi else 9)
+                self.run_upload(fake)
+                self.assertEqual(len(fake.release["assets"]), len(names))
+
+    def test_rejects_misnamed_optional_assets(self):
+        renamed = self.root / "d2lang-d2-0.1.35.tgz"
+        self.d2js.rename(renamed)
+        with self.assertRaisesRegex(ValueError, "D2.js package filename"):
+            uploader.local_assets(VERSION, self.archives, None, self.sbom, renamed)
+        msi = self.root / "d2.msi"
+        self.msi.rename(msi)
+        with self.assertRaisesRegex(ValueError, "MSI filename"):
+            uploader.local_assets(VERSION, self.archives, msi, self.sbom)
+
+    def test_rejects_empty_d2js_package(self):
+        self.d2js.write_bytes(b"")
+        with self.assertRaisesRegex(ValueError, "nonempty"):
+            uploader.local_assets(VERSION, self.archives, None, self.sbom, self.d2js)
+
+    def test_fork_releases_are_not_prereleases(self):
+        for version, expected in (("v1.2.3", False), ("v0.10.0-rc.1", True), ("v0.10.0-nl.1", False),
+                                  ("v0.10.0-nl.12", False), ("v0.10.0-nl.1-rc.1", True), ("v0.10.0-nl.0", True)):
+            with self.subTest(version=version):
+                self.assertEqual(uploader.is_prerelease(version), expected)
 
     def test_upload_and_retry_preserve_exact_bytes(self):
         fake = FakeGitHub()
@@ -285,6 +328,7 @@ class DraftUploadTests(unittest.TestCase):
         notes.write_text("Release notes")
         self.run_upload(fake)
         self.assertEqual(fake.writes[0][:2], ("release", "create"))
+        self.assertNotIn("--prerelease", fake.writes[0])
         self.assertTrue(fake.release["draft"])
 
 
