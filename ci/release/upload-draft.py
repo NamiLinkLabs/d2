@@ -140,7 +140,12 @@ def upload(repository, version, commit, assets):
         if is_prerelease(version):
             args.append("--prerelease")
         gh(*args)
-        release = find_release(repository, version)
+        # The release list can lag a few seconds behind the create call.
+        for attempt in range(10):
+            release = find_release(repository, version)
+            if release is not None:
+                break
+            time.sleep(3)
         if release is None:
             raise ValueError("created draft release was not found")
     verify_draft(release, version)
