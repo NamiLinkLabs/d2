@@ -515,9 +515,13 @@ func TestBigDiagrams(t *testing.T) {
 		conns = append(conns, conn("", x, y, x, y+60))
 	}
 	d := board(conns...)
+	budget := time.Duration(1)
+	if raceEnabled {
+		budget = 10
+	}
 	start := time.Now()
 	r := find(t, d, crossgaps.Options{})
-	if elapsed := time.Since(start); elapsed > 2*time.Second {
+	if elapsed := time.Since(start); elapsed > 2*time.Second*budget {
 		t.Fatalf("took %s", elapsed)
 	}
 	pairs := map[string]bool{}
@@ -540,7 +544,7 @@ func TestBigDiagrams(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if elapsed := time.Since(start); elapsed > 5*time.Second {
+	if elapsed := time.Since(start); elapsed > 5*time.Second*budget {
 		t.Fatalf("mesh took %s", elapsed)
 	}
 	if n := len(flat(d, gaps)); n != crossgaps.MaxGaps {

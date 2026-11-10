@@ -24,6 +24,11 @@ func TestNativeGIFAuthoredNodeLoopAndPacketSeam(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.close()
+	if raceEnabled {
+		// 96 frames under the race detector outlast the two minute render
+		// deadline. This test checks the loop, not the deadline.
+		s.ctx = context.Background()
+	}
 	frames, seconds := nativeGIFCycle(s.scene)
 	if frames != 96 || seconds != 8 {
 		t.Fatalf("authored cycle: %d %g", frames, seconds)
