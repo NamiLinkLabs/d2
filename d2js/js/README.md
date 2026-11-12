@@ -1,9 +1,14 @@
 # D2.js
 
-[![npm version](https://badge.fury.io/js/%40d2lang%2Fd2.svg)](https://www.npmjs.com/package/@d2lang/d2)
+[![npm version](https://img.shields.io/npm/v/@namilinklabs/d2)](https://www.npmjs.com/package/@namilinklabs/d2)
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://mozilla.org/MPL/2.0/)
 
 D2.js is a JavaScript wrapper around D2, the modern diagram scripting language. It enables running D2 directly in browsers and Node environments through WebAssembly.
+
+`@namilinklabs/d2` is D2.js built from [NamiLinkLabs/d2](https://github.com/NamiLinkLabs/d2),
+a fork of [d2lang/d2](https://github.com/d2lang/d2) with extra layout, routing and rendering
+features. It has the same API as upstream's `@d2lang/d2` plus the fork's additions, so
+switching from upstream is a change of import name.
 
 For an example of usage, see [https://play.d2lang.com](https://play.d2lang.com), which is powered by d2.js and is [open-source](https://github.com/d2lang/d2-playground).
 
@@ -19,29 +24,27 @@ For an example of usage, see [https://play.d2lang.com](https://play.d2lang.com),
 
 ```bash
 # npm
-npm install @d2lang/d2
+npm install @namilinklabs/d2
 
 # yarn
-yarn add @d2lang/d2
+yarn add @namilinklabs/d2
 
 # pnpm
-pnpm add @d2lang/d2
+pnpm add @namilinklabs/d2
 
 # bun
-bun add @d2lang/d2
+bun add @namilinklabs/d2
 ```
 
-`@terrastruct/d2` remains available as a compatibility package and receives the same
-releases during the namespace transition. New installations should use `@d2lang/d2`.
 
 ### Nightly
 
-Use the `@nightly` tag to get the version that is built by daily CI on the master branch.
+Use the `@nightly` tag to get a prerelease built from the master branch.
 
 For example,
 
 ```bash
-yarn add @d2lang/d2@nightly
+yarn add @namilinklabs/d2@nightly
 ```
 
 ## Usage
@@ -52,9 +55,9 @@ D2.js uses webworkers to call a WASM file.
 
 ```javascript
 // Same for Node or browser
-import { D2 } from '@d2lang/d2';
+import { D2 } from '@namilinklabs/d2';
 // Or using a CDN
-// import { D2 } from 'https://esm.sh/@d2lang/d2';
+// import { D2 } from 'https://esm.sh/@namilinklabs/d2';
 
 const d2 = new D2();
 
@@ -66,7 +69,7 @@ await d2.dispose();
 Configuring render options (see [CompileOptions](#compileoptions) for all available options):
 
 ```javascript
-import { D2 } from '@d2lang/d2';
+import { D2 } from '@namilinklabs/d2';
 
 const d2 = new D2();
 
@@ -81,7 +84,7 @@ const svg = await d2.render(result.diagram, result.renderOptions);
 In order to support [imports](https://d2lang.com/tour/imports), a mapping of D2 file paths to their content can be passed to the compiler.
 
 ```javascript
-import { D2 } from '@d2lang/d2';
+import { D2 } from '@namilinklabs/d2';
 
 const d2 = new D2();
 
@@ -292,7 +295,7 @@ sudo apt-get install binaryen
 ### Building from source
 
 ```bash
-git clone https://github.com/d2lang/d2.git
+git clone https://github.com/NamiLinkLabs/d2.git
 cd d2/d2js/js
 ./make.sh all
 ```

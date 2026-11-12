@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { D2 } from "@d2lang/d2";
+import { D2 } from "@namilinklabs/d2";
 
 test("installed ESM package compiles and renders", async () => {
   const d2 = new D2();

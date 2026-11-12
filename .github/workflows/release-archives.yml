@@ -238,7 +238,7 @@ jobs:
       archive_sha256: ${{ needs.build.outputs.windows_sha256 }}
 
   # Builds D2.js from the tagged source like npm-stage.yml's pack job and keeps
-  # the @d2lang/d2 tarball as d2js-<version>.tgz for the release. Nothing is
+  # the @namilinklabs/d2 tarball as d2js-<version>.tgz for the release. Nothing is
   # published to npm.
   d2js:
     runs-on: ubuntu-24.04
@@ -312,7 +312,6 @@ jobs:
 
       - name: Build, test, and pack D2.js
         env:
-          NPM_PACKAGE_TARGET: both
           NPM_PACK_DIR: ${{ runner.temp }}/npm-packages
           NPM_PUBLISH_MODE: pack
           NPM_VERSION: ${{ steps.version.outputs.npm_version }}

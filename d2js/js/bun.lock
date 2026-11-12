@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@d2lang/d2",
+      "name": "@namilinklabs/d2",
       "devDependencies": {
         "bun": "1.4.4",
         "typescript": "5.9.3",

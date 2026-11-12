@@ -55,22 +55,10 @@ sh_c bun build.js
 
 if [ -n "${NPM_VERSION:-}" ]; then
   PUBLISH_MODE="${NPM_PUBLISH_MODE:-publish}"
-  PACKAGE_TARGET="${NPM_PACKAGE_TARGET:-both}"
-  case "$PACKAGE_TARGET" in
-    both)
-      PACKAGE_NAMES="@d2lang/d2 @terrastruct/d2"
-      ;;
-    d2lang)
-      PACKAGE_NAMES="@d2lang/d2"
-      ;;
-    terrastruct)
-      PACKAGE_NAMES="@terrastruct/d2"
-      ;;
-    *)
-      echoerr "Unknown NPM_PACKAGE_TARGET: ${PACKAGE_TARGET}"
-      exit 1
-      ;;
-  esac
+  # The fork publishes one package. Upstream's @d2lang/d2 and @terrastruct/d2
+  # belong to the upstream project.
+  PACKAGE_NAME="@namilinklabs/d2"
+  PACKAGE_REGISTRY_PATH='%40namilinklabs%2Fd2'
 
   if [ -n "${NPM_PACK_DIR:-}" ]; then
     case "$NPM_PACK_DIR" in
@@ -114,8 +102,8 @@ if [ -n "${NPM_VERSION:-}" ]; then
 
   CURRENT_NAME=$(node -p "require('./package.json').name")
   CURRENT_VERSION=$(node -p "require('./package.json').version")
-  if [ "$CURRENT_NAME" != '@d2lang/d2' ]; then
-    echoerr "package.json must use the canonical @d2lang/d2 name before publishing"
+  if [ "$CURRENT_NAME" != "$PACKAGE_NAME" ]; then
+    echoerr "package.json must use the ${PACKAGE_NAME} name before publishing"
     exit 1
   fi
   if [ "$NPM_VERSION" = "nightly" ]; then
@@ -152,8 +140,8 @@ if [ -n "${NPM_VERSION:-}" ]; then
     LOCK_VERSION=$(node -p "require('./package-lock.json').version")
     LOCK_ROOT_NAME=$(node -p "require('./package-lock.json').packages[''].name")
     LOCK_ROOT_VERSION=$(node -p "require('./package-lock.json').packages[''].version")
-    if [ "$LOCK_NAME" != '@d2lang/d2' ] || [ "$LOCK_ROOT_NAME" != '@d2lang/d2' ]; then
-      echoerr "package-lock.json must use the canonical @d2lang/d2 name before publishing"
+    if [ "$LOCK_NAME" != "$PACKAGE_NAME" ] || [ "$LOCK_ROOT_NAME" != "$PACKAGE_NAME" ]; then
+      echoerr "package-lock.json must use the ${PACKAGE_NAME} name before publishing"
       exit 1
     fi
     if [ "$LOCK_VERSION" != "$PUBLISH_VERSION" ] ||
@@ -163,74 +151,35 @@ if [ -n "${NPM_VERSION:-}" ]; then
     fi
   fi
 
-  set_package_name() {
-    package_name=$1
-    node - "$package_name" <<'NODE'
-const fs = require('fs');
-const packageName = process.argv[2];
-
-for (const filename of ['package.json', 'package-lock.json']) {
-  if (!fs.existsSync(filename)) {
-    continue;
-  }
-  const json = JSON.parse(fs.readFileSync(filename, 'utf8'));
-  json.name = packageName;
-  if (json.packages && json.packages['']) {
-    json.packages[''].name = packageName;
-  }
-  fs.writeFileSync(filename, `${JSON.stringify(json, null, 2)}\n`);
-}
-NODE
-  }
-
-  prepare_package() {
-    package_name=$1
-    set_package_name "$package_name"
-    pack_json=$(npm pack --json --pack-destination "$PACK_DIR")
-    pack_metadata=$(printf '%s' "$pack_json" | node -e '
-      let input = "";
-      process.stdin.setEncoding("utf8");
-      process.stdin.on("data", chunk => { input += chunk; });
-      process.stdin.on("end", () => {
-        const parsed = JSON.parse(input);
-        const record = Array.isArray(parsed) ? parsed[0] : parsed[Object.keys(parsed)[0]];
-        process.stdout.write([record.filename, record.shasum, record.integrity].join("\t"));
-      });
-    ')
-    IFS="$(printf '\t')" read -r pack_filename pack_shasum pack_integrity <<EOF
+  pack_json=$(npm pack --json --pack-destination "$PACK_DIR")
+  pack_metadata=$(printf '%s' "$pack_json" | node -e '
+    let input = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", chunk => { input += chunk; });
+    process.stdin.on("end", () => {
+      const parsed = JSON.parse(input);
+      const record = Array.isArray(parsed) ? parsed[0] : parsed[Object.keys(parsed)[0]];
+      process.stdout.write([record.filename, record.shasum, record.integrity].join("\t"));
+    });
+  ')
+  IFS="$(printf '\t')" read -r pack_filename PACKAGE_SHASUM PACKAGE_INTEGRITY <<EOF
 $pack_metadata
 EOF
-    if [ -z "$pack_filename" ] || [ -z "$pack_shasum" ] || [ -z "$pack_integrity" ] ||
-      [ ! -f "$PACK_DIR/$pack_filename" ]; then
-      echoerr "npm pack did not return complete metadata for ${package_name}"
-      exit 1
-    fi
-    if ! tar -xOzf "$PACK_DIR/$pack_filename" package/LICENSE.txt | cmp - LICENSE.txt; then
-      echoerr "${package_name} package does not contain the repository license"
-      exit 1
-    fi
-    if ! tar -xOzf "$PACK_DIR/$pack_filename" package/THIRD_PARTY_NOTICES.txt | cmp - THIRD_PARTY_NOTICES.txt; then
-      echoerr "${package_name} package does not contain the third-party notices"
-      exit 1
-    fi
-
-    case "$package_name" in
-      @d2lang/d2)
-        D2LANG_TARBALL="$PACK_DIR/$pack_filename"
-        D2LANG_SHASUM="$pack_shasum"
-        D2LANG_INTEGRITY="$pack_integrity"
-        ;;
-      @terrastruct/d2)
-        TERRASTRUCT_TARBALL="$PACK_DIR/$pack_filename"
-        TERRASTRUCT_SHASUM="$pack_shasum"
-        TERRASTRUCT_INTEGRITY="$pack_integrity"
-        ;;
-    esac
-  }
-
-  for package_name in $PACKAGE_NAMES; do
-    prepare_package "$package_name"
-  done
+  PACKAGE_TARBALL="$PACK_DIR/$pack_filename"
+  PACKAGE_RESPONSE="$PACK_DIR/registry.json"
+  if [ -z "$pack_filename" ] || [ -z "$PACKAGE_SHASUM" ] || [ -z "$PACKAGE_INTEGRITY" ] ||
+    [ ! -f "$PACKAGE_TARBALL" ]; then
+    echoerr "npm pack did not return complete metadata for ${PACKAGE_NAME}"
+    exit 1
+  fi
+  if ! tar -xOzf "$PACKAGE_TARBALL" package/LICENSE.txt | cmp - LICENSE.txt; then
+    echoerr "${PACKAGE_NAME} package does not contain the repository license"
+    exit 1
+  fi
+  if ! tar -xOzf "$PACKAGE_TARBALL" package/THIRD_PARTY_NOTICES.txt | cmp - THIRD_PARTY_NOTICES.txt; then
+    echoerr "${PACKAGE_NAME} package does not contain the third-party notices"
+    exit 1
+  fi
 
   check_registry_version() {
     package_name=$1
@@ -278,83 +227,30 @@ EOF
     esac
   }
 
-  package_details() {
-    package_name=$1
-    case "$package_name" in
-      @d2lang/d2)
-        PACKAGE_TARBALL=$D2LANG_TARBALL
-        PACKAGE_SHASUM=$D2LANG_SHASUM
-        PACKAGE_INTEGRITY=$D2LANG_INTEGRITY
-        PACKAGE_REGISTRY_PATH='%40d2lang%2Fd2'
-        PACKAGE_RESPONSE="$PACK_DIR/d2lang-registry.json"
-        ;;
-      @terrastruct/d2)
-        PACKAGE_TARBALL=$TERRASTRUCT_TARBALL
-        PACKAGE_SHASUM=$TERRASTRUCT_SHASUM
-        PACKAGE_INTEGRITY=$TERRASTRUCT_INTEGRITY
-        PACKAGE_REGISTRY_PATH='%40terrastruct%2Fd2'
-        PACKAGE_RESPONSE="$PACK_DIR/terrastruct-registry.json"
-        ;;
-    esac
-  }
-
   ENCODED_PUBLISH_VERSION=$(node -p "encodeURIComponent(process.argv[1])" "$PUBLISH_VERSION")
 
   case "$PUBLISH_MODE" in
     pack)
-      if [ "$PACKAGE_TARGET" != both ]; then
-        echoerr "Pack mode requires NPM_PACKAGE_TARGET=both"
-        exit 1
-      fi
-      node - "$PACK_DIR/manifest.json" \
-        "$PUBLISH_VERSION" "$NPM_TAG" \
-        "${D2LANG_TARBALL##*/}" "$D2LANG_SHASUM" "$D2LANG_INTEGRITY" \
-        "${TERRASTRUCT_TARBALL##*/}" "$TERRASTRUCT_SHASUM" "$TERRASTRUCT_INTEGRITY" <<'NODE'
+      node - "$PACK_DIR/manifest.json" "$PUBLISH_VERSION" "$NPM_TAG" "$PACKAGE_NAME" \
+        "${PACKAGE_TARBALL##*/}" "$PACKAGE_SHASUM" "$PACKAGE_INTEGRITY" <<'NODE'
 const fs = require('fs');
-const [
-  manifestPath,
-  version,
-  tag,
-  d2langFilename,
-  d2langShasum,
-  d2langIntegrity,
-  terrastructFilename,
-  terrastructShasum,
-  terrastructIntegrity,
-] = process.argv.slice(2);
-
+const [manifestPath, version, tag, name, filename, shasum, integrity] = process.argv.slice(2);
 const manifest = {
   schemaVersion: 1,
   version,
   tag,
   packages: {
-    '@d2lang/d2': {
-      filename: d2langFilename,
-      shasum: d2langShasum,
-      integrity: d2langIntegrity,
-    },
-    '@terrastruct/d2': {
-      filename: terrastructFilename,
-      shasum: terrastructShasum,
-      integrity: terrastructIntegrity,
-    },
+    [name]: { filename, shasum, integrity },
   },
 };
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 NODE
-      echo "Packed both npm package identities in $PACK_DIR"
+      echo "Packed ${PACKAGE_NAME} in $PACK_DIR"
       ;;
     stage)
-      if [ "$PACKAGE_TARGET" = both ]; then
-        echoerr "Stage one package identity at a time, or use npm-stage.yml"
-        exit 1
-      fi
-      for package_name in $PACKAGE_NAMES; do
-        package_details "$package_name"
-        echo "Staging ${package_name}@${PUBLISH_VERSION} with tag '${NPM_TAG}'..."
-        npm stage publish "$PACKAGE_TARBALL" --tag "$NPM_TAG"
-        echo "Successfully staged ${package_name}@${PUBLISH_VERSION} with tag '${NPM_TAG}'"
-      done
+      echo "Staging ${PACKAGE_NAME}@${PUBLISH_VERSION} with tag '${NPM_TAG}'..."
+      npm stage publish "$PACKAGE_TARBALL" --tag "$NPM_TAG"
+      echo "Successfully staged ${PACKAGE_NAME}@${PUBLISH_VERSION} with tag '${NPM_TAG}'"
       ;;
     publish)
       if [ -z "${NPM_TOKEN-}" ]; then
@@ -367,67 +263,50 @@ NODE
       # of the checkout and in a private temporary npm user configuration.
       create_npm_auth_config
 
-      # Preflight every target before publishing either one. A retry may skip a
-      # version only when the registry tarball exactly matches this run's pack.
-      for package_name in $PACKAGE_NAMES; do
-        package_details "$package_name"
-        check_registry_version "$package_name" "$PACKAGE_REGISTRY_PATH" \
-          "$PACKAGE_SHASUM" "$PACKAGE_INTEGRITY" "$PACKAGE_RESPONSE"
-        case "$REGISTRY_STATE" in
-          absent|matching)
-            ;;
-          mismatch)
-            echoerr "Refusing to reuse ${package_name}@${PUBLISH_VERSION}: registry integrity differs"
-            exit 1
-            ;;
-        esac
-        case "$package_name" in
-          @d2lang/d2) D2LANG_REGISTRY_STATE=$REGISTRY_STATE ;;
-          @terrastruct/d2) TERRASTRUCT_REGISTRY_STATE=$REGISTRY_STATE ;;
-        esac
-      done
+      # A retry may skip a version only when the registry tarball exactly
+      # matches this run's pack.
+      check_registry_version "$PACKAGE_NAME" "$PACKAGE_REGISTRY_PATH" \
+        "$PACKAGE_SHASUM" "$PACKAGE_INTEGRITY" "$PACKAGE_RESPONSE"
+      case "$REGISTRY_STATE" in
+        matching)
+          echo "Verified existing ${PACKAGE_NAME}@${PUBLISH_VERSION}; skipping publish."
+          ;;
+        mismatch)
+          echoerr "Refusing to reuse ${PACKAGE_NAME}@${PUBLISH_VERSION}: registry integrity differs"
+          exit 1
+          ;;
+        absent)
+          echo "Publishing ${PACKAGE_NAME}@${PUBLISH_VERSION} with tag '${NPM_TAG}'..."
+          NPM_CONFIG_USERCONFIG="$NPM_AUTH_CONFIG" npm publish "$PACKAGE_TARBALL" --tag "$NPM_TAG"
 
-      for package_name in $PACKAGE_NAMES; do
-        package_details "$package_name"
-        case "$package_name" in
-          @d2lang/d2) REGISTRY_STATE=$D2LANG_REGISTRY_STATE ;;
-          @terrastruct/d2) REGISTRY_STATE=$TERRASTRUCT_REGISTRY_STATE ;;
-        esac
-        if [ "$REGISTRY_STATE" = matching ]; then
-          echo "Verified existing ${package_name}@${PUBLISH_VERSION}; skipping publish."
-          continue
-        fi
-
-        echo "Publishing ${package_name}@${PUBLISH_VERSION} with tag '${NPM_TAG}'..."
-        NPM_CONFIG_USERCONFIG="$NPM_AUTH_CONFIG" npm publish "$PACKAGE_TARBALL" --tag "$NPM_TAG"
-
-        published_verified=0
-        for verify_attempt in 1 2 3 4 5; do
-          if ! check_registry_version "$package_name" "$PACKAGE_REGISTRY_PATH" \
-            "$PACKAGE_SHASUM" "$PACKAGE_INTEGRITY" "$PACKAGE_RESPONSE"; then
+          published_verified=0
+          for verify_attempt in 1 2 3 4 5; do
+            if ! check_registry_version "$PACKAGE_NAME" "$PACKAGE_REGISTRY_PATH" \
+              "$PACKAGE_SHASUM" "$PACKAGE_INTEGRITY" "$PACKAGE_RESPONSE"; then
+              if [ "$verify_attempt" != 5 ]; then
+                sleep 2
+                continue
+              fi
+              break
+            fi
+            if [ "$REGISTRY_STATE" = matching ]; then
+              published_verified=1
+              break
+            fi
+            if [ "$REGISTRY_STATE" = mismatch ]; then
+              break
+            fi
             if [ "$verify_attempt" != 5 ]; then
               sleep 2
-              continue
             fi
-            break
+          done
+          if [ "$published_verified" != 1 ]; then
+            echoerr "Could not verify ${PACKAGE_NAME}@${PUBLISH_VERSION} after publishing"
+            exit 1
           fi
-          if [ "$REGISTRY_STATE" = matching ]; then
-            published_verified=1
-            break
-          fi
-          if [ "$REGISTRY_STATE" = mismatch ]; then
-            break
-          fi
-          if [ "$verify_attempt" != 5 ]; then
-            sleep 2
-          fi
-        done
-        if [ "$published_verified" != 1 ]; then
-          echoerr "Could not verify ${package_name}@${PUBLISH_VERSION} after publishing"
-          exit 1
-        fi
-        echo "Successfully published and verified ${package_name}@${PUBLISH_VERSION} with tag '${NPM_TAG}'"
-      done
+          echo "Successfully published and verified ${PACKAGE_NAME}@${PUBLISH_VERSION} with tag '${NPM_TAG}'"
+          ;;
+      esac
 
       # For official direct releases, bump the checked-in canonical package
       # version after restoring the canonical manifests.
