@@ -77,9 +77,8 @@ jobs:
           sudo cp "$RUNNER_TEMP/binaryen-${BINARYEN_VERSION}"/bin/* /usr/local/bin/
           wasm-opt --version
 
-      - name: Build, test, and pack both package identities
+      - name: Build, test, and pack the package
         env:
-          NPM_PACKAGE_TARGET: both
           NPM_PACK_DIR: ${{ runner.temp }}/npm-packages
           NPM_PUBLISH_MODE: pack
           NPM_VERSION: ${{ inputs.version }}
@@ -99,7 +98,6 @@ jobs:
           compression-level: 0
 
   stage:
-    name: stage-${{ matrix.package }}
     needs: pack
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -107,12 +105,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - d2lang
-          - terrastruct
     steps:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -132,20 +124,11 @@ jobs:
           path: ${{ runner.temp }}/npm-packages
 
       - name: Verify and stage package for review
-        env:
-          PACKAGE_KEY: ${{ matrix.package }}
         run: |
           set -euo pipefail
 
           manifest="$RUNNER_TEMP/npm-packages/manifest.json"
-          case "$PACKAGE_KEY" in
-            d2lang) package_name=@d2lang/d2 ;;
-            terrastruct) package_name=@terrastruct/d2 ;;
-            *)
-              echo "unexpected package key: $PACKAGE_KEY" >&2
-              exit 1
-              ;;
-          esac
+          package_name=@namilinklabs/d2
 
           metadata=$(node - "$manifest" "$package_name" <<'NODE'
           const fs = require('fs');

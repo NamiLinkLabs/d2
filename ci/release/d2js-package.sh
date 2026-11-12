@@ -1,5 +1,5 @@
 #!/bin/sh
-# Checks the @d2lang/d2 tarball that d2js/js/ci/build.sh packed and copies it
+# Checks the @namilinklabs/d2 tarball that d2js/js/ci/build.sh packed and copies it
 # to <output dir>/d2js-<release version>.tgz, the name it has on a release.
 #
 #   ci/release/d2js-package.sh <pack dir> <release version> <expected D2 version> <output dir>
@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const [manifestPath, version] = process.argv.slice(2);
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const record = manifest.packages && manifest.packages['@d2lang/d2'];
+const record = manifest.packages && manifest.packages['@namilinklabs/d2'];
 if (manifest.schemaVersion !== 1 || manifest.version !== version || !record ||
     record.filename !== path.basename(record.filename)) {
   throw new Error('invalid npm package manifest');
@@ -46,8 +46,8 @@ tar -xOzf "$TARBALL" package/package.json | node -e '
   process.stdin.on("data", (chunk) => { input += chunk; });
   process.stdin.on("end", () => {
     const pkg = JSON.parse(input);
-    if (pkg.name !== "@d2lang/d2" || pkg.version !== process.argv[1]) {
-      throw new Error(`packed ${pkg.name}@${pkg.version}, expected @d2lang/d2@${process.argv[1]}`);
+    if (pkg.name !== "@namilinklabs/d2" || pkg.version !== process.argv[1]) {
+      throw new Error(`packed ${pkg.name}@${pkg.version}, expected @namilinklabs/d2@${process.argv[1]}`);
     }
   });
 ' "$NPM_VERSION"
@@ -57,7 +57,7 @@ trap 'rm -rf "$CONSUMER"' EXIT HUP INT TERM
 printf '%s\n' '{"private":true,"type":"module"}' >"$CONSUMER/package.json"
 (cd "$CONSUMER" && npm install --ignore-scripts --no-audit --no-fund --package-lock=false "$TARBALL" >/dev/null)
 cat >"$CONSUMER/smoke.js" <<'NODE'
-import { D2 } from "@d2lang/d2";
+import { D2 } from "@namilinklabs/d2";
 
 const [expectedD2, expectedJS] = process.argv.slice(2);
 const d2 = new D2();
@@ -72,7 +72,7 @@ try {
     const svg = await d2.render(result.diagram, result.renderOptions);
     if (!svg.includes("<svg")) throw new Error(`${layout}: render did not produce SVG`);
   }
-  console.log(`@d2lang/d2@${jsVersion} reports D2 ${d2Version}`);
+  console.log(`@namilinklabs/d2@${jsVersion} reports D2 ${d2Version}`);
 } finally {
   await d2.dispose();
 }

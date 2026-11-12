@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { D2 } = require("@d2lang/d2");
+const { D2 } = require("@namilinklabs/d2");
 
 test("installed CommonJS package compiles and renders", async () => {
   const d2 = new D2();

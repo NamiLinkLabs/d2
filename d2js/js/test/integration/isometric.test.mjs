@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, test } from "node:test";
-import { D2 as ESMD2 } from "@d2lang/d2";
+import { D2 as ESMD2 } from "@namilinklabs/d2";
 
 const require = createRequire(import.meta.url);
-const { D2: CJSD2 } = require("@d2lang/d2");
+const { D2: CJSD2 } = require("@namilinklabs/d2");
 
 for (const [format, D2] of [
   ["ESM", ESMD2],

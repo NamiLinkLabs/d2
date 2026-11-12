@@ -1,16 +1,16 @@
 {
-  "name": "@d2lang/d2",
+  "name": "@namilinklabs/d2",
   "description": "D2.js is a wrapper around the WASM build of D2, the modern text-to-diagram language.",
   "version": "0.1.35-nl.1",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/d2lang/d2.git",
+    "url": "git+https://github.com/NamiLinkLabs/d2.git",
     "directory": "d2js/js"
   },
   "bugs": {
-    "url": "https://github.com/d2lang/d2/issues"
+    "url": "https://github.com/NamiLinkLabs/d2/issues"
   },
-  "homepage": "https://github.com/d2lang/d2/tree/master/d2js/js#readme",
+  "homepage": "https://github.com/NamiLinkLabs/d2/tree/master/d2js/js#readme",
   "publishConfig": {
     "access": "public"
   },

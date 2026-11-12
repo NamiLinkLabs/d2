@@ -20,8 +20,8 @@ GitHub does not mark `-nl.N` drafts as prereleases.
    WiX 7 EULA.
 4. Review the draft and publish it.
 
-`d2js-<tag>.tgz` is the `@d2lang/d2` npm package built from the tag. It is not
-published to npm. Install it by URL, so imports of `@d2lang/d2` do not change:
+`d2js-<tag>.tgz` is the `@namilinklabs/d2` npm package built from the tag. Install it
+by URL to use a release before it is on npm:
 
 ```sh
 npm install https://github.com/NamiLinkLabs/d2/releases/download/v0.10.0-nl.1/d2js-v0.10.0-nl.1.tgz
@@ -32,44 +32,53 @@ tag and `jsVersion()` its package version.
 
 ## npm publishing
 
-`@d2lang/d2` is the canonical JavaScript package. `@terrastruct/d2` is published from the
-same built files as a compatibility package during the namespace transition. The
-`npm-stage.yml` workflow stages both package names for review with npm trusted publishing;
-each staged package has its own stage ID and must be reviewed and approved separately. If
-one stage succeeds and the other fails, use GitHub's **Re-run failed jobs** action on the
-same workflow run. That preserves the original commit and reuses the same immutable
-package artifact; do not use **Re-run all jobs** or start a fresh workflow dispatch to
-recover only one identity.
+The fork publishes D2.js as `@namilinklabs/d2`. Upstream's `@d2lang/d2` and
+`@terrastruct/d2` belong to the upstream project and are not published from here.
 
-Before staging an official version, bump `d2js/js/package.json` and `package-lock.json` to
-that exact version in a signed commit. Nightly stages derive their prerelease version from
-the checked-in version automatically. `@d2lang/d2` must already exist and both packages
-must separately trust the `d2lang/d2` `npm-stage.yml` workflow for stage-only publishing.
-Each trusted publisher is restricted to the `npm-release` GitHub environment, whose
-deployment branch policy accepts only protected branches. The workflow itself also
-refuses to pack from any ref other than `refs/heads/master`.
-To package a specific D2 release, dispatch from `master` with `d2_ref` set to its
-exact tag, for example `v0.9.0`. The workflow verifies that the tag is an ancestor
-of the dispatched commit, then builds that tag's source. The npm version must be
-checked into that source before the D2 release is tagged. Without `d2_ref`, the
-workflow builds the dispatched master commit. The WASM reports its exact D2 tag
-or source commit independently of the npm version.
-The canonical package was bootstrapped once from the existing `@terrastruct/d2@0.1.33`
-built artifacts because npm does not allow a brand-new package to use staged publishing.
+### First publish (once)
 
-Direct publishing is retained only for local bootstrap or recovery. It requires a
-short-lived `NPM_TOKEN` that can publish every selected package and is not stored in GitHub.
-The script pre-packs and preflights every selected package before publishing; a retry skips
-an existing version only when its registry tarball integrity exactly matches the local
-artifact.
+npm does not allow a brand-new package to use staged publishing, so the first version
+is published directly from a machine with Go, Bun, Node and
+[binaryen](https://github.com/WebAssembly/binaryen) installed:
 
-After the workflow finishes, confirm both matrix stage jobs are green and inspect the two
-pending records with `npm stage list` and `npm stage view <stage-id>`. Approve each only
-after their package versions and artifacts from `npm stage download <stage-id>` match.
-Use `npm stage approve <stage-id>` for each identity. If the release is abandoned, reject
-every pending half with
-`npm stage reject <stage-id>` before starting another run. A pending stage reserves its
-package/version, so list pending stages before retrying any failed job.
+1. On npmjs.com, create the `namilinklabs` organization and a short-lived granular
+   access token that can publish to it.
+2. From a clean checkout of `master`, with `d2js/js/package.json` at the version to
+   publish:
+
+   ```sh
+   cd d2js/js
+   bun install --frozen-lockfile
+   NPM_VERSION="$(node -p "require('./package.json').version")" \
+     NPM_PUBLISH_MODE=publish NPM_TOKEN=<token> ./ci/build.sh
+   ```
+
+   The script builds and packs the package, publishes it with the `latest` tag and
+   checks the registry tarball matches. A retry skips a version only when the registry
+   tarball matches the local one exactly. The token is kept in a temporary npm config
+   and never written to the checkout.
+3. On the package's settings page on npmjs.com, add a trusted publisher: GitHub
+   Actions, repository `NamiLinkLabs/d2`, workflow `npm-stage.yml`, environment
+   `npm-release`. Then revoke the token.
+
+### Later versions
+
+1. Bump `d2js/js/package.json` and `package-lock.json` to the new version and merge it.
+   Nightly stages derive their prerelease version from the checked-in version, so they
+   need no bump.
+2. Run the **npm stage** workflow from `master` with that version, or `nightly`. To
+   package a specific D2 release, set `d2_ref` to its exact tag, for example
+   `v0.10.0-nl.1`. The workflow checks the tag is an ancestor of the dispatched commit
+   and builds that tag's source. Without `d2_ref`, it builds the dispatched commit.
+   The WASM reports its exact D2 tag or source commit independently of the npm version.
+3. The workflow stages the package on npm with trusted publishing. It only runs from
+   `refs/heads/master`, and the `npm-release` environment should only accept protected
+   branches.
+4. Check the pending stage with `npm stage list` and `npm stage view <stage-id>`, and
+   compare `npm stage download <stage-id>` with the workflow's `npm-packages` artifact.
+   Approve it with `npm stage approve <stage-id>`, or reject an abandoned release with
+   `npm stage reject <stage-id>`. A pending stage reserves its version, so list pending
+   stages before retrying.
 
 ## _install.sh
 
