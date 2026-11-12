@@ -39,7 +39,8 @@ The fork publishes D2.js as `@namilinklabs/d2`. Upstream's `@d2lang/d2` and
 
 npm does not allow a brand-new package to use staged publishing, so the first version
 is published directly from a machine with Go, Bun, Node and
-[binaryen](https://github.com/WebAssembly/binaryen) installed:
+[binaryen](https://github.com/WebAssembly/binaryen) installed. npm itself is optional:
+without it, the script packs and publishes with Bun.
 
 1. On npmjs.com, create the `namilinklabs` organization and a short-lived granular
    access token that can publish to it.
