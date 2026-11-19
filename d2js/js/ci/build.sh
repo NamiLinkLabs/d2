@@ -59,6 +59,17 @@ if [ -n "${NPM_VERSION:-}" ]; then
   # belong to the upstream project.
   PACKAGE_NAME="@namilinklabs/d2"
   PACKAGE_REGISTRY_PATH='%40namilinklabs%2Fd2'
+  # Pack and publish with npm when it is installed, else with Bun, so a
+  # direct publish works on a machine without npm. Staging needs npm.
+  if command -v npm >/dev/null 2>&1; then
+    PACKAGE_TOOL=npm
+  else
+    PACKAGE_TOOL=bun
+  fi
+  if [ "$PUBLISH_MODE" = stage ] && [ "$PACKAGE_TOOL" != npm ]; then
+    echoerr "npm stage publish needs npm"
+    exit 1
+  fi
 
   if [ -n "${NPM_PACK_DIR:-}" ]; then
     case "$NPM_PACK_DIR" in
@@ -132,8 +143,27 @@ if [ -n "${NPM_VERSION:-}" ]; then
     exit 1
   fi
 
+  # Sets the version in package.json and package-lock.json without npm.
+  set_package_version() {
+    node - "$1" <<'NODE'
+const fs = require('fs');
+const version = process.argv[2];
+for (const filename of ['package.json', 'package-lock.json']) {
+  if (!fs.existsSync(filename)) {
+    continue;
+  }
+  const json = JSON.parse(fs.readFileSync(filename, 'utf8'));
+  json.version = version;
+  if (json.packages && json.packages['']) {
+    json.packages[''].version = version;
+  }
+  fs.writeFileSync(filename, `${JSON.stringify(json, null, 2)}\n`);
+}
+NODE
+  }
+
   if [ "$CURRENT_VERSION" != "$PUBLISH_VERSION" ]; then
-    npm version "${PUBLISH_VERSION}" --no-git-tag-version
+    set_package_version "$PUBLISH_VERSION"
   fi
   if [ -f package-lock.json ]; then
     LOCK_NAME=$(node -p "require('./package-lock.json').name")
@@ -151,17 +181,33 @@ if [ -n "${NPM_VERSION:-}" ]; then
     fi
   fi
 
-  pack_json=$(npm pack --json --pack-destination "$PACK_DIR")
-  pack_metadata=$(printf '%s' "$pack_json" | node -e '
-    let input = "";
-    process.stdin.setEncoding("utf8");
-    process.stdin.on("data", chunk => { input += chunk; });
-    process.stdin.on("end", () => {
-      const parsed = JSON.parse(input);
-      const record = Array.isArray(parsed) ? parsed[0] : parsed[Object.keys(parsed)[0]];
-      process.stdout.write([record.filename, record.shasum, record.integrity].join("\t"));
-    });
-  ')
+  if [ "$PACKAGE_TOOL" = npm ]; then
+    pack_json=$(npm pack --json --pack-destination "$PACK_DIR")
+    pack_metadata=$(printf '%s' "$pack_json" | node -e '
+      let input = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", chunk => { input += chunk; });
+      process.stdin.on("end", () => {
+        const parsed = JSON.parse(input);
+        const record = Array.isArray(parsed) ? parsed[0] : parsed[Object.keys(parsed)[0]];
+        process.stdout.write([record.filename, record.shasum, record.integrity].join("\t"));
+      });
+    ')
+  else
+    pack_path=$(bun pm pack --quiet --destination "$PACK_DIR")
+    pack_metadata=$(node - "$pack_path" <<'NODE'
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const bytes = fs.readFileSync(process.argv[2]);
+process.stdout.write([
+  path.basename(process.argv[2]),
+  crypto.createHash('sha1').update(bytes).digest('hex'),
+  `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`,
+].join('\t'));
+NODE
+    )
+  fi
   IFS="$(printf '\t')" read -r pack_filename PACKAGE_SHASUM PACKAGE_INTEGRITY <<EOF
 $pack_metadata
 EOF
@@ -169,7 +215,7 @@ EOF
   PACKAGE_RESPONSE="$PACK_DIR/registry.json"
   if [ -z "$pack_filename" ] || [ -z "$PACKAGE_SHASUM" ] || [ -z "$PACKAGE_INTEGRITY" ] ||
     [ ! -f "$PACKAGE_TARBALL" ]; then
-    echoerr "npm pack did not return complete metadata for ${PACKAGE_NAME}"
+    echoerr "${PACKAGE_TOOL} pack did not return complete metadata for ${PACKAGE_NAME}"
     exit 1
   fi
   if ! tar -xOzf "$PACKAGE_TARBALL" package/LICENSE.txt | cmp - LICENSE.txt; then
@@ -277,7 +323,13 @@ NODE
           ;;
         absent)
           echo "Publishing ${PACKAGE_NAME}@${PUBLISH_VERSION} with tag '${NPM_TAG}'..."
-          NPM_CONFIG_USERCONFIG="$NPM_AUTH_CONFIG" npm publish "$PACKAGE_TARBALL" --tag "$NPM_TAG"
+          if [ "$PACKAGE_TOOL" = npm ]; then
+            NPM_CONFIG_USERCONFIG="$NPM_AUTH_CONFIG" npm publish "$PACKAGE_TARBALL" --tag "$NPM_TAG"
+          else
+            # Bun reads the token from NPM_CONFIG_TOKEN, only for this command.
+            NPM_CONFIG_TOKEN=$(sed -n 's#^//registry.npmjs.org/:_authToken=##p' "$NPM_AUTH_CONFIG") \
+              bun publish "$PACKAGE_TARBALL" --tag "$NPM_TAG" --access public
+          fi
 
           published_verified=0
           for verify_attempt in 1 2 3 4 5; do
@@ -314,7 +366,7 @@ NODE
         restore_package_files
         CURRENT_VERSION=$(node -p "require('./package.json').version")
         if [ "$CURRENT_VERSION" != "$NPM_VERSION" ]; then
-          npm version "$NPM_VERSION" --no-git-tag-version
+          set_package_version "$NPM_VERSION"
         fi
         git add package.json
         if [ -f package-lock.json ]; then
