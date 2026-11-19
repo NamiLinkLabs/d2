@@ -194,7 +194,9 @@ NODE
       });
     ')
   else
-    pack_path=$(bun pm pack --quiet --destination "$PACK_DIR")
+    # Older Bun versions print a blank line before the path, so keep only the
+    # last non-empty line.
+    pack_path=$(bun pm pack --quiet --destination "$PACK_DIR" | sed '/^[[:space:]]*$/d' | tail -n 1)
     pack_metadata=$(node - "$pack_path" <<'NODE'
 const crypto = require('crypto');
 const fs = require('fs');
