@@ -182,6 +182,8 @@ test("correlates every operation through the real worker", async () => {
   expect(await d2.decode(encoded)).toBe("encoded result");
   expect(decoded).toBe("decoded result");
   expect(version).toMatch(/^(v\d+\.\d+\.\d+(?:-[\w.-]+)?|[0-9a-f]{7,40})$/);
-  expect(jsVersion).toBe(packageJson.version);
+  // A nightly build reports the checked-in version plus its nightly suffix.
+  const escapedVersion = packageJson.version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  expect(jsVersion).toMatch(new RegExp(`^${escapedVersion}(-nightly\\.\\d{8}\\.[0-9a-f]{7,40})?$`));
   await d2.dispose();
 }, 20000);

@@ -13,7 +13,12 @@ if ! cmp -s ./THIRD_PARTY_NOTICES.txt ./d2js/js/THIRD_PARTY_NOTICES.txt; then
   echoerr "d2js/js/THIRD_PARTY_NOTICES.txt is out of sync with the repository notice"
   exit 1
 fi
-if [ -n "${NPM_VERSION:-}" ]; then
+if [ "${NPM_VERSION:-}" = nightly ]; then
+  # Computed once, so the WASM and the package get the same version even when
+  # the build runs past midnight.
+  NIGHTLY_VERSION="$(awk -F'"' '/"version"/ {print $4; exit}' ./d2js/js/package.json)-nightly.$(date -u +'%Y%m%d').$(git rev-parse --short HEAD)"
+  JS_VERSION="$NIGHTLY_VERSION"
+elif [ -n "${NPM_VERSION:-}" ]; then
   JS_VERSION="$NPM_VERSION"
 else
   JS_VERSION=$(awk -F'"' '/"version"/ {print $4}' ./d2js/js/package.json)
@@ -120,9 +125,7 @@ if [ -n "${NPM_VERSION:-}" ]; then
   if [ "$NPM_VERSION" = "nightly" ]; then
     echo "Publishing nightly version to npm..."
 
-    DATE_TAG=$(date +'%Y%m%d')
-    COMMIT_SHORT=$(git rev-parse --short HEAD)
-    PUBLISH_VERSION="${CURRENT_VERSION}-nightly.${DATE_TAG}.${COMMIT_SHORT}"
+    PUBLISH_VERSION="$NIGHTLY_VERSION"
     NPM_TAG="nightly"
 
     echo "Updating package version to ${PUBLISH_VERSION}"
